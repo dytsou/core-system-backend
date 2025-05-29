@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
-	handlerutil "github.com/NYCU-SDC/summer/pkg/handler"
 	"github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/NYCU-SDC/summer/pkg/middleware"
 	"github.com/google/uuid"
@@ -40,9 +39,9 @@ var BuildTime = "no-build-time"
 
 var CommitHash = "no-commit-hash"
 
-func healthz(w http.ResponseWriter, r *http.Request) {
-	handlerutil.WriteJSONResponse(w, http.StatusOK, "Hello world!")
-}
+//	func healthz(w http.ResponseWriter, r *http.Request) {
+//		handlerutil.WriteJSONResponse(w, http.StatusOK, "Hello world!")
+//	}
 func main() {
 	AppName = os.Getenv("APP_NAME")
 	if AppName == "" {
@@ -129,11 +128,11 @@ func main() {
 
 	// HTTP Server
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/scoreboards", exampleHandler.GetAllHandler)
-	mux.HandleFunc("POST /api/scoreboards", exampleHandler.CreateHandler)
-	mux.HandleFunc("GET /api/scoreboards/{id}", exampleHandler.GetHandler)
-	mux.HandleFunc("PUT /api/scoreboards/{id}", exampleHandler.UpdateHandler)
-	mux.HandleFunc("DELETE /api/scoreboards/{id}", exampleHandler.DeleteHandler)
+	mux.HandleFunc("GET /api/scoreboards", basicMiddleware.HandlerFunc(exampleHandler.GetAllHandler))
+	mux.HandleFunc("POST /api/scoreboards", basicMiddleware.HandlerFunc(exampleHandler.CreateHandler))
+	mux.HandleFunc("GET /api/scoreboards/{id}", basicMiddleware.HandlerFunc(exampleHandler.GetHandler))
+	mux.HandleFunc("PUT /api/scoreboards/{id}", basicMiddleware.HandlerFunc(exampleHandler.UpdateHandler))
+	mux.HandleFunc("DELETE /api/scoreboards/{id}", basicMiddleware.HandlerFunc(exampleHandler.DeleteHandler))
 
 	// handle interrupt signal
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
