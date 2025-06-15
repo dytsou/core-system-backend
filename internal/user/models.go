@@ -9,17 +9,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type OauthProvider struct {
-	ID           uuid.UUID
-	UserID       uuid.UUID
-	Provider     string
-	ClientID     string
-	ClientSecret string
-	RedirectUri  string
-	CreatedAt    pgtype.Timestamptz
-	UpdatedAt    pgtype.Timestamptz
-}
-
 type User struct {
 	ID        uuid.UUID
 	Name      string
