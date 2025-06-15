@@ -2,7 +2,7 @@ version: "2"
 sql:
   - engine: "postgresql"
     queries: "./internal/user/queries.sql"
-    schema: "./internal/database/full_schema.sql"
+    schema: "./internal/user/schema.sql"
     gen:
       go:
         package: "user"
@@ -15,7 +15,7 @@ sql:
               type: "UUID"
   - engine: "postgresql"
     queries: "./internal/auth/queries.sql"
-    schema: "./internal/database/full_schema.sql"
+    schema: "./internal/auth/schema.sql"
     gen:
       go:
         package: "auth"

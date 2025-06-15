@@ -19,13 +19,3 @@ type OauthProvider struct {
 	CreatedAt    pgtype.Timestamptz
 	UpdatedAt    pgtype.Timestamptz
 }
-
-type User struct {
-	ID        uuid.UUID
-	Name      string
-	Username  string
-	AvatarUrl string
-	Role      string
-	CreatedAt pgtype.Timestamptz
-	UpdatedAt pgtype.Timestamptz
-}
