@@ -24,7 +24,7 @@ type User struct {
 	ID        uuid.UUID
 	Name      string
 	Username  string
-	AvatarUrl pgtype.Text
+	AvatarUrl string
 	Role      string
 	CreatedAt pgtype.Timestamptz
 	UpdatedAt pgtype.Timestamptz

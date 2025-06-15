@@ -9,7 +9,6 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createUser = `-- name: CreateUser :one
@@ -21,7 +20,7 @@ RETURNING id, name, username, avatar_url, role, created_at, updated_at
 type CreateUserParams struct {
 	Name      string
 	Username  string
-	AvatarUrl pgtype.Text
+	AvatarUrl string
 	Role      string
 }
 
@@ -107,7 +106,7 @@ type UpdateUserParams struct {
 	ID        uuid.UUID
 	Name      string
 	Username  string
-	AvatarUrl pgtype.Text
+	AvatarUrl string
 	Role      string
 }
 
