@@ -22,10 +22,11 @@ import (
 
 type Store interface {
 	GetUserIDByRefreshToken(ctx context.Context, id uuid.UUID) (string, error)
-	CreateRefreshToken(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
+	GenerateRefreshToken(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
 	InactivateRefreshToken(ctx context.Context, id uuid.UUID) error
-	InactivateRefreshTokenByUserID(ctx context.Context, userID uuid.UUID) error
+	InactivateRefreshTokensByUserID(ctx context.Context, userID uuid.UUID) error
 	DeleteExpiredRefreshTokens(ctx context.Context) error
+	ExistsByID(ctx context.Context, id uuid.UUID) (bool, error)
 }
 
 type Service struct {
@@ -34,14 +35,12 @@ type Service struct {
 	expiration             time.Duration
 	refreshTokenExpiration time.Duration
 	queries                *Queries
-	userStore              Store
 	tracer                 trace.Tracer
 }
 
 func NewService(
 	logger *zap.Logger,
 	db DBTX,
-	userStore Store,
 	secret string,
 	expiration time.Duration,
 	refreshTokenExpiration time.Duration,
@@ -49,7 +48,6 @@ func NewService(
 	return &Service{
 		logger:                 logger,
 		queries:                New(db),
-		userStore:              userStore,
 		tracer:                 otel.Tracer("jwt/service"),
 		secret:                 secret,
 		expiration:             expiration,
@@ -213,8 +211,8 @@ func (s Service) InactivateRefreshToken(ctx context.Context, id uuid.UUID) error
 	return nil
 }
 
-func (s Service) InactivateRefreshTokenByUserID(ctx context.Context, userID uuid.UUID) error {
-	traceCtx, span := s.tracer.Start(ctx, "InactivateRefreshTokenByUserID")
+func (s Service) InactivateRefreshTokensByUserID(ctx context.Context, userID uuid.UUID) error {
+	traceCtx, span := s.tracer.Start(ctx, "InactivateRefreshTokensByUserID")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
@@ -241,4 +239,18 @@ func (s Service) DeleteExpiredRefreshTokens(ctx context.Context) (int64, error) 
 	}
 
 	return rowsAffected, nil
+}
+
+func (s Service) ExistsByID(ctx context.Context, id uuid.UUID) (bool, error) {
+	traceCtx, span := s.tracer.Start(ctx, "ExistsByID")
+	defer span.End()
+	logger := logutil.WithContext(traceCtx, s.logger)
+
+	_, err := s.queries.GetUserIDByRefreshToken(ctx, id)
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "check if refresh token exists by id")
+		span.RecordError(err)
+		return false, err
+	}
+	return true, nil
 }
