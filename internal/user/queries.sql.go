@@ -53,6 +53,46 @@ func (q *Queries) DeleteUser(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+const findOrCreate = `-- name: FindOrCreate :one
+INSERT INTO users (id, name, username, avatar_url, role) 
+VALUES ($1, $2, $3, $4, $5) 
+ON CONFLICT (id) DO UPDATE SET 
+  name = $2, 
+  username = $3, 
+  avatar_url = $4, 
+  role = $5
+RETURNING id, name, username, avatar_url, role, created_at, updated_at
+`
+
+type FindOrCreateParams struct {
+	ID        uuid.UUID
+	Name      string
+	Username  string
+	AvatarUrl string
+	Role      string
+}
+
+func (q *Queries) FindOrCreate(ctx context.Context, arg FindOrCreateParams) (User, error) {
+	row := q.db.QueryRow(ctx, findOrCreate,
+		arg.ID,
+		arg.Name,
+		arg.Username,
+		arg.AvatarUrl,
+		arg.Role,
+	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Username,
+		&i.AvatarUrl,
+		&i.Role,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getUserByID = `-- name: GetUserByID :one
 SELECT id, name, username, avatar_url, role, created_at, updated_at FROM users WHERE id = $1
 `
