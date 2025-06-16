@@ -57,7 +57,7 @@ func (g *GoogleConfig) GetUsername(email string) string {
 func (g *GoogleConfig) GetUserInfo(ctx context.Context, token *oauth2.Token) (user.User, error) {
 	client := g.config.Client(ctx, token)
 
-	resp, err := client.Get("https://www.googleapis.com/oauth2/v2/userinfo")
+	resp, err := client.Get("https://www.googleapis.com/oauth2/v3/userinfo")
 	if err != nil {
 		return user.User{}, fmt.Errorf("failed to get user info from Google: %w", err)
 	}
