@@ -1,7 +1,8 @@
-package user
+package jwt
 
 import (
 	"NYCU-SDC/core-system-backend/internal"
+	"NYCU-SDC/core-system-backend/internal/user"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -18,8 +19,7 @@ type contextKey string
 
 const UserContextKey contextKey = "user"
 
-// Handler handles user-related HTTP requests
-type Handler struct {
+type Middleware struct {
 	logger        *zap.Logger
 	validator     *validator.Validate
 	problemWriter *problem.HttpWriter
@@ -27,14 +27,14 @@ type Handler struct {
 	tracer        trace.Tracer
 }
 
-// NewHandler creates a new user handler
-func NewHandler(
+// NewMiddleware creates a new user middleware
+func NewMiddleware(
 	logger *zap.Logger,
 	validator *validator.Validate,
 	problemWriter *problem.HttpWriter,
 	service *Service,
-) *Handler {
-	return &Handler{
+) *Middleware {
+	return &Middleware{
 		logger:        logger,
 		validator:     validator,
 		problemWriter: problemWriter,
@@ -44,8 +44,8 @@ func NewHandler(
 }
 
 // GetUserFromContext extracts the authenticated user from request context
-func GetUserFromContext(ctx context.Context) (*User, bool) {
-	userData, ok := ctx.Value(UserContextKey).(*User)
+func GetUserFromContext(ctx context.Context) (*user.User, bool) {
+	userData, ok := ctx.Value(UserContextKey).(*user.User)
 	return userData, ok
 }
 
@@ -58,16 +58,22 @@ type UserMeResponse struct {
 	Role      string `json:"role"`
 }
 
+func (m *Middleware) HandlerFunc(handler http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		handler(w, r)
+	}
+}
+
 // GetMe handles GET /user/me - returns authenticated user information
-func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
-	ctx, span := h.tracer.Start(r.Context(), "GetMe")
+func (m *Middleware) GetMe(w http.ResponseWriter, r *http.Request) {
+	ctx, span := m.tracer.Start(r.Context(), "GetMe")
 	defer span.End()
 
 	// Get authenticated user from context
 	user, ok := GetUserFromContext(ctx)
 	if !ok {
-		h.logger.Error("No user found in request context")
-		h.writeNotFound(w, "user")
+		m.logger.Error("No user found in request context")
+		m.writeNotFound(w, "user")
 		return
 	}
 
@@ -79,21 +85,21 @@ func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
 		Role:      user.Role,
 	}
 
-	h.writeJSONResponse(w, http.StatusOK, response)
+	m.writeJSONResponse(w, http.StatusOK, response)
 }
 
 // writeJSONResponse writes a JSON response
-func (h *Handler) writeJSONResponse(w http.ResponseWriter, statusCode int, data interface{}) {
+func (m *Middleware) writeJSONResponse(w http.ResponseWriter, statusCode int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 
 	if err := json.NewEncoder(w).Encode(data); err != nil {
-		h.logger.Error("Failed to encode JSON response", zap.Error(err))
+		m.logger.Error("Failed to encode JSON response", zap.Error(err))
 	}
 }
 
 // writeNotFound writes a 404 Not Found response using RFC 7807 format
-func (h *Handler) writeNotFound(w http.ResponseWriter, resource string) {
+func (m *Middleware) writeNotFound(w http.ResponseWriter, resource string) {
 	notFoundError := internal.NewNotFound(resource)
 	notFoundError.ProblemDetail.Detail = "The requested " + resource + " was not found"
 
@@ -101,6 +107,6 @@ func (h *Handler) writeNotFound(w http.ResponseWriter, resource string) {
 	w.WriteHeader(http.StatusNotFound)
 
 	if err := json.NewEncoder(w).Encode(notFoundError); err != nil {
-		h.logger.Error("Failed to encode not found response", zap.Error(err))
+		m.logger.Error("Failed to encode not found response", zap.Error(err))
 	}
 }
