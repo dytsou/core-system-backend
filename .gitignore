@@ -143,3 +143,4 @@ fabric.properties
 bin
 
 config.yaml
+.env
