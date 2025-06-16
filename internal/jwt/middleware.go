@@ -101,7 +101,7 @@ func (m *Middleware) writeJSONResponse(w http.ResponseWriter, statusCode int, da
 // writeNotFound writes a 404 Not Found response using RFC 7807 format
 func (m *Middleware) writeNotFound(w http.ResponseWriter, resource string) {
 	notFoundError := internal.NewNotFound(resource)
-	notFoundError.ProblemDetail.Detail = "The requested " + resource + " was not found"
+	notFoundError.Detail = "The requested " + resource + " was not found"
 
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(http.StatusNotFound)
