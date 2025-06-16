@@ -148,6 +148,10 @@ func FromEnv(config *Config, logger *LogBuffer) (*Config, error) {
 		DatabaseURL:      os.Getenv("DATABASE_URL"),
 		MigrationSource:  os.Getenv("MIGRATION_SOURCE"),
 		OtelCollectorUrl: os.Getenv("OTEL_COLLECTOR_URL"),
+		GoogleOauth: googleOauth.GoogleOauth{
+			ClientID:     os.Getenv("GOOGLE_OAUTH_CLIENT_ID"),
+			ClientSecret: os.Getenv("GOOGLE_OAUTH_CLIENT_SECRET"),
+		},
 	}
 
 	return configutil.Merge[Config](config, envConfig)
