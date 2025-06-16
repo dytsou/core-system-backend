@@ -13,6 +13,10 @@ var (
 	ErrInvalidExchangeToken = errors.New("invalid exchange token")
 	ErrInvalidCallbackInfo  = errors.New("invalid callback info")
 	ErrPermissionDenied     = errors.New("permission denied")
+	ErrUnauthorizedError    = errors.New("unauthorized error")
+	ErrInternalServerError  = errors.New("internal server error")
+	ErrForbiddenError       = errors.New("forbidden error")
+	ErrNotFound             = errors.New("not found")
 )
 
 func NewProblemWriter() *problem.HttpWriter {
@@ -31,6 +35,14 @@ func ErrorHandler(err error) problem.Problem {
 		return problem.NewValidateProblem("invalid callback info")
 	case errors.Is(err, ErrPermissionDenied):
 		return problem.NewForbiddenProblem("permission denied")
+	case errors.Is(err, ErrUnauthorizedError):
+		return problem.NewUnauthorizedProblem("unauthorized error")
+	case errors.Is(err, ErrInternalServerError):
+		return problem.NewInternalServerProblem("internal server error")
+	case errors.Is(err, ErrForbiddenError):
+		return problem.NewForbiddenProblem("forbidden error")
+	case errors.Is(err, ErrNotFound):
+		return problem.NewNotFoundProblem("not found")
 	}
 	return problem.Problem{}
 }
