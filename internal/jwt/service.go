@@ -22,7 +22,7 @@ import (
 
 type Store interface {
 	GetUserIDByRefreshToken(ctx context.Context, id uuid.UUID) (string, error)
-	GenerateRefreshToken(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
+	GenerateRefreshToken(ctx context.Context, user user.User) (RefreshToken, error)
 	InactivateRefreshToken(ctx context.Context, id uuid.UUID) error
 	InactivateRefreshTokensByUserID(ctx context.Context, userID uuid.UUID) error
 	DeleteExpiredRefreshTokens(ctx context.Context) error

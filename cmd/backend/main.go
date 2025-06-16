@@ -2,9 +2,12 @@ package main
 
 import (
 	"NYCU-SDC/core-system-backend/internal"
+	"NYCU-SDC/core-system-backend/internal/auth"
 	"NYCU-SDC/core-system-backend/internal/config"
-	"NYCU-SDC/core-system-backend/internal/example"
+	"NYCU-SDC/core-system-backend/internal/jwt"
+
 	"NYCU-SDC/core-system-backend/internal/trace"
+	"NYCU-SDC/core-system-backend/internal/user"
 	"context"
 	"errors"
 	"fmt"
@@ -115,10 +118,14 @@ func main() {
 	problemWriter := internal.NewProblemWriter()
 
 	// Service
-	exampleService := example.NewService(logger, dbPool)
+	// exampleService := example.NewService(logger, dbPool)
+	userService := user.NewService(logger, user.New(dbPool), otel.Tracer("user/service"))
+	jwtService := jwt.NewService(logger, dbPool, cfg.Secret, 15*time.Minute, 30*24*time.Hour)
 
 	// Handler
-	exampleHandler := example.NewHandler(logger, validator, problemWriter, exampleService)
+	// exampleHandler := example.NewHandler(logger, validator, problemWriter, exampleService)
+	authHandler := auth.NewHandler(cfg, logger, validator, problemWriter, userService, jwtService, jwtService)
+	userHandler := user.NewHandler(logger, validator, problemWriter, userService)
 
 	// Middleware
 	traceMiddleware := trace.NewMiddleware(logger, cfg.Debug)
@@ -129,11 +136,23 @@ func main() {
 
 	// HTTP Server
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/scoreboards", basicMiddleware.HandlerFunc(exampleHandler.GetAllHandler))
-	mux.HandleFunc("POST /api/scoreboards", basicMiddleware.HandlerFunc(exampleHandler.CreateHandler))
-	mux.HandleFunc("GET /api/scoreboards/{id}", basicMiddleware.HandlerFunc(exampleHandler.GetHandler))
-	mux.HandleFunc("PUT /api/scoreboards/{id}", basicMiddleware.HandlerFunc(exampleHandler.UpdateHandler))
-	mux.HandleFunc("DELETE /api/scoreboards/{id}", basicMiddleware.HandlerFunc(exampleHandler.DeleteHandler))
+	// Example API routes
+	// mux.HandleFunc("GET /api/scoreboards", basicMiddleware.HandlerFunc(exampleHandler.GetAllHandler))
+	// mux.HandleFunc("POST /api/scoreboards", basicMiddleware.HandlerFunc(exampleHandler.CreateHandler))
+	// mux.HandleFunc("GET /api/scoreboards/{id}", basicMiddleware.HandlerFunc(exampleHandler.GetHandler))
+	// mux.HandleFunc("PUT /api/scoreboards/{id}", basicMiddleware.HandlerFunc(exampleHandler.UpdateHandler))
+	// mux.HandleFunc("DELETE /api/scoreboards/{id}", basicMiddleware.HandlerFunc(exampleHandler.DeleteHandler))
+
+	// OAuth2 Authentication routes
+	mux.HandleFunc("GET /api/oauth2/{provider}", basicMiddleware.HandlerFunc(authHandler.Oauth2Start))
+	mux.HandleFunc("GET /api/oauth/{provider}/callback", basicMiddleware.HandlerFunc(authHandler.Callback))
+	mux.HandleFunc("GET /api/oauth/debug/token", basicMiddleware.HandlerFunc(authHandler.DebugToken))
+
+	// JWT refresh route
+	mux.HandleFunc("GET /api/jwt/refresh/{refreshToken}", basicMiddleware.HandlerFunc(authHandler.RefreshToken))
+
+	// User authenticated routes
+	mux.Handle("GET /api/user/me", basicMiddleware.HandlerFunc(userHandler.GetMe))
 
 	// handle interrupt signal
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

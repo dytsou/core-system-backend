@@ -3,11 +3,14 @@ package config
 import (
 	"errors"
 	"flag"
+	"os"
+
+	googleOauth "NYCU-SDC/core-system-backend/internal/auth/oauthprovider"
+
 	configutil "github.com/NYCU-SDC/summer/pkg/config"
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
-	"os"
 )
 
 const DefaultSecret = "default-secret"
@@ -22,14 +25,15 @@ type PresetUserInfo struct {
 }
 
 type Config struct {
-	Debug            bool   `yaml:"debug"              envconfig:"DEBUG"`
-	Host             string `yaml:"host"               envconfig:"HOST"`
-	Port             string `yaml:"port"               envconfig:"PORT"`
-	BaseURL          string `yaml:"base_url"          envconfig:"BASE_URL"`
-	Secret           string `yaml:"secret"             envconfig:"SECRET"`
-	DatabaseURL      string `yaml:"database_url"       envconfig:"DATABASE_URL"`
-	MigrationSource  string `yaml:"migration_source"   envconfig:"MIGRATION_SOURCE"`
-	OtelCollectorUrl string `yaml:"otel_collector_url" envconfig:"OTEL_COLLECTOR_URL"`
+	Debug            bool                    `yaml:"debug"              envconfig:"DEBUG"`
+	Host             string                  `yaml:"host"               envconfig:"HOST"`
+	Port             string                  `yaml:"port"               envconfig:"PORT"`
+	BaseURL          string                  `yaml:"base_url"          envconfig:"BASE_URL"`
+	Secret           string                  `yaml:"secret"             envconfig:"SECRET"`
+	DatabaseURL      string                  `yaml:"database_url"       envconfig:"DATABASE_URL"`
+	MigrationSource  string                  `yaml:"migration_source"   envconfig:"MIGRATION_SOURCE"`
+	OtelCollectorUrl string                  `yaml:"otel_collector_url" envconfig:"OTEL_COLLECTOR_URL"`
+	GoogleOauth      googleOauth.GoogleOauth `yaml:"google_oauth"`
 }
 
 type LogBuffer struct {
@@ -83,6 +87,7 @@ func Load() (Config, *LogBuffer) {
 		DatabaseURL:      "",
 		MigrationSource:  "file://internal/database/migrations",
 		OtelCollectorUrl: "",
+		GoogleOauth:      googleOauth.GoogleOauth{},
 	}
 
 	var err error
