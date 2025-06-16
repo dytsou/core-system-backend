@@ -179,6 +179,11 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	err = h.jwtStore.InactivateRefreshTokensByUserID(traceCtx, jwtUser.ID)
+	if err != nil {
+		logger.Warn("Failed to invalidate existing refresh tokens for user", zap.Error(err), zap.String("user_id", jwtUser.ID.String()))
+	}
+
 	jwtToken, refreshTokenID, err := h.generateJWT(traceCtx, jwtUser)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
