@@ -1,10 +1,8 @@
-CREATE TABLE IF NOT EXISTS oauth_providers (
+CREATE TABLE refresh_tokens (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    provider VARCHAR(255) NOT NULL,
-    client_id VARCHAR(255) NOT NULL,
-    client_secret VARCHAR(255) NOT NULL,
-    redirect_uri VARCHAR(512) NOT NULL,
+    expiration_date TIMESTAMPTZ NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );

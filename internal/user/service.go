@@ -62,12 +62,15 @@ func (s *Service) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 	return user, nil
 }
 
-func (s *Service) GetUserByUsername(ctx context.Context, username string) (User, error) {
+func (s *Service) GetUserByUsername(ctx context.Context, username, oauthProvider string) (User, error) {
 	traceCtx, span := s.tracer.Start(ctx, "user.GetUserByUsername")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	user, err := s.queries.GetUserByUsername(ctx, username)
+	user, err := s.queries.GetUserByUsername(ctx, GetUserByUsernameParams{
+		Username:      username,
+		OauthProvider: oauthProvider,
+	})
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "get user by username")
 		span.RecordError(err)
@@ -121,17 +124,20 @@ func resolveAvatarUrl(name, avatarUrl string) string {
 	return avatarUrl
 }
 
-func (s *Service) FindOrCreate(ctx context.Context, name, username, avatarUrl, role string) (User, error) {
+func (s *Service) FindOrCreate(ctx context.Context, name, username, avatarUrl, role, oauthProvider, oauthUserID string) (User, error) {
 	traceCtx, span := s.tracer.Start(ctx, "user.FindOrCreate")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
+	avatarUrl = resolveAvatarUrl(name, avatarUrl)
+
 	params := FindOrCreateParams{
-		ID:        uuid.New(),
-		Name:      name,
-		Username:  username,
-		AvatarUrl: avatarUrl,
-		Role:      role,
+		Name:          name,
+		Username:      username,
+		AvatarUrl:     avatarUrl,
+		Role:          role,
+		OauthProvider: oauthProvider,
+		OauthUserID:   oauthUserID,
 	}
 
 	user, err := s.queries.FindOrCreate(ctx, params)

@@ -40,7 +40,7 @@ type UserStore interface {
 	Create(ctx context.Context, name, username, avatarUrl, role string) (user.User, error)
 	ExistsByID(ctx context.Context, id uuid.UUID) (bool, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (user.User, error)
-	FindOrCreate(ctx context.Context, name, username, avatarUrl, role string) (user.User, error)
+	FindOrCreate(ctx context.Context, name, username, avatarUrl, role, oauthProvider, oauthUserID string) (user.User, error)
 }
 
 type OAuthProvider interface {
@@ -173,7 +173,7 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jwtUser, err := h.userStore.FindOrCreate(traceCtx, userInfo.Name, userInfo.Username, userInfo.AvatarUrl, userInfo.Role)
+	jwtUser, err := h.userStore.FindOrCreate(traceCtx, userInfo.Name, userInfo.Username, userInfo.AvatarUrl, userInfo.Role, providerName, userInfo.OauthUserID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return

@@ -10,11 +10,13 @@ import (
 )
 
 type User struct {
-	ID        uuid.UUID
-	Name      string
-	Username  string
-	AvatarUrl string
-	Role      string
-	CreatedAt pgtype.Timestamptz
-	UpdatedAt pgtype.Timestamptz
+	ID            uuid.UUID
+	Name          string
+	Username      string
+	AvatarUrl     string
+	Role          string
+	OauthProvider string
+	OauthUserID   string
+	CreatedAt     pgtype.Timestamptz
+	UpdatedAt     pgtype.Timestamptz
 }
