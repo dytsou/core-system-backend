@@ -144,13 +144,13 @@ func main() {
 	// mux.HandleFunc("DELETE /api/scoreboards/{id}", basicMiddleware.HandlerFunc(exampleHandler.DeleteHandler))
 
 	// OAuth2 Authentication routes
-	mux.HandleFunc("GET /auth/login/oauth/{provider}", basicMiddleware.HandlerFunc(authHandler.Oauth2Start))
-	mux.HandleFunc("GET /auth/login/oauth/{provider}/callback", basicMiddleware.HandlerFunc(authHandler.Callback))
+	mux.HandleFunc("GET /api/auth/login/oauth/{provider}", basicMiddleware.HandlerFunc(authHandler.Oauth2Start))
+	mux.HandleFunc("GET /api/auth/login/oauth/{provider}/callback", basicMiddleware.HandlerFunc(authHandler.Callback))
 	// JWT refresh route
-	mux.HandleFunc("GET /auth/refresh/{refreshToken}", basicMiddleware.HandlerFunc(authHandler.RefreshToken))
+	mux.HandleFunc("POST /api/auth/refresh/{refreshToken}", basicMiddleware.HandlerFunc(authHandler.RefreshToken))
 
 	// User authenticated routes
-	mux.Handle("GET /users/me", jwtMiddleware.HandlerFunc(jwtMiddleware.GetMe))
+	mux.Handle("GET /api/users/me", jwtMiddleware.HandlerFunc(jwtMiddleware.GetMe))
 
 	// handle interrupt signal
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
