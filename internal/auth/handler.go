@@ -96,7 +96,7 @@ func NewHandler(
 			"google": oauthprovider.NewGoogleConfig(
 				config.GoogleOauth.ClientID,
 				config.GoogleOauth.ClientSecret,
-				fmt.Sprintf("%s/auth/login/oauth/google/callback", config.BaseURL),
+				fmt.Sprintf("%s/api/auth/login/oauth/google/callback", config.BaseURL),
 			),
 		},
 	}
