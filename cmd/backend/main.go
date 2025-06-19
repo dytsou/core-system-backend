@@ -43,9 +43,6 @@ var BuildTime = "no-build-time"
 
 var CommitHash = "no-commit-hash"
 
-//	func healthz(w http.ResponseWriter, r *http.Request) {
-//		handlerutil.WriteJSONResponse(w, http.StatusOK, "Hello world!")
-//	}
 func main() {
 	AppName = os.Getenv("APP_NAME")
 	if AppName == "" {
@@ -118,12 +115,10 @@ func main() {
 	problemWriter := internal.NewProblemWriter()
 
 	// Service
-	// exampleService := example.NewService(logger, dbPool)
 	userService := user.NewService(logger, user.New(dbPool), otel.Tracer("user/service"))
 	jwtService := jwt.NewService(logger, dbPool, cfg.Secret, 15*time.Minute, 30*24*time.Hour)
 
 	// Handler
-	// exampleHandler := example.NewHandler(logger, validator, problemWriter, exampleService)
 	authHandler := auth.NewHandler(cfg, logger, validator, problemWriter, userService, jwtService, jwtService)
 
 	// Middleware
@@ -136,12 +131,6 @@ func main() {
 
 	// HTTP Server
 	mux := http.NewServeMux()
-	// Example API routes
-	// mux.HandleFunc("GET /api/scoreboards", basicMiddleware.HandlerFunc(exampleHandler.GetAllHandler))
-	// mux.HandleFunc("POST /api/scoreboards", basicMiddleware.HandlerFunc(exampleHandler.CreateHandler))
-	// mux.HandleFunc("GET /api/scoreboards/{id}", basicMiddleware.HandlerFunc(exampleHandler.GetHandler))
-	// mux.HandleFunc("PUT /api/scoreboards/{id}", basicMiddleware.HandlerFunc(exampleHandler.UpdateHandler))
-	// mux.HandleFunc("DELETE /api/scoreboards/{id}", basicMiddleware.HandlerFunc(exampleHandler.DeleteHandler))
 
 	// OAuth2 Authentication routes
 	mux.HandleFunc("GET /api/auth/login/oauth/{provider}", basicMiddleware.HandlerFunc(authHandler.Oauth2Start))
