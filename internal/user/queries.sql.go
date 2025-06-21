@@ -9,21 +9,46 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createAuth = `-- name: CreateAuth :one
+INSERT INTO auth (user_id, provider, provider_id)
+VALUES ($1, $2, $3)
+RETURNING id, user_id, provider, provider_id, created_at, updated_at
+`
+
+type CreateAuthParams struct {
+	UserID     uuid.UUID
+	Provider   string
+	ProviderID string
+}
+
+func (q *Queries) CreateAuth(ctx context.Context, arg CreateAuthParams) (Auth, error) {
+	row := q.db.QueryRow(ctx, createAuth, arg.UserID, arg.Provider, arg.ProviderID)
+	var i Auth
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Provider,
+		&i.ProviderID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (name, username, avatar_url, role, oauth_provider, oauth_user_id) 
-VALUES ($1, $2, $3, $4, $5, $6) 
-RETURNING id, name, username, avatar_url, role, oauth_provider, oauth_user_id, created_at, updated_at
+INSERT INTO users (name, username, avatar_url, role)
+VALUES ($1, $2, $3, $4) 
+RETURNING id, name, username, avatar_url, role, created_at, updated_at
 `
 
 type CreateUserParams struct {
-	Name          string
-	Username      string
-	AvatarUrl     string
-	Role          string
-	OauthProvider string
-	OauthUserID   string
+	Name      pgtype.Text
+	Username  pgtype.Text
+	AvatarUrl pgtype.Text
+	Role      []string
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
@@ -32,8 +57,6 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		arg.Username,
 		arg.AvatarUrl,
 		arg.Role,
-		arg.OauthProvider,
-		arg.OauthUserID,
 	)
 	var i User
 	err := row.Scan(
@@ -42,12 +65,33 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.Username,
 		&i.AvatarUrl,
 		&i.Role,
-		&i.OauthProvider,
-		&i.OauthUserID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const deleteAuthByUserID = `-- name: DeleteAuthByUserID :exec
+DELETE FROM auth WHERE user_id = $1
+`
+
+func (q *Queries) DeleteAuthByUserID(ctx context.Context, userID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteAuthByUserID, userID)
+	return err
+}
+
+const deleteAuthByUserIDAndProvider = `-- name: DeleteAuthByUserIDAndProvider :exec
+DELETE FROM auth WHERE user_id = $1 AND provider = $2
+`
+
+type DeleteAuthByUserIDAndProviderParams struct {
+	UserID   uuid.UUID
+	Provider string
+}
+
+func (q *Queries) DeleteAuthByUserIDAndProvider(ctx context.Context, arg DeleteAuthByUserIDAndProviderParams) error {
+	_, err := q.db.Exec(ctx, deleteAuthByUserIDAndProvider, arg.UserID, arg.Provider)
+	return err
 }
 
 const deleteUser = `-- name: DeleteUser :exec
@@ -59,36 +103,98 @@ func (q *Queries) DeleteUser(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
-const findOrCreate = `-- name: FindOrCreate :one
-INSERT INTO users (name, username, avatar_url, role, oauth_provider, oauth_user_id) 
-VALUES ($1, $2, $3, $4, $5, $6) 
-ON CONFLICT (oauth_provider, oauth_user_id) DO UPDATE SET 
-  name = $1, 
-  username = $2,
-  avatar_url = $3, 
-  role = $4,
-  updated_at = CURRENT_TIMESTAMP
-RETURNING id, name, username, avatar_url, role, oauth_provider, oauth_user_id, created_at, updated_at
+const getAuthByProviderAndProviderID = `-- name: GetAuthByProviderAndProviderID :one
+SELECT id, user_id, provider, provider_id, created_at, updated_at FROM auth WHERE provider = $1 AND provider_id = $2
 `
 
-type FindOrCreateParams struct {
-	Name          string
-	Username      string
-	AvatarUrl     string
-	Role          string
-	OauthProvider string
-	OauthUserID   string
+type GetAuthByProviderAndProviderIDParams struct {
+	Provider   string
+	ProviderID string
 }
 
-func (q *Queries) FindOrCreate(ctx context.Context, arg FindOrCreateParams) (User, error) {
-	row := q.db.QueryRow(ctx, findOrCreate,
-		arg.Name,
-		arg.Username,
-		arg.AvatarUrl,
-		arg.Role,
-		arg.OauthProvider,
-		arg.OauthUserID,
+func (q *Queries) GetAuthByProviderAndProviderID(ctx context.Context, arg GetAuthByProviderAndProviderIDParams) (Auth, error) {
+	row := q.db.QueryRow(ctx, getAuthByProviderAndProviderID, arg.Provider, arg.ProviderID)
+	var i Auth
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Provider,
+		&i.ProviderID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
+	return i, err
+}
+
+const getAuthByUserID = `-- name: GetAuthByUserID :many
+SELECT id, user_id, provider, provider_id, created_at, updated_at FROM auth WHERE user_id = $1
+`
+
+func (q *Queries) GetAuthByUserID(ctx context.Context, userID uuid.UUID) ([]Auth, error) {
+	rows, err := q.db.Query(ctx, getAuthByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Auth
+	for rows.Next() {
+		var i Auth
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Provider,
+			&i.ProviderID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAuthByUserIDAndProvider = `-- name: GetAuthByUserIDAndProvider :one
+SELECT id, user_id, provider, provider_id, created_at, updated_at FROM auth WHERE user_id = $1 AND provider = $2
+`
+
+type GetAuthByUserIDAndProviderParams struct {
+	UserID   uuid.UUID
+	Provider string
+}
+
+func (q *Queries) GetAuthByUserIDAndProvider(ctx context.Context, arg GetAuthByUserIDAndProviderParams) (Auth, error) {
+	row := q.db.QueryRow(ctx, getAuthByUserIDAndProvider, arg.UserID, arg.Provider)
+	var i Auth
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Provider,
+		&i.ProviderID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getUserByAuth = `-- name: GetUserByAuth :one
+SELECT u.id, u.name, u.username, u.avatar_url, u.role, u.created_at, u.updated_at 
+FROM users u
+INNER JOIN auth a ON u.id = a.user_id
+WHERE a.provider = $1 AND a.provider_id = $2
+LIMIT 1
+`
+
+type GetUserByAuthParams struct {
+	Provider   string
+	ProviderID string
+}
+
+func (q *Queries) GetUserByAuth(ctx context.Context, arg GetUserByAuthParams) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByAuth, arg.Provider, arg.ProviderID)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -96,8 +202,6 @@ func (q *Queries) FindOrCreate(ctx context.Context, arg FindOrCreateParams) (Use
 		&i.Username,
 		&i.AvatarUrl,
 		&i.Role,
-		&i.OauthProvider,
-		&i.OauthUserID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -105,7 +209,7 @@ func (q *Queries) FindOrCreate(ctx context.Context, arg FindOrCreateParams) (Use
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, name, username, avatar_url, role, oauth_provider, oauth_user_id, created_at, updated_at FROM users WHERE id = $1
+SELECT id, name, username, avatar_url, role, created_at, updated_at FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
@@ -117,60 +221,6 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.Username,
 		&i.AvatarUrl,
 		&i.Role,
-		&i.OauthProvider,
-		&i.OauthUserID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const getUserByOAuthID = `-- name: GetUserByOAuthID :one
-SELECT id, name, username, avatar_url, role, oauth_provider, oauth_user_id, created_at, updated_at FROM users WHERE oauth_provider = $1 AND oauth_user_id = $2
-`
-
-type GetUserByOAuthIDParams struct {
-	OauthProvider string
-	OauthUserID   string
-}
-
-func (q *Queries) GetUserByOAuthID(ctx context.Context, arg GetUserByOAuthIDParams) (User, error) {
-	row := q.db.QueryRow(ctx, getUserByOAuthID, arg.OauthProvider, arg.OauthUserID)
-	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.Username,
-		&i.AvatarUrl,
-		&i.Role,
-		&i.OauthProvider,
-		&i.OauthUserID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT id, name, username, avatar_url, role, oauth_provider, oauth_user_id, created_at, updated_at FROM users WHERE username = $1 AND oauth_provider = $2
-`
-
-type GetUserByUsernameParams struct {
-	Username      string
-	OauthProvider string
-}
-
-func (q *Queries) GetUserByUsername(ctx context.Context, arg GetUserByUsernameParams) (User, error) {
-	row := q.db.QueryRow(ctx, getUserByUsername, arg.Username, arg.OauthProvider)
-	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.Username,
-		&i.AvatarUrl,
-		&i.Role,
-		&i.OauthProvider,
-		&i.OauthUserID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -185,15 +235,15 @@ UPDATE users SET
   role = $5,
   updated_at = CURRENT_TIMESTAMP
 WHERE id = $1
-RETURNING id, name, username, avatar_url, role, oauth_provider, oauth_user_id, created_at, updated_at
+RETURNING id, name, username, avatar_url, role, created_at, updated_at
 `
 
 type UpdateUserParams struct {
 	ID        uuid.UUID
-	Name      string
-	Username  string
-	AvatarUrl string
-	Role      string
+	Name      pgtype.Text
+	Username  pgtype.Text
+	AvatarUrl pgtype.Text
+	Role      []string
 }
 
 func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
@@ -211,8 +261,6 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.Username,
 		&i.AvatarUrl,
 		&i.Role,
-		&i.OauthProvider,
-		&i.OauthUserID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

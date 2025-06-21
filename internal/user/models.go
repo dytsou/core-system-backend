@@ -9,14 +9,21 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Auth struct {
+	ID         uuid.UUID
+	UserID     uuid.UUID
+	Provider   string
+	ProviderID string
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
+}
+
 type User struct {
-	ID            uuid.UUID
-	Name          string
-	Username      string
-	AvatarUrl     string
-	Role          string
-	OauthProvider string
-	OauthUserID   string
-	CreatedAt     pgtype.Timestamptz
-	UpdatedAt     pgtype.Timestamptz
+	ID        uuid.UUID
+	Name      pgtype.Text
+	Username  pgtype.Text
+	AvatarUrl pgtype.Text
+	Role      []string
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
 }

@@ -37,17 +37,17 @@ type JWTStore interface {
 }
 
 type UserStore interface {
-	Create(ctx context.Context, name, username, avatarUrl, role string) (user.User, error)
+	Create(ctx context.Context, name, username, avatarUrl string, role []string) (user.User, error)
 	ExistsByID(ctx context.Context, id uuid.UUID) (bool, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (user.User, error)
-	FindOrCreate(ctx context.Context, name, username, avatarUrl, role, oauthProvider, oauthUserID string) (user.User, error)
+	FindOrCreate(ctx context.Context, name, username, avatarUrl string, role []string, oauthProvider, oauthProviderID string) (user.User, error)
 }
 
 type OAuthProvider interface {
 	Name() string
 	Config() *oauth2.Config
 	Exchange(ctx context.Context, code string) (*oauth2.Token, error)
-	GetUserInfo(ctx context.Context, token *oauth2.Token) (user.User, error)
+	GetUserInfo(ctx context.Context, token *oauth2.Token) (user.User, user.Auth, error)
 }
 
 type callBackInfo struct {
@@ -167,13 +167,13 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userInfo, err := provider.GetUserInfo(traceCtx, token)
+	userInfo, auth, err := provider.GetUserInfo(traceCtx, token)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
 
-	jwtUser, err := h.userStore.FindOrCreate(traceCtx, userInfo.Name, userInfo.Username, userInfo.AvatarUrl, userInfo.Role, providerName, userInfo.OauthUserID)
+	jwtUser, err := h.userStore.FindOrCreate(traceCtx, userInfo.Name.String, userInfo.Username.String, userInfo.AvatarUrl.String, userInfo.Role, providerName, auth.ProviderID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return

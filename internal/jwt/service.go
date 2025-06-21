@@ -70,13 +70,16 @@ func (s Service) New(ctx context.Context, user user.User) (string, error) {
 	jwtID := uuid.New()
 
 	id := user.ID
-	username := user.Username
-	role := user.Role
+	username := user.Username.String
+	roleStr := ""
+	if len(user.Role) > 0 {
+		roleStr = strings.Join(user.Role, ",")
+	}
 
 	claims := &claims{
 		ID:       jwtID,
 		Username: username,
-		Role:     role,
+		Role:     roleStr,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    "core-system",
 			Subject:   id.String(), // user id
@@ -90,11 +93,11 @@ func (s Service) New(ctx context.Context, user user.User) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString([]byte(s.secret))
 	if err != nil {
-		logger.Error("failed to sign token", zap.Error(err), zap.String("user_id", id.String()), zap.String("username", username), zap.String("role", role))
+		logger.Error("failed to sign token", zap.Error(err), zap.String("user_id", id.String()), zap.String("username", username), zap.String("role", roleStr))
 		return "", err
 	}
 
-	logger.Debug("Generated JWT token", zap.String("id", id.String()), zap.String("username", username), zap.String("role", role))
+	logger.Debug("Generated JWT token", zap.String("id", id.String()), zap.String("username", username), zap.String("role", roleStr))
 	return tokenString, nil
 }
 
@@ -147,10 +150,23 @@ func (s Service) Parse(ctx context.Context, tokenString string) (user.User, erro
 
 	logger.Debug("Successfully parsed JWT token", zap.String("id", claims.ID.String()), zap.String("username", claims.Username), zap.String("role", claims.Role))
 
+	// Convert role string back to array
+	roles := []string{}
+	if claims.Role != "" {
+		roles = strings.Split(claims.Role, ",")
+	}
+
+	// Parse user ID from subject
+	userID, err := uuid.Parse(claims.Subject)
+	if err != nil {
+		logger.Error("Failed to parse user ID from JWT subject", zap.Error(err))
+		return user.User{}, err
+	}
+
 	return user.User{
-		ID:       claims.ID,
-		Username: claims.Username,
-		Role:     claims.Role,
+		ID:       userID,
+		Username: pgtype.Text{String: claims.Username, Valid: true},
+		Role:     roles,
 	}, nil
 }
 

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/NYCU-SDC/summer/pkg/problem"
 	"github.com/go-playground/validator/v10"
@@ -77,12 +78,18 @@ func (m *Middleware) GetMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Convert roles array to comma-separated string
+	roleStr := ""
+	if len(user.Role) > 0 {
+		roleStr = strings.Join(user.Role, ",")
+	}
+
 	response := UserMeResponse{
 		ID:        user.ID.String(),
-		Username:  user.Username,
-		Name:      user.Name,
-		AvatarUrl: user.AvatarUrl,
-		Role:      user.Role,
+		Username:  user.Username.String,
+		Name:      user.Name.String,
+		AvatarUrl: user.AvatarUrl.String,
+		Role:      roleStr,
 	}
 
 	m.writeJSONResponse(w, http.StatusOK, response)
