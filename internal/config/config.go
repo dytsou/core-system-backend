@@ -15,14 +15,7 @@ import (
 
 const DefaultSecret = "default-secret"
 
-var (
-	ErrDatabaseURLRequired = errors.New("database_url is required")
-	ErrInvalidUserRole     = errors.New("invalid user role")
-)
-
-type PresetUserInfo struct {
-	Role string `yaml:"role"`
-}
+var ErrDatabaseURLRequired = errors.New("database_url is required")
 
 type Config struct {
 	Debug            bool                    `yaml:"debug"              envconfig:"DEBUG"`
