@@ -110,7 +110,7 @@ func main() {
 	problemWriter := internal.NewProblemWriter()
 
 	// Service
-	userService := user.NewService(logger, user.New(dbPool), otel.Tracer("user/service"))
+	userService := user.NewService(logger, dbPool)
 	jwtService := jwt.NewService(logger, dbPool, cfg.Secret, 15*time.Minute, 30*24*time.Hour)
 
 	// Handler

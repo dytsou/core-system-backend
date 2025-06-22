@@ -40,7 +40,7 @@ func NewMiddleware(
 		validator:     validator,
 		problemWriter: problemWriter,
 		service:       service,
-		tracer:        otel.Tracer("user/handler"),
+		tracer:        otel.Tracer("jwt/middleware"),
 	}
 }
 
@@ -71,7 +71,7 @@ func (m *Middleware) GetMe(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 
 	// Get authenticated user from context
-	user, ok := GetUserFromContext(ctx)
+	currentUser, ok := GetUserFromContext(ctx)
 	if !ok {
 		m.logger.Error("No user found in request context")
 		m.writeNotFound(w, "user")
@@ -80,15 +80,15 @@ func (m *Middleware) GetMe(w http.ResponseWriter, r *http.Request) {
 
 	// Convert roles array to comma-separated string
 	roleStr := ""
-	if len(user.Role) > 0 {
-		roleStr = strings.Join(user.Role, ",")
+	if len(currentUser.Role) > 0 {
+		roleStr = strings.Join(currentUser.Role, ",")
 	}
 
 	response := UserMeResponse{
-		ID:        user.ID.String(),
-		Username:  user.Username.String,
-		Name:      user.Name.String,
-		AvatarUrl: user.AvatarUrl.String,
+		ID:        currentUser.ID.String(),
+		Username:  currentUser.Username.String,
+		Name:      currentUser.Name.String,
+		AvatarUrl: currentUser.AvatarUrl.String,
 		Role:      roleStr,
 	}
 
