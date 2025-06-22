@@ -21,7 +21,7 @@ import (
 
 type Store interface {
 	GetUserIDByRefreshToken(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
-	GenerateRefreshToken(ctx context.Context, user user.User) (RefreshToken, error)
+	GenerateRefreshToken(ctx context.Context, userID uuid.UUID) (RefreshToken, error)
 	InactivateRefreshToken(ctx context.Context, id uuid.UUID) error
 	DeleteExpiredRefreshTokens(ctx context.Context) (int64, error)
 }
@@ -183,7 +183,7 @@ func (s Service) GetUserIDByRefreshToken(ctx context.Context, id uuid.UUID) (uui
 	return userID, nil
 }
 
-func (s Service) GenerateRefreshToken(ctx context.Context, user user.User) (RefreshToken, error) {
+func (s Service) GenerateRefreshToken(ctx context.Context, userID uuid.UUID) (RefreshToken, error) {
 	traceCtx, span := s.tracer.Start(ctx, "GenerateRefreshToken")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
@@ -200,7 +200,7 @@ func (s Service) GenerateRefreshToken(ctx context.Context, user user.User) (Refr
 	nextRefreshDate := expirationDate.Add(s.refreshTokenExpiration)
 
 	params := CreateParams{
-		UserID: user.ID,
+		UserID: userID,
 		ExpirationDate: pgtype.Timestamptz{
 			Time:  nextRefreshDate,
 			Valid: true,

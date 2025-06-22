@@ -27,7 +27,7 @@ import (
 type JWTIssuer interface {
 	New(ctx context.Context, user user.User) (string, error)
 	Parse(ctx context.Context, tokenString string) (user.User, error)
-	GenerateRefreshToken(ctx context.Context, user user.User) (jwt.RefreshToken, error)
+	GenerateRefreshToken(ctx context.Context, userID uuid.UUID) (jwt.RefreshToken, error)
 	GetUserIDByRefreshToken(ctx context.Context, refreshTokenID uuid.UUID) (uuid.UUID, error)
 }
 
@@ -36,8 +36,9 @@ type JWTStore interface {
 }
 
 type UserStore interface {
+	GetUserIDByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (user.User, error)
-	FindOrCreate(ctx context.Context, name, username, avatarUrl string, role []string, oauthProvider, oauthProviderID string) (user.User, error)
+	FindOrCreate(ctx context.Context, name, username, avatarUrl string, role []string, oauthProvider, oauthProviderID string) (uuid.UUID, error)
 }
 
 type OAuthProvider interface {
@@ -170,13 +171,13 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jwtUser, err := h.userStore.FindOrCreate(traceCtx, userInfo.Name.String, userInfo.Username.String, userInfo.AvatarUrl.String, userInfo.Role, providerName, auth.ProviderID)
+	userID, err := h.userStore.FindOrCreate(traceCtx, userInfo.Name.String, userInfo.Username.String, userInfo.AvatarUrl.String, userInfo.Role, providerName, auth.ProviderID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
 
-	jwtToken, refreshTokenID, err := h.generateJWT(traceCtx, jwtUser)
+	jwtToken, refreshTokenID, err := h.generateJWT(traceCtx, userID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
@@ -218,16 +219,21 @@ func (h *Handler) DebugToken(w http.ResponseWriter, r *http.Request) {
 	handlerutil.WriteJSONResponse(w, http.StatusOK, jwtUser)
 }
 
-func (h *Handler) generateJWT(ctx context.Context, user user.User) (string, string, error) {
+func (h *Handler) generateJWT(ctx context.Context, userID uuid.UUID) (string, string, error) {
 	traceCtx, span := h.tracer.Start(ctx, "generateJWT")
 	defer span.End()
+
+	user, err := h.userStore.GetUserByID(traceCtx, userID)
+	if err != nil {
+		return "", "", err
+	}
 
 	jwtToken, err := h.jwtIssuer.New(traceCtx, user)
 	if err != nil {
 		return "", "", err
 	}
 
-	refreshToken, err := h.jwtIssuer.GenerateRefreshToken(traceCtx, user)
+	refreshToken, err := h.jwtIssuer.GenerateRefreshToken(traceCtx, userID)
 	if err != nil {
 		return "", "", err
 	}
@@ -336,7 +342,7 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newRefreshToken, err := h.jwtIssuer.GenerateRefreshToken(traceCtx, user)
+	newRefreshToken, err := h.jwtIssuer.GenerateRefreshToken(traceCtx, userID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to generate new refresh token"), logger)
 		return

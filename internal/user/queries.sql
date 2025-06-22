@@ -3,6 +3,9 @@ INSERT INTO users (name, username, avatar_url, role)
 VALUES ($1, $2, $3, $4) 
 RETURNING *;
 
+-- name: GetUserIDByID :one
+SELECT id FROM users WHERE id = $1;
+
 -- name: GetUserByID :one
 SELECT * FROM users WHERE id = $1;
 
@@ -11,9 +14,5 @@ INSERT INTO auth (user_id, provider, provider_id)
 VALUES ($1, $2, $3)
 RETURNING *;
 
--- name: GetUserByAuth :one
-SELECT u.* 
-FROM users u
-INNER JOIN auth a ON u.id = a.user_id
-WHERE a.provider = $1 AND a.provider_id = $2
-LIMIT 1;
+-- name: GetUserIDByAuth :one
+SELECT user_id FROM auth WHERE provider = $1 AND provider_id = $2;

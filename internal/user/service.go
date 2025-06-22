@@ -15,8 +15,9 @@ import (
 )
 
 type Querier interface {
+	GetUserIDByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
-	GetUserByAuth(ctx context.Context, arg GetUserByAuthParams) (User, error)
+	GetUserIDByAuth(ctx context.Context, arg GetUserIDByAuthParams) (uuid.UUID, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	CreateAuth(ctx context.Context, arg CreateAuthParams) (Auth, error)
 }
@@ -33,6 +34,20 @@ func NewService(logger *zap.Logger, db DBTX) *Service {
 		queries: New(db),
 		tracer:  otel.Tracer("user/service"),
 	}
+}
+
+func (s *Service) GetUserIDByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	traceCtx, span := s.tracer.Start(ctx, "GetUserIDByID")
+	defer span.End()
+	logger := logutil.WithContext(traceCtx, s.logger)
+
+	userID, err := s.queries.GetUserIDByID(ctx, id)
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "get user by id")
+		span.RecordError(err)
+		return uuid.UUID{}, err
+	}
+	return userID, nil
 }
 
 func (s *Service) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
@@ -56,19 +71,19 @@ func resolveAvatarUrl(name, avatarUrl string) string {
 	return avatarUrl
 }
 
-func (s *Service) FindOrCreate(ctx context.Context, name, username, avatarUrl string, role []string, oauthProvider, oauthProviderID string) (User, error) {
+func (s *Service) FindOrCreate(ctx context.Context, name, username, avatarUrl string, role []string, oauthProvider, oauthProviderID string) (uuid.UUID, error) {
 	traceCtx, span := s.tracer.Start(ctx, "FindOrCreate")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	existingUser, err := s.queries.GetUserByAuth(ctx, GetUserByAuthParams{
+	existingUserID, err := s.queries.GetUserIDByAuth(ctx, GetUserIDByAuthParams{
 		Provider:   oauthProvider,
 		ProviderID: oauthProviderID,
 	})
 	if err == nil {
 		// User exists, return it
 		logger.Debug("Found existing user", zap.String("provider", oauthProvider), zap.String("provider_id", oauthProviderID))
-		return existingUser, nil
+		return existingUserID, nil
 	}
 
 	if errors.Is(err, sql.ErrNoRows) {
@@ -77,7 +92,7 @@ func (s *Service) FindOrCreate(ctx context.Context, name, username, avatarUrl st
 		// Unexpected database error
 		err = databaseutil.WrapDBError(err, logger, "get user by auth")
 		span.RecordError(err)
-		return User{}, err
+		return uuid.UUID{}, err
 	}
 
 	// User doesn't exist, create new user
@@ -95,7 +110,7 @@ func (s *Service) FindOrCreate(ctx context.Context, name, username, avatarUrl st
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "create user")
 		span.RecordError(err)
-		return User{}, err
+		return uuid.UUID{}, err
 	}
 
 	logger.Debug("Created new user", zap.String("user_id", newUser.ID.String()), zap.String("username", newUser.Username.String))
@@ -109,9 +124,9 @@ func (s *Service) FindOrCreate(ctx context.Context, name, username, avatarUrl st
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "create auth")
 		span.RecordError(err)
-		return User{}, err
+		return uuid.UUID{}, err
 	}
 
 	logger.Debug("Created auth entry", zap.String("user_id", newUser.ID.String()), zap.String("provider", oauthProvider), zap.String("provider_id", oauthProviderID))
-	return newUser, err
+	return newUser.ID, err
 }

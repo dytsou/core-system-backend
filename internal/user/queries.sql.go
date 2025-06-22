@@ -71,34 +71,6 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
-const getUserByAuth = `-- name: GetUserByAuth :one
-SELECT u.id, u.name, u.username, u.avatar_url, u.role, u.created_at, u.updated_at 
-FROM users u
-INNER JOIN auth a ON u.id = a.user_id
-WHERE a.provider = $1 AND a.provider_id = $2
-LIMIT 1
-`
-
-type GetUserByAuthParams struct {
-	Provider   string
-	ProviderID string
-}
-
-func (q *Queries) GetUserByAuth(ctx context.Context, arg GetUserByAuthParams) (User, error) {
-	row := q.db.QueryRow(ctx, getUserByAuth, arg.Provider, arg.ProviderID)
-	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.Username,
-		&i.AvatarUrl,
-		&i.Role,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
 const getUserByID = `-- name: GetUserByID :one
 SELECT id, name, username, avatar_url, role, created_at, updated_at FROM users WHERE id = $1
 `
@@ -116,4 +88,30 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const getUserIDByAuth = `-- name: GetUserIDByAuth :one
+SELECT user_id FROM auth WHERE provider = $1 AND provider_id = $2
+`
+
+type GetUserIDByAuthParams struct {
+	Provider   string
+	ProviderID string
+}
+
+func (q *Queries) GetUserIDByAuth(ctx context.Context, arg GetUserIDByAuthParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getUserIDByAuth, arg.Provider, arg.ProviderID)
+	var user_id uuid.UUID
+	err := row.Scan(&user_id)
+	return user_id, err
+}
+
+const getUserIDByID = `-- name: GetUserIDByID :one
+SELECT id FROM users WHERE id = $1
+`
+
+func (q *Queries) GetUserIDByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getUserIDByID, id)
+	err := row.Scan(&id)
+	return id, err
 }
