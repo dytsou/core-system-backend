@@ -14,9 +14,16 @@ import (
 	"go.uber.org/zap"
 )
 
+type Querier interface {
+	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
+	GetUserByAuth(ctx context.Context, arg GetUserByAuthParams) (User, error)
+	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	CreateAuth(ctx context.Context, arg CreateAuthParams) (Auth, error)
+}
+
 type Service struct {
 	logger  *zap.Logger
-	queries *Queries
+	queries Querier
 	tracer  trace.Tracer
 }
 
