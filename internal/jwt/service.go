@@ -212,7 +212,7 @@ func (s Service) GenerateRefreshToken(ctx context.Context, user user.User) (Refr
 }
 
 func (s Service) InactivateRefreshTokens(ctx context.Context, user user.User) error {
-	traceCtx, span := s.tracer.Start(ctx, "InactivateRefreshTokensByUser")
+	traceCtx, span := s.tracer.Start(ctx, "InactivateRefreshTokens")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
