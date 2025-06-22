@@ -33,12 +33,12 @@ func (q *Queries) Create(ctx context.Context, arg CreateParams) (RefreshToken, e
 	return i, err
 }
 
-const deleteExpired = `-- name: DeleteExpired :execrows
+const delete = `-- name: Delete :execrows
 DELETE FROM refresh_tokens WHERE expiration_date < NOW() OR is_active = FALSE
 `
 
-func (q *Queries) DeleteExpired(ctx context.Context) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteExpired)
+func (q *Queries) Delete(ctx context.Context) (int64, error) {
+	result, err := q.db.Exec(ctx, delete)
 	if err != nil {
 		return 0, err
 	}
@@ -46,7 +46,7 @@ func (q *Queries) DeleteExpired(ctx context.Context) (int64, error) {
 }
 
 const getByID = `-- name: GetByID :one
-SELECT id, user_id, is_active, expiration_date FROM refresh_tokens WHERE id = $1
+SELECT id, user_id, is_active, expiration_date FROM refresh_tokens WHERE id = $1 AND is_active = TRUE AND expiration_date > NOW()
 `
 
 func (q *Queries) GetByID(ctx context.Context, id uuid.UUID) (RefreshToken, error) {
@@ -61,39 +61,12 @@ func (q *Queries) GetByID(ctx context.Context, id uuid.UUID) (RefreshToken, erro
 	return i, err
 }
 
-const getUserIDByRefreshToken = `-- name: GetUserIDByRefreshToken :one
-SELECT user_id FROM refresh_tokens WHERE id = $1 AND is_active = TRUE
-`
-
-func (q *Queries) GetUserIDByRefreshToken(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, getUserIDByRefreshToken, id)
-	var user_id uuid.UUID
-	err := row.Scan(&user_id)
-	return user_id, err
-}
-
-const inactivate = `-- name: Inactivate :one
-UPDATE refresh_tokens SET is_active = FALSE WHERE id = $1 RETURNING id, user_id, is_active, expiration_date
-`
-
-func (q *Queries) Inactivate(ctx context.Context, id uuid.UUID) (RefreshToken, error) {
-	row := q.db.QueryRow(ctx, inactivate, id)
-	var i RefreshToken
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.IsActive,
-		&i.ExpirationDate,
-	)
-	return i, err
-}
-
-const inactivateByUserID = `-- name: InactivateByUserID :execrows
+const inactivate = `-- name: Inactivate :execrows
 UPDATE refresh_tokens SET is_active = FALSE WHERE user_id = $1 RETURNING id, user_id, is_active, expiration_date
 `
 
-func (q *Queries) InactivateByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
-	result, err := q.db.Exec(ctx, inactivateByUserID, userID)
+func (q *Queries) Inactivate(ctx context.Context, userID uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, inactivate, userID)
 	if err != nil {
 		return 0, err
 	}

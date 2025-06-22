@@ -23,10 +23,8 @@ import (
 type Store interface {
 	GetUserIDByRefreshToken(ctx context.Context, id uuid.UUID) (string, error)
 	GenerateRefreshToken(ctx context.Context, user user.User) (RefreshToken, error)
-	InactivateRefreshToken(ctx context.Context, id uuid.UUID) error
-	InactivateRefreshTokensByUserID(ctx context.Context, userID uuid.UUID) error
-	DeleteExpiredRefreshTokens(ctx context.Context) error
-	ExistsByID(ctx context.Context, id uuid.UUID) (bool, error)
+	InactivateRefreshTokens(ctx context.Context, user user.User) error
+	DeleteExpiredRefreshTokens(ctx context.Context) (int64, error)
 }
 
 type Service struct {
@@ -151,7 +149,6 @@ func (s Service) Parse(ctx context.Context, tokenString string) (user.User, erro
 
 	logger.Debug("Successfully parsed JWT token", zap.String("id", claims.ID.String()), zap.String("username", claims.Username), zap.String("role", claims.Role))
 
-	// Convert role string back to array
 	roles := []string{}
 	if claims.Role != "" {
 		roles = strings.Split(claims.Role, ",")
@@ -176,13 +173,13 @@ func (s Service) GetUserIDByRefreshToken(ctx context.Context, id uuid.UUID) (str
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	userID, err := s.queries.GetUserIDByRefreshToken(ctx, id)
+	refreshToken, err := s.queries.GetByID(ctx, id)
 	if err != nil {
 		logger.Error("failed to get user id by refresh token", zap.Error(err))
 		return "", err
 	}
 
-	return userID.String(), nil
+	return refreshToken.UserID.String(), nil
 }
 
 func (s Service) GenerateRefreshToken(ctx context.Context, user user.User) (RefreshToken, error) {
@@ -190,7 +187,7 @@ func (s Service) GenerateRefreshToken(ctx context.Context, user user.User) (Refr
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	_, err := s.queries.DeleteExpired(traceCtx)
+	_, err := s.queries.Delete(traceCtx)
 	if err != nil {
 		logger.Error("failed to delete expired refresh tokens", zap.Error(err))
 	}
@@ -214,29 +211,14 @@ func (s Service) GenerateRefreshToken(ctx context.Context, user user.User) (Refr
 	return refreshToken, nil
 }
 
-func (s Service) InactivateRefreshToken(ctx context.Context, id uuid.UUID) error {
-	traceCtx, span := s.tracer.Start(ctx, "InactivateRefreshToken")
+func (s Service) InactivateRefreshTokens(ctx context.Context, user user.User) error {
+	traceCtx, span := s.tracer.Start(ctx, "InactivateRefreshTokensByUser")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	_, err := s.queries.Inactivate(traceCtx, id)
+	_, err := s.queries.Inactivate(traceCtx, user.ID)
 	if err != nil {
-		err = databaseutil.WrapDBErrorWithKeyValue(err, "refresh_token", "id", id.String(), logger, "inactivate refresh token")
-		return err
-	}
-
-	return nil
-}
-
-func (s Service) InactivateRefreshTokensByUserID(ctx context.Context, userID uuid.UUID) error {
-	traceCtx, span := s.tracer.Start(ctx, "InactivateRefreshTokensByUserID")
-	defer span.End()
-	logger := logutil.WithContext(traceCtx, s.logger)
-
-	_, err := s.queries.InactivateByUserID(traceCtx, userID)
-	if err != nil {
-		err = databaseutil.WrapDBErrorWithKeyValue(err, "refresh_token", "user_id", userID.String(), logger, "inactivate refresh token by user id")
-		span.RecordError(err)
+		err = databaseutil.WrapDBErrorWithKeyValue(err, "refresh_token", "user_id", user.ID.String(), logger, "inactivate refresh token by user id")
 		return err
 	}
 
@@ -248,7 +230,7 @@ func (s Service) DeleteExpiredRefreshTokens(ctx context.Context) (int64, error) 
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	rowsAffected, err := s.queries.DeleteExpired(traceCtx)
+	rowsAffected, err := s.queries.Delete(traceCtx)
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "delete expired refresh tokens")
 		span.RecordError(err)
@@ -256,18 +238,4 @@ func (s Service) DeleteExpiredRefreshTokens(ctx context.Context) (int64, error) 
 	}
 
 	return rowsAffected, nil
-}
-
-func (s Service) ExistsByID(ctx context.Context, id uuid.UUID) (bool, error) {
-	traceCtx, span := s.tracer.Start(ctx, "ExistsByID")
-	defer span.End()
-	logger := logutil.WithContext(traceCtx, s.logger)
-
-	_, err := s.queries.GetUserIDByRefreshToken(ctx, id)
-	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "check if refresh token exists by id")
-		span.RecordError(err)
-		return false, err
-	}
-	return true, nil
 }

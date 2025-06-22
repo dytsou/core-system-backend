@@ -32,8 +32,7 @@ type JWTIssuer interface {
 }
 
 type JWTStore interface {
-	InactivateRefreshTokensByUserID(ctx context.Context, userID uuid.UUID) error
-	InactivateRefreshToken(ctx context.Context, refreshTokenID uuid.UUID) error
+	InactivateRefreshTokens(ctx context.Context, user user.User) error
 }
 
 type UserStore interface {
@@ -177,11 +176,6 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.jwtStore.InactivateRefreshTokensByUserID(traceCtx, jwtUser.ID)
-	if err != nil {
-		logger.Warn("Failed to invalidate existing refresh tokens for user", zap.Error(err), zap.String("user_id", jwtUser.ID.String()))
-	}
-
 	jwtToken, refreshTokenID, err := h.generateJWT(traceCtx, jwtUser)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
@@ -227,6 +221,11 @@ func (h *Handler) DebugToken(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) generateJWT(ctx context.Context, user user.User) (string, string, error) {
 	traceCtx, span := h.tracer.Start(ctx, "generateJWT")
 	defer span.End()
+
+	err := h.jwtStore.InactivateRefreshTokens(traceCtx, user)
+	if err != nil {
+		return "", "", err
+	}
 
 	jwtToken, err := h.jwtIssuer.New(traceCtx, user)
 	if err != nil {
@@ -280,7 +279,7 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.jwtStore.InactivateRefreshTokensByUserID(traceCtx, user.ID)
+	err = h.jwtStore.InactivateRefreshTokens(traceCtx, user)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
@@ -335,9 +334,9 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.jwtStore.InactivateRefreshToken(traceCtx, refreshTokenID)
+	err = h.jwtStore.InactivateRefreshTokens(traceCtx, user)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to invalidate refresh token"), logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to invalidate old refresh token"), logger)
 		return
 	}
 
@@ -353,7 +352,6 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Return new tokens according to project specification
 	response := map[string]interface{}{
 		"accessToken":    newJWTToken,
 		"expirationTime": newRefreshToken.ExpirationDate.Time.UnixMilli(),
