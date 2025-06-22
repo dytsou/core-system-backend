@@ -120,6 +120,7 @@ func (s Service) Parse(ctx context.Context, tokenString string) (user.User, erro
 			return user.User{}, err
 		case errors.Is(err, jwt.ErrSignatureInvalid):
 			logger.Warn("Failed to parse JWT token due to invalid signature", zap.String("error", err.Error()))
+			return user.User{}, err
 		case errors.Is(err, jwt.ErrTokenExpired):
 			expiredTime, getErr := token.Claims.GetExpirationTime()
 			if getErr != nil {
