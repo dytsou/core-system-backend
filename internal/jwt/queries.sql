@@ -1,5 +1,5 @@
--- name: GetByID :one
-SELECT * FROM refresh_tokens WHERE id = $1 AND is_active = TRUE AND expiration_date > NOW();
+-- name: GetUserIDByTokenID :one
+SELECT user_id FROM refresh_tokens WHERE id = $1 AND is_active = TRUE AND expiration_date > NOW();
 
 -- name: Create :one
 INSERT INTO refresh_tokens (user_id, expiration_date) VALUES ($1, $2) RETURNING *;

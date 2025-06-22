@@ -45,20 +45,15 @@ func (q *Queries) Delete(ctx context.Context) (int64, error) {
 	return result.RowsAffected(), nil
 }
 
-const getByID = `-- name: GetByID :one
-SELECT id, user_id, is_active, expiration_date FROM refresh_tokens WHERE id = $1 AND is_active = TRUE AND expiration_date > NOW()
+const getUserIDByTokenID = `-- name: GetUserIDByTokenID :one
+SELECT user_id FROM refresh_tokens WHERE id = $1 AND is_active = TRUE AND expiration_date > NOW()
 `
 
-func (q *Queries) GetByID(ctx context.Context, id uuid.UUID) (RefreshToken, error) {
-	row := q.db.QueryRow(ctx, getByID, id)
-	var i RefreshToken
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.IsActive,
-		&i.ExpirationDate,
-	)
-	return i, err
+func (q *Queries) GetUserIDByTokenID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getUserIDByTokenID, id)
+	var user_id uuid.UUID
+	err := row.Scan(&user_id)
+	return user_id, err
 }
 
 const inactivate = `-- name: Inactivate :execrows

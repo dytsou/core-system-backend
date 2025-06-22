@@ -27,7 +27,7 @@ type Store interface {
 }
 
 type Querier interface {
-	GetByID(ctx context.Context, id uuid.UUID) (RefreshToken, error)
+	GetUserIDByTokenID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	Create(ctx context.Context, arg CreateParams) (RefreshToken, error)
 	Inactivate(ctx context.Context, id uuid.UUID) (int64, error)
 	Delete(ctx context.Context) (int64, error)
@@ -174,13 +174,13 @@ func (s Service) GetUserIDByRefreshToken(ctx context.Context, id uuid.UUID) (uui
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	refreshToken, err := s.queries.GetByID(ctx, id)
+	userID, err := s.queries.GetUserIDByTokenID(ctx, id)
 	if err != nil {
 		logger.Error("failed to get user id by refresh token", zap.Error(err))
 		return uuid.UUID{}, err
 	}
 
-	return refreshToken.UserID, nil
+	return userID, nil
 }
 
 func (s Service) GenerateRefreshToken(ctx context.Context, user user.User) (RefreshToken, error) {
