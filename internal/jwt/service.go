@@ -187,9 +187,12 @@ func (s Service) GenerateRefreshToken(ctx context.Context, user user.User) (Refr
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	_, err := s.queries.Delete(traceCtx)
+	rowsAffected, err := s.DeleteExpiredRefreshTokens(traceCtx)
 	if err != nil {
 		logger.Error("failed to delete expired refresh tokens", zap.Error(err))
+	}
+	if rowsAffected > 0 {
+		logger.Info("deleted expired refresh tokens", zap.Int64("rows_affected", rowsAffected))
 	}
 
 	expirationDate := time.Now()
