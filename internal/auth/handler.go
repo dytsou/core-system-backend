@@ -37,8 +37,6 @@ type JWTStore interface {
 }
 
 type UserStore interface {
-	Create(ctx context.Context, name, username, avatarUrl string, role []string) (user.User, error)
-	ExistsByID(ctx context.Context, id uuid.UUID) (bool, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (user.User, error)
 	FindOrCreate(ctx context.Context, name, username, avatarUrl string, role []string, oauthProvider, oauthProviderID string) (user.User, error)
 }
