@@ -32,7 +32,7 @@ type JWTIssuer interface {
 }
 
 type JWTStore interface {
-	InactivateRefreshTokens(ctx context.Context, user user.User) error
+	InactivateRefreshToken(ctx context.Context, id uuid.UUID) error
 }
 
 type UserStore interface {
@@ -222,11 +222,6 @@ func (h *Handler) generateJWT(ctx context.Context, user user.User) (string, stri
 	traceCtx, span := h.tracer.Start(ctx, "generateJWT")
 	defer span.End()
 
-	err := h.jwtStore.InactivateRefreshTokens(traceCtx, user)
-	if err != nil {
-		return "", "", err
-	}
-
 	jwtToken, err := h.jwtIssuer.New(traceCtx, user)
 	if err != nil {
 		return "", "", err
@@ -273,19 +268,20 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
-	user, err := h.jwtIssuer.Parse(traceCtx, r.Header.Get("Authorization"))
-	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, err, logger)
-		return
+	// Inactivate the current refresh token
+	refreshTokenStr := r.URL.Query().Get("refreshToken")
+
+	if refreshTokenStr != "" {
+		refreshTokenID, err := uuid.Parse(refreshTokenStr)
+		if err == nil {
+			err = h.jwtStore.InactivateRefreshToken(traceCtx, refreshTokenID)
+			if err != nil {
+				logger.Warn("Failed to inactivate refresh token during logout", zap.Error(err))
+			}
+		}
 	}
 
-	err = h.jwtStore.InactivateRefreshTokens(traceCtx, user)
-	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, err, logger)
-		return
-	}
-
-	// Clear the refresh token cookie
+	// Clear the access token cookie
 	http.SetCookie(w, &http.Cookie{
 		Name:     "accessToken",
 		Value:    "",
@@ -328,9 +324,9 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.jwtStore.InactivateRefreshTokens(traceCtx, user)
+	err = h.jwtStore.InactivateRefreshToken(traceCtx, refreshTokenID)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to invalidate old refresh token"), logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to invalidate current refresh token"), logger)
 		return
 	}
 

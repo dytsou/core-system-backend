@@ -22,7 +22,7 @@ import (
 type Store interface {
 	GetUserIDByRefreshToken(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	GenerateRefreshToken(ctx context.Context, user user.User) (RefreshToken, error)
-	InactivateRefreshTokens(ctx context.Context, user user.User) error
+	InactivateRefreshToken(ctx context.Context, id uuid.UUID) error
 	DeleteExpiredRefreshTokens(ctx context.Context) (int64, error)
 }
 
@@ -208,14 +208,14 @@ func (s Service) GenerateRefreshToken(ctx context.Context, user user.User) (Refr
 	return refreshToken, nil
 }
 
-func (s Service) InactivateRefreshTokens(ctx context.Context, user user.User) error {
-	traceCtx, span := s.tracer.Start(ctx, "InactivateRefreshTokens")
+func (s Service) InactivateRefreshToken(ctx context.Context, id uuid.UUID) error {
+	traceCtx, span := s.tracer.Start(ctx, "InactivateRefreshToken")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	_, err := s.queries.Inactivate(traceCtx, user.ID)
+	_, err := s.queries.Inactivate(traceCtx, id)
 	if err != nil {
-		err = databaseutil.WrapDBErrorWithKeyValue(err, "refresh_token", "user_id", user.ID.String(), logger, "inactivate refresh token by user id")
+		err = databaseutil.WrapDBErrorWithKeyValue(err, "refresh_token", "id", id.String(), logger, "inactivate refresh token")
 		return err
 	}
 
