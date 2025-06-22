@@ -77,7 +77,7 @@ func (s *Service) FindOrCreate(ctx context.Context, name, username, avatarUrl st
 
 	// User doesn't exist, create new user
 	avatarUrl = resolveAvatarUrl(name, avatarUrl)
-	if role == nil || len(role) == 0 {
+	if len(role) == 0 {
 		role = []string{"user"}
 	}
 

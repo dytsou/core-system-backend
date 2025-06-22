@@ -72,7 +72,10 @@ func (g *GoogleConfig) GetUserInfo(ctx context.Context, token *oauth2.Token) (us
 	if err != nil {
 		return user.User{}, user.Auth{}, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if cerr := resp.Body.Close(); cerr != nil {
+		}
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
