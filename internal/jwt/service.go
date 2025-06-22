@@ -26,12 +26,19 @@ type Store interface {
 	DeleteExpiredRefreshTokens(ctx context.Context) (int64, error)
 }
 
+type Querier interface {
+	GetByID(ctx context.Context, id uuid.UUID) (RefreshToken, error)
+	Create(ctx context.Context, arg CreateParams) (RefreshToken, error)
+	Inactivate(ctx context.Context, id uuid.UUID) (int64, error)
+	Delete(ctx context.Context) (int64, error)
+}
+
 type Service struct {
 	logger                 *zap.Logger
 	secret                 string
 	expiration             time.Duration
 	refreshTokenExpiration time.Duration
-	queries                *Queries
+	queries                Querier
 	tracer                 trace.Tracer
 }
 
