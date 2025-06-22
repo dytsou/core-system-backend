@@ -1,13 +1,13 @@
 package jwt
 
 import (
-	"NYCU-SDC/core-system-backend/internal"
 	"NYCU-SDC/core-system-backend/internal/user"
 	"context"
-	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
+	handlerutil "github.com/NYCU-SDC/summer/pkg/handler"
 	"github.com/NYCU-SDC/summer/pkg/problem"
 	"github.com/go-playground/validator/v10"
 	"go.opentelemetry.io/otel"
@@ -74,7 +74,8 @@ func (m *Middleware) GetMe(w http.ResponseWriter, r *http.Request) {
 	currentUser, ok := GetUserFromContext(ctx)
 	if !ok {
 		m.logger.Error("No user found in request context")
-		m.writeNotFound(w, "user")
+		m.problemWriter.WriteError(ctx, w, fmt.Errorf("no user found in request context"), m.logger)
+		span.RecordError(fmt.Errorf("no user found in request context"))
 		return
 	}
 
@@ -92,28 +93,5 @@ func (m *Middleware) GetMe(w http.ResponseWriter, r *http.Request) {
 		Role:      roleStr,
 	}
 
-	m.writeJSONResponse(w, http.StatusOK, response)
-}
-
-// writeJSONResponse writes a JSON response
-func (m *Middleware) writeJSONResponse(w http.ResponseWriter, statusCode int, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-
-	if err := json.NewEncoder(w).Encode(data); err != nil {
-		m.logger.Error("Failed to encode JSON response", zap.Error(err))
-	}
-}
-
-// writeNotFound writes a 404 Not Found response using RFC 7807 format
-func (m *Middleware) writeNotFound(w http.ResponseWriter, resource string) {
-	notFoundError := internal.NewNotFound(resource)
-	notFoundError.Detail = "The requested " + resource + " was not found"
-
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(http.StatusNotFound)
-
-	if err := json.NewEncoder(w).Encode(notFoundError); err != nil {
-		m.logger.Error("Failed to encode not found response", zap.Error(err))
-	}
+	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
 }
