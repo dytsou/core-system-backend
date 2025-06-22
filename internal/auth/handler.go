@@ -28,7 +28,7 @@ type JWTIssuer interface {
 	New(ctx context.Context, user user.User) (string, error)
 	Parse(ctx context.Context, tokenString string) (user.User, error)
 	GenerateRefreshToken(ctx context.Context, user user.User) (jwt.RefreshToken, error)
-	GetUserIDByRefreshToken(ctx context.Context, refreshTokenID uuid.UUID) (string, error)
+	GetUserIDByRefreshToken(ctx context.Context, refreshTokenID uuid.UUID) (uuid.UUID, error)
 }
 
 type JWTStore interface {
@@ -316,15 +316,9 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userIDStr, err := h.jwtIssuer.GetUserIDByRefreshToken(traceCtx, refreshTokenID)
+	userID, err := h.jwtIssuer.GetUserIDByRefreshToken(traceCtx, refreshTokenID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid or expired refresh token"), logger)
-		return
-	}
-
-	userID, err := uuid.Parse(userIDStr)
-	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid user ID"), logger)
 		return
 	}
 

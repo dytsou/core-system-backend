@@ -21,7 +21,7 @@ import (
 )
 
 type Store interface {
-	GetUserIDByRefreshToken(ctx context.Context, id uuid.UUID) (string, error)
+	GetUserIDByRefreshToken(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	GenerateRefreshToken(ctx context.Context, user user.User) (RefreshToken, error)
 	InactivateRefreshTokens(ctx context.Context, user user.User) error
 	DeleteExpiredRefreshTokens(ctx context.Context) (int64, error)
@@ -168,7 +168,7 @@ func (s Service) Parse(ctx context.Context, tokenString string) (user.User, erro
 	}, nil
 }
 
-func (s Service) GetUserIDByRefreshToken(ctx context.Context, id uuid.UUID) (string, error) {
+func (s Service) GetUserIDByRefreshToken(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
 	traceCtx, span := s.tracer.Start(ctx, "GetUserIDByRefreshToken")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
@@ -176,10 +176,10 @@ func (s Service) GetUserIDByRefreshToken(ctx context.Context, id uuid.UUID) (str
 	refreshToken, err := s.queries.GetByID(ctx, id)
 	if err != nil {
 		logger.Error("failed to get user id by refresh token", zap.Error(err))
-		return "", err
+		return uuid.UUID{}, err
 	}
 
-	return refreshToken.UserID.String(), nil
+	return refreshToken.UserID, nil
 }
 
 func (s Service) GenerateRefreshToken(ctx context.Context, user user.User) (RefreshToken, error) {
