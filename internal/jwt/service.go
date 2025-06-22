@@ -5,7 +5,6 @@ import (
 
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -110,7 +109,8 @@ func (s Service) Parse(ctx context.Context, tokenString string) (user.User, erro
 		return []byte(s.secret), nil
 	}
 
-	token, err := jwt.Parse(tokenString, secret)
+	tokenClaims := &claims{}
+	token, err := jwt.ParseWithClaims(tokenString, tokenClaims, secret)
 	if err != nil {
 		switch {
 		case errors.Is(err, jwt.ErrTokenMalformed):
@@ -141,21 +141,15 @@ func (s Service) Parse(ctx context.Context, tokenString string) (user.User, erro
 		}
 	}
 
-	claims, ok := token.Claims.(*claims)
-	if !ok {
-		logger.Error("Failed to extract claims from JWT token")
-		return user.User{}, fmt.Errorf("failed to extract claims from JWT token")
-	}
-
-	logger.Debug("Successfully parsed JWT token", zap.String("id", claims.ID.String()), zap.String("username", claims.Username), zap.String("role", claims.Role))
+	logger.Debug("Successfully parsed JWT token", zap.String("id", tokenClaims.ID.String()), zap.String("username", tokenClaims.Username), zap.String("role", tokenClaims.Role))
 
 	roles := []string{}
-	if claims.Role != "" {
-		roles = strings.Split(claims.Role, ",")
+	if tokenClaims.Role != "" {
+		roles = strings.Split(tokenClaims.Role, ",")
 	}
 
 	// Parse user ID from subject
-	userID, err := uuid.Parse(claims.Subject)
+	userID, err := uuid.Parse(tokenClaims.Subject)
 	if err != nil {
 		logger.Error("Failed to parse user ID from JWT subject", zap.Error(err))
 		return user.User{}, err
@@ -163,7 +157,7 @@ func (s Service) Parse(ctx context.Context, tokenString string) (user.User, erro
 
 	return user.User{
 		ID:       userID,
-		Username: pgtype.Text{String: claims.Username, Valid: true},
+		Username: pgtype.Text{String: tokenClaims.Username, Valid: true},
 		Role:     roles,
 	}, nil
 }
