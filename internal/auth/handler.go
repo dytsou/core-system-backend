@@ -124,7 +124,7 @@ func (h *Handler) Oauth2Start(w http.ResponseWriter, r *http.Request) {
 	state := base64.StdEncoding.EncodeToString([]byte(callback))
 
 	authURL := provider.Config().AuthCodeURL(state, oauth2.AccessTypeOffline)
-	http.Redirect(w, r, authURL, http.StatusTemporaryRedirect)
+	http.Redirect(w, r, authURL, http.StatusFound)
 
 	logger.Info("Redirecting to Google OAuth2", zap.String("url", authURL))
 }
@@ -155,7 +155,7 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 	oauthError := callbackInfo.oauthError
 
 	if oauthError != "" {
-		http.Redirect(w, r, fmt.Sprintf("%s?error=%s", callback, oauthError), http.StatusTemporaryRedirect)
+		http.Redirect(w, r, fmt.Sprintf("%s?error=%s", callback, oauthError), http.StatusFound)
 		return
 	}
 
@@ -195,7 +195,7 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 		redirectWithToken = fmt.Sprintf("%s?token=%s&refreshToken=%s", callback, jwtToken, refreshTokenID)
 	}
 
-	http.Redirect(w, r, redirectWithToken, http.StatusTemporaryRedirect)
+	http.Redirect(w, r, redirectWithToken, http.StatusFound)
 }
 
 func (h *Handler) DebugToken(w http.ResponseWriter, r *http.Request) {
