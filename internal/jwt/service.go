@@ -150,7 +150,7 @@ func (s Service) Parse(ctx context.Context, tokenString string) (user.User, erro
 
 	logger.Debug("Successfully parsed JWT token", zap.String("id", tokenClaims.ID.String()), zap.String("username", tokenClaims.Username), zap.String("role", tokenClaims.Role))
 
-	roles := []string{}
+	var roles []string
 	if tokenClaims.Role != "" {
 		roles = strings.Split(tokenClaims.Role, ",")
 	}
