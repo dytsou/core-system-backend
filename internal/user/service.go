@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"net/url"
 
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
@@ -66,7 +67,7 @@ func (s *Service) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 
 func resolveAvatarUrl(name, avatarUrl string) string {
 	if avatarUrl == "" {
-		return "https://ui-avatars.com/api/?name=" + name
+		return "https://ui-avatars.com/api/?name=" + url.QueryEscape(name)
 	}
 	return avatarUrl
 }
