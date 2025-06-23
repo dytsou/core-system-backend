@@ -19,13 +19,6 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-type Store interface {
-	GetUserIDByRefreshToken(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
-	GenerateRefreshToken(ctx context.Context, userID uuid.UUID) (RefreshToken, error)
-	InactivateRefreshToken(ctx context.Context, id uuid.UUID) error
-	DeleteExpiredRefreshTokens(ctx context.Context) (int64, error)
-}
-
 type Querier interface {
 	GetUserIDByTokenID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	Create(ctx context.Context, arg CreateParams) (RefreshToken, error)
