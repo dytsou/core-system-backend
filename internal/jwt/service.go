@@ -55,7 +55,7 @@ func NewService(
 type claims struct {
 	ID       uuid.UUID
 	Username string
-	Role     string
+	Role     []string
 	jwt.RegisteredClaims
 }
 
@@ -68,15 +68,11 @@ func (s Service) New(ctx context.Context, user user.User) (string, error) {
 
 	id := user.ID
 	username := user.Username.String
-	roleStr := ""
-	if len(user.Role) > 0 {
-		roleStr = strings.Join(user.Role, ",")
-	}
 
 	claims := &claims{
 		ID:       jwtID,
 		Username: username,
-		Role:     roleStr,
+		Role:     user.Role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    "core-system",
 			Subject:   id.String(), // user id
@@ -90,11 +86,11 @@ func (s Service) New(ctx context.Context, user user.User) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString([]byte(s.secret))
 	if err != nil {
-		logger.Error("failed to sign token", zap.Error(err), zap.String("user_id", id.String()), zap.String("username", username), zap.String("role", roleStr))
+		logger.Error("failed to sign token", zap.Error(err), zap.String("user_id", id.String()), zap.String("username", username), zap.String("role", strings.Join(user.Role, ",")))
 		return "", err
 	}
 
-	logger.Debug("Generated JWT token", zap.String("id", id.String()), zap.String("username", username), zap.String("role", roleStr))
+	logger.Debug("Generated JWT token", zap.String("id", id.String()), zap.String("username", username), zap.String("role", strings.Join(user.Role, ",")))
 	return tokenString, nil
 }
 
@@ -141,12 +137,7 @@ func (s Service) Parse(ctx context.Context, tokenString string) (user.User, erro
 		}
 	}
 
-	logger.Debug("Successfully parsed JWT token", zap.String("id", tokenClaims.ID.String()), zap.String("username", tokenClaims.Username), zap.String("role", tokenClaims.Role))
-
-	var roles []string
-	if tokenClaims.Role != "" {
-		roles = strings.Split(tokenClaims.Role, ",")
-	}
+	logger.Debug("Successfully parsed JWT token", zap.String("id", tokenClaims.ID.String()), zap.String("username", tokenClaims.Username), zap.String("role", strings.Join(tokenClaims.Role, ",")))
 
 	// Parse user ID from subject
 	userID, err := uuid.Parse(tokenClaims.Subject)
@@ -158,7 +149,7 @@ func (s Service) Parse(ctx context.Context, tokenString string) (user.User, erro
 	return user.User{
 		ID:       userID,
 		Username: pgtype.Text{String: tokenClaims.Username, Valid: true},
-		Role:     roles,
+		Role:     tokenClaims.Role,
 	}, nil
 }
 
