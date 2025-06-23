@@ -7,8 +7,7 @@ CREATE TABLE users (
     avatar_url VARCHAR(512) NOT NULL,
     role VARCHAR(255)[] NOT NULL DEFAULT '{"user"}',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE(id)
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE auth (
@@ -18,5 +17,5 @@ CREATE TABLE auth (
     provider_id VARCHAR(255) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE(user_id, provider)
+    UNIQUE(provider, provider_id)
 );
