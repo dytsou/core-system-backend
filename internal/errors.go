@@ -17,6 +17,11 @@ var (
 	ErrInternalServerError  = errors.New("internal server error")
 	ErrForbiddenError       = errors.New("forbidden error")
 	ErrNotFound             = errors.New("not found")
+
+	// JWT Authentication Errors
+	ErrMissingAuthHeader       = errors.New("missing Authorization header")
+	ErrInvalidAuthHeaderFormat = errors.New("invalid Authorization header format")
+	ErrInvalidJWTToken         = errors.New("invalid JWT token")
 )
 
 func NewProblemWriter() *problem.HttpWriter {
@@ -43,6 +48,13 @@ func ErrorHandler(err error) problem.Problem {
 		return problem.NewForbiddenProblem("forbidden error")
 	case errors.Is(err, ErrNotFound):
 		return problem.NewNotFoundProblem("not found")
+	// JWT Authentication Errors
+	case errors.Is(err, ErrMissingAuthHeader):
+		return problem.NewUnauthorizedProblem("missing Authorization header")
+	case errors.Is(err, ErrInvalidAuthHeaderFormat):
+		return problem.NewUnauthorizedProblem("invalid Authorization header format")
+	case errors.Is(err, ErrInvalidJWTToken):
+		return problem.NewUnauthorizedProblem("invalid JWT token")
 	}
 	return problem.Problem{}
 }

@@ -119,6 +119,7 @@ func main() {
 
 	// Middleware
 	traceMiddleware := trace.NewMiddleware(logger, cfg.Debug)
+	jwtMiddleware := jwt.NewMiddleware(logger, validator, problemWriter, jwtService, cfg.Debug)
 
 	// Basic Middleware (Tracing and Recovery)
 	basicMiddleware := middleware.NewSet(traceMiddleware.RecoverMiddleware)
@@ -135,7 +136,7 @@ func main() {
 	mux.HandleFunc("POST /api/auth/refresh/{refreshToken}", basicMiddleware.HandlerFunc(authHandler.RefreshToken))
 
 	// User authenticated routes
-	mux.Handle("GET /api/users/me", basicMiddleware.HandlerFunc(userHandler.GetMe))
+	mux.Handle("GET /api/users/me", jwtMiddleware.AuthenticateMiddleware(userHandler.GetMe))
 
 	// handle interrupt signal
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
