@@ -161,6 +161,8 @@ func FromFlags(config *Config) (*Config, error) {
 	flag.StringVar(&flagConfig.DatabaseURL, "database_url", "", "database url")
 	flag.StringVar(&flagConfig.MigrationSource, "migration_source", "", "migration source")
 	flag.StringVar(&flagConfig.OtelCollectorUrl, "otel_collector_url", "", "OpenTelemetry collector URL")
+	flag.StringVar(&flagConfig.GoogleOauth.ClientID, "google_oauth_client_id", "", "Google OAuth client ID")
+	flag.StringVar(&flagConfig.GoogleOauth.ClientSecret, "google_oauth_client_secret", "", "Google OAuth client secret")
 
 	flag.Parse()
 
