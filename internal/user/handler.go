@@ -1,7 +1,6 @@
-package jwt
+package user
 
 import (
-	"NYCU-SDC/core-system-backend/internal/user"
 	"context"
 	"fmt"
 	"net/http"
@@ -20,33 +19,9 @@ type contextKey string
 
 const UserContextKey contextKey = "user"
 
-type Middleware struct {
-	logger        *zap.Logger
-	validator     *validator.Validate
-	problemWriter *problem.HttpWriter
-	service       *Service
-	tracer        trace.Tracer
-}
-
-// NewMiddleware creates a new user middleware
-func NewMiddleware(
-	logger *zap.Logger,
-	validator *validator.Validate,
-	problemWriter *problem.HttpWriter,
-	service *Service,
-) *Middleware {
-	return &Middleware{
-		logger:        logger,
-		validator:     validator,
-		problemWriter: problemWriter,
-		service:       service,
-		tracer:        otel.Tracer("jwt/middleware"),
-	}
-}
-
 // GetUserFromContext extracts the authenticated user from request context
-func GetUserFromContext(ctx context.Context) (*user.User, bool) {
-	userData, ok := ctx.Value(UserContextKey).(*user.User)
+func GetUserFromContext(ctx context.Context) (*User, bool) {
+	userData, ok := ctx.Value(UserContextKey).(*User)
 	return userData, ok
 }
 
@@ -59,22 +34,39 @@ type UserMeResponse struct {
 	Role      string `json:"role"`
 }
 
-func (m *Middleware) HandlerFunc(handler http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		handler(w, r)
+type Handler struct {
+	logger        *zap.Logger
+	validator     *validator.Validate
+	problemWriter *problem.HttpWriter
+	service       *Service
+	tracer        trace.Tracer
+}
+
+func NewHandler(
+	logger *zap.Logger,
+	validator *validator.Validate,
+	problemWriter *problem.HttpWriter,
+	service *Service,
+) *Handler {
+	return &Handler{
+		logger:        logger,
+		validator:     validator,
+		problemWriter: problemWriter,
+		service:       service,
+		tracer:        otel.Tracer("user/handler"),
 	}
 }
 
 // GetMe handles GET /user/me - returns authenticated user information
-func (m *Middleware) GetMe(w http.ResponseWriter, r *http.Request) {
-	ctx, span := m.tracer.Start(r.Context(), "GetMe")
+func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
+	ctx, span := h.tracer.Start(r.Context(), "GetMe")
 	defer span.End()
 
 	// Get authenticated user from context
 	currentUser, ok := GetUserFromContext(ctx)
 	if !ok {
-		m.logger.Error("No user found in request context")
-		m.problemWriter.WriteError(ctx, w, fmt.Errorf("no user found in request context"), m.logger)
+		h.logger.Error("No user found in request context")
+		h.problemWriter.WriteError(ctx, w, fmt.Errorf("no user found in request context"), h.logger)
 		span.RecordError(fmt.Errorf("no user found in request context"))
 		return
 	}
