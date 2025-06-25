@@ -9,3 +9,6 @@ UPDATE refresh_tokens SET is_active = FALSE WHERE id = $1 RETURNING *;
 
 -- name: Delete :execrows
 DELETE FROM refresh_tokens WHERE expiration_date < NOW() OR is_active = FALSE;
+
+-- name: GetRefreshTokenByID :one
+SELECT * FROM refresh_tokens WHERE id = $1;

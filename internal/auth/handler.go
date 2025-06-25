@@ -33,6 +33,7 @@ type JWTIssuer interface {
 
 type JWTStore interface {
 	InactivateRefreshToken(ctx context.Context, id uuid.UUID) error
+	GetRefreshTokenByID(ctx context.Context, id uuid.UUID) (jwt.RefreshToken, error)
 }
 
 type UserStore interface {
@@ -177,7 +178,7 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jwtToken, refreshTokenID, err := h.generateJWT(traceCtx, userID)
+	accessTokenID, refreshTokenID, err := h.generateJWT(traceCtx, userID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
@@ -186,7 +187,7 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 	// Set access token as HttpOnly cookie
 	http.SetCookie(w, &http.Cookie{
 		Name:     "access_token",
-		Value:    jwtToken,
+		Value:    accessTokenID,
 		HttpOnly: true,
 		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
@@ -363,34 +364,22 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.userStore.GetUserByID(traceCtx, userID)
-	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("user not found"), logger)
-		return
-	}
-
 	err = h.jwtStore.InactivateRefreshToken(traceCtx, refreshTokenID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to invalidate current refresh token"), logger)
 		return
 	}
 
-	newAccessToken, err := h.jwtIssuer.New(traceCtx, user)
+	newAccessTokenID, newRefreshTokenID, err := h.generateJWT(traceCtx, userID)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to generate new JWT token"), logger)
-		return
-	}
-
-	newRefreshToken, err := h.jwtIssuer.GenerateRefreshToken(traceCtx, userID)
-	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to generate new refresh token"), logger)
+		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
 
 	// Set new access token as HttpOnly cookie
 	http.SetCookie(w, &http.Cookie{
 		Name:     "access_token",
-		Value:    newAccessToken,
+		Value:    newAccessTokenID,
 		HttpOnly: true,
 		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
@@ -401,7 +390,7 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	// Set new refresh token as HttpOnly cookie
 	http.SetCookie(w, &http.Cookie{
 		Name:     "refresh_token",
-		Value:    newRefreshToken.ID.String(),
+		Value:    newRefreshTokenID,
 		HttpOnly: true,
 		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
@@ -409,8 +398,14 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   30 * 24 * 60 * 60, // 30 days
 	})
 
+	newRefreshToken, err := h.jwtStore.GetRefreshTokenByID(traceCtx, uuid.MustParse(newRefreshTokenID))
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, err, logger)
+		return
+	}
+
 	response := map[string]interface{}{
-		"accessToken":    newAccessToken,
+		"accessToken":    newAccessTokenID,
 		"expirationTime": newRefreshToken.ExpirationDate.Time.UnixMilli(),
 		"refreshToken":   newRefreshToken.ID.String(),
 	}
