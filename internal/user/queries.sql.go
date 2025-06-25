@@ -115,3 +115,19 @@ func (q *Queries) GetUserIDByID(ctx context.Context, id uuid.UUID) (uuid.UUID, e
 	err := row.Scan(&id)
 	return id, err
 }
+
+const userExistsByAuth = `-- name: UserExistsByAuth :one
+SELECT EXISTS(SELECT 1 FROM auth WHERE provider = $1 AND provider_id = $2)
+`
+
+type UserExistsByAuthParams struct {
+	Provider   string
+	ProviderID string
+}
+
+func (q *Queries) UserExistsByAuth(ctx context.Context, arg UserExistsByAuthParams) (bool, error) {
+	row := q.db.QueryRow(ctx, userExistsByAuth, arg.Provider, arg.ProviderID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}

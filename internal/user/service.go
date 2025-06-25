@@ -2,8 +2,6 @@ package user
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"net/url"
 
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
@@ -19,6 +17,7 @@ type Querier interface {
 	GetUserIDByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserIDByAuth(ctx context.Context, arg GetUserIDByAuthParams) (uuid.UUID, error)
+	UserExistsByAuth(ctx context.Context, arg UserExistsByAuthParams) (bool, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	CreateAuth(ctx context.Context, arg CreateAuthParams) (Auth, error)
 }
@@ -77,26 +76,32 @@ func (s *Service) FindOrCreate(ctx context.Context, name, username, avatarUrl st
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	existingUserID, err := s.queries.GetUserIDByAuth(traceCtx, GetUserIDByAuthParams{
+	userExists, err := s.queries.UserExistsByAuth(traceCtx, UserExistsByAuthParams{
 		Provider:   oauthProvider,
 		ProviderID: oauthProviderID,
 	})
-	if err == nil {
-		// User exists, return it
-		logger.Debug("Found existing user", zap.String("provider", oauthProvider), zap.String("provider_id", oauthProviderID))
-		return existingUserID, nil
-	}
-
-	if errors.Is(err, sql.ErrNoRows) {
-		logger.Debug("User not found, creating new user", zap.String("provider", oauthProvider), zap.String("provider_id", oauthProviderID))
-	} else {
-		// Unexpected database error
-		err = databaseutil.WrapDBError(err, logger, "get user by auth")
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "check user existence by auth")
 		span.RecordError(err)
 		return uuid.UUID{}, err
 	}
 
+	if userExists {
+		existingUserID, err := s.queries.GetUserIDByAuth(traceCtx, GetUserIDByAuthParams{
+			Provider:   oauthProvider,
+			ProviderID: oauthProviderID,
+		})
+		if err != nil {
+			err = databaseutil.WrapDBError(err, logger, "get user by auth")
+			span.RecordError(err)
+			return uuid.UUID{}, err
+		}
+		logger.Debug("Found existing user", zap.String("provider", oauthProvider), zap.String("provider_id", oauthProviderID))
+		return existingUserID, nil
+	}
+
 	// User doesn't exist, create new user
+	logger.Debug("User not found, creating new user", zap.String("provider", oauthProvider), zap.String("provider_id", oauthProviderID))
 	avatarUrl = resolveAvatarUrl(name, avatarUrl)
 	if len(role) == 0 {
 		role = []string{"user"}

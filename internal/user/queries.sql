@@ -16,3 +16,6 @@ RETURNING *;
 
 -- name: GetUserIDByAuth :one
 SELECT user_id FROM auth WHERE provider = $1 AND provider_id = $2;
+
+-- name: UserExistsByAuth :one
+SELECT EXISTS(SELECT 1 FROM auth WHERE provider = $1 AND provider_id = $2);
