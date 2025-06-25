@@ -42,7 +42,7 @@ func (s *Service) GetUserIDByID(ctx context.Context, id uuid.UUID) (uuid.UUID, e
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	userID, err := s.queries.GetUserIDByID(ctx, id)
+	userID, err := s.queries.GetUserIDByID(traceCtx, id)
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "get user by id")
 		span.RecordError(err)
@@ -56,7 +56,7 @@ func (s *Service) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	user, err := s.queries.GetUserByID(ctx, id)
+	user, err := s.queries.GetUserByID(traceCtx, id)
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "get user by id")
 		span.RecordError(err)
@@ -77,7 +77,7 @@ func (s *Service) FindOrCreate(ctx context.Context, name, username, avatarUrl st
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	existingUserID, err := s.queries.GetUserIDByAuth(ctx, GetUserIDByAuthParams{
+	existingUserID, err := s.queries.GetUserIDByAuth(traceCtx, GetUserIDByAuthParams{
 		Provider:   oauthProvider,
 		ProviderID: oauthProviderID,
 	})
@@ -102,7 +102,7 @@ func (s *Service) FindOrCreate(ctx context.Context, name, username, avatarUrl st
 		role = []string{"user"}
 	}
 
-	newUser, err := s.queries.CreateUser(ctx, CreateUserParams{
+	newUser, err := s.queries.CreateUser(traceCtx, CreateUserParams{
 		Name:      pgtype.Text{String: name, Valid: name != ""},
 		Username:  pgtype.Text{String: username, Valid: username != ""},
 		AvatarUrl: pgtype.Text{String: avatarUrl, Valid: avatarUrl != ""},
@@ -117,7 +117,7 @@ func (s *Service) FindOrCreate(ctx context.Context, name, username, avatarUrl st
 	logger.Debug("Created new user", zap.String("user_id", newUser.ID.String()), zap.String("username", newUser.Username.String))
 
 	// Create auth entry
-	_, err = s.queries.CreateAuth(ctx, CreateAuthParams{
+	_, err = s.queries.CreateAuth(traceCtx, CreateAuthParams{
 		UserID:     newUser.ID,
 		Provider:   oauthProvider,
 		ProviderID: oauthProviderID,
