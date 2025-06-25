@@ -227,9 +227,15 @@ func (h *Handler) DebugToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token := r.URL.Query().Get("token")
+	accessTokenCookie, err := r.Cookie("access_token")
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, errors.New("missing access token cookie"), logger)
+		return
+	}
+
+	token := accessTokenCookie.Value
 	if token == "" {
-		h.problemWriter.WriteError(traceCtx, w, errors.New("missing token"), logger)
+		h.problemWriter.WriteError(traceCtx, w, errors.New("empty access token cookie"), logger)
 		return
 	}
 
