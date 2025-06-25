@@ -59,14 +59,14 @@ func NewHandler(
 
 // GetMe handles GET /user/me - returns authenticated user information
 func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
-	ctx, span := h.tracer.Start(r.Context(), "GetMe")
+	traceCtx, span := h.tracer.Start(r.Context(), "GetMe")
 	defer span.End()
 
 	// Get authenticated user from context
-	currentUser, ok := GetUserFromContext(ctx)
+	currentUser, ok := GetUserFromContext(traceCtx)
 	if !ok {
 		h.logger.Error("No user found in request context")
-		h.problemWriter.WriteError(ctx, w, fmt.Errorf("no user found in request context"), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("no user found in request context"), h.logger)
 		span.RecordError(fmt.Errorf("no user found in request context"))
 		return
 	}

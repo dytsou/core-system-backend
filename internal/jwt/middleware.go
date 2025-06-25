@@ -44,14 +44,14 @@ func NewMiddleware(
 // AuthenticateMiddleware validates JWT token and adds user to context
 func (m *Middleware) AuthenticateMiddleware(handler http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, span := m.tracer.Start(r.Context(), "AuthenticateMiddleware")
+		traceCtx, span := m.tracer.Start(r.Context(), "AuthenticateMiddleware")
 		defer span.End()
 
 		// Extract access token from cookie
 		accessTokenCookie, err := r.Cookie("access_token")
 		if err != nil {
 			m.logger.Error("Missing access token cookie")
-			m.problemWriter.WriteError(ctx, w, internal.ErrMissingAuthHeader, m.logger)
+			m.problemWriter.WriteError(traceCtx, w, internal.ErrMissingAuthHeader, m.logger)
 			span.RecordError(internal.ErrMissingAuthHeader)
 			return
 		}
@@ -59,22 +59,22 @@ func (m *Middleware) AuthenticateMiddleware(handler http.HandlerFunc) http.Handl
 		tokenString := accessTokenCookie.Value
 		if tokenString == "" {
 			m.logger.Error("Empty access token cookie")
-			m.problemWriter.WriteError(ctx, w, internal.ErrInvalidAuthHeaderFormat, m.logger)
+			m.problemWriter.WriteError(traceCtx, w, internal.ErrInvalidAuthHeaderFormat, m.logger)
 			span.RecordError(internal.ErrInvalidAuthHeaderFormat)
 			return
 		}
 
 		// Parse and validate JWT token
-		authenticatedUser, err := m.service.Parse(ctx, tokenString)
+		authenticatedUser, err := m.service.Parse(r.Context(), tokenString)
 		if err != nil {
 			m.logger.Error("Failed to parse JWT token", zap.Error(err))
-			m.problemWriter.WriteError(ctx, w, fmt.Errorf("%w: %v", internal.ErrInvalidJWTToken, err), m.logger)
+			m.problemWriter.WriteError(traceCtx, w, fmt.Errorf("%w: %v", internal.ErrInvalidJWTToken, err), m.logger)
 			span.RecordError(err)
 			return
 		}
 
 		// Add authenticated user to request context
-		ctxWithUser := context.WithValue(ctx, user.UserContextKey, &authenticatedUser)
+		ctxWithUser := context.WithValue(traceCtx, user.UserContextKey, &authenticatedUser)
 
 		// Call the actual handler with authenticated context
 		handler(w, r.WithContext(ctxWithUser))
