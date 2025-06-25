@@ -103,8 +103,5 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Deploy container to local
-        env:
-          GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
-          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
         run: |
           ~/deploy.sh "Snapshot" "${{ github.event.number }}" "${{ github.event.pull_request.title }}"
