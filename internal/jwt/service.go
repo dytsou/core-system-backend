@@ -1,7 +1,7 @@
 package jwt
 
 import (
-	user "NYCU-SDC/core-system-backend/internal/user"
+	"NYCU-SDC/core-system-backend/internal/user"
 
 	"context"
 	"errors"
