@@ -407,7 +407,7 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	response := map[string]interface{}{
 		"accessToken":    newAccessTokenID,
 		"expirationTime": newRefreshToken.ExpirationDate.Time.UnixMilli(),
-		"refreshToken":   newRefreshToken.ID.String(),
+		"refreshToken":   newRefreshTokenID,
 	}
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
