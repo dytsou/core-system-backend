@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/NYCU-SDC/summer/pkg/problem"
 	"github.com/go-playground/validator/v10"
@@ -48,19 +47,18 @@ func (m *Middleware) AuthenticateMiddleware(handler http.HandlerFunc) http.Handl
 		ctx, span := m.tracer.Start(r.Context(), "AuthenticateMiddleware")
 		defer span.End()
 
-		// Extract Authorization header
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			m.logger.Error("Missing Authorization header")
+		// Extract access token from cookie
+		accessTokenCookie, err := r.Cookie("access_token")
+		if err != nil {
+			m.logger.Error("Missing access token cookie")
 			m.problemWriter.WriteError(ctx, w, internal.ErrMissingAuthHeader, m.logger)
 			span.RecordError(internal.ErrMissingAuthHeader)
 			return
 		}
 
-		// Validate Bearer token format
-		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-		if tokenString == authHeader {
-			m.logger.Error("Invalid Authorization header format")
+		tokenString := accessTokenCookie.Value
+		if tokenString == "" {
+			m.logger.Error("Empty access token cookie")
 			m.problemWriter.WriteError(ctx, w, internal.ErrInvalidAuthHeaderFormat, m.logger)
 			span.RecordError(internal.ErrInvalidAuthHeaderFormat)
 			return

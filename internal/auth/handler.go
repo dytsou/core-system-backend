@@ -183,14 +183,36 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var redirectWithToken string
+	// Set access token as HttpOnly cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:     "access_token",
+		Value:    jwtToken,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+		Path:     "/",
+		MaxAge:   15 * 60,
+	})
+
+	// Set refresh token as HttpOnly cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:     "refresh_token",
+		Value:    refreshTokenID,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+		Path:     "/api/auth/refresh",
+		MaxAge:   30 * 24 * 60 * 60,
+	})
+
+	var redirectURL string
 	if redirectTo != "" {
-		redirectWithToken = fmt.Sprintf("%s?token=%s&refreshToken=%s&r=%s", callback, jwtToken, refreshTokenID, redirectTo)
+		redirectURL = fmt.Sprintf("%s?r=%s", callback, redirectTo)
 	} else {
-		redirectWithToken = fmt.Sprintf("%s?token=%s&refreshToken=%s", callback, jwtToken, refreshTokenID)
+		redirectURL = callback
 	}
 
-	http.Redirect(w, r, redirectWithToken, http.StatusFound)
+	http.Redirect(w, r, redirectURL, http.StatusFound)
 }
 
 func (h *Handler) DebugToken(w http.ResponseWriter, r *http.Request) {
@@ -274,11 +296,10 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
-	// Inactivate the current refresh token
-	refreshTokenStr := r.URL.Query().Get("refreshToken")
-
-	if refreshTokenStr != "" {
-		refreshTokenID, err := uuid.Parse(refreshTokenStr)
+	// Inactivate the current refresh token from cookie
+	refreshTokenCookie, err := r.Cookie("refresh_token")
+	if err == nil && refreshTokenCookie.Value != "" {
+		refreshTokenID, err := uuid.Parse(refreshTokenCookie.Value)
 		if err == nil {
 			err = h.jwtStore.InactivateRefreshToken(traceCtx, refreshTokenID)
 			if err != nil {
@@ -289,12 +310,23 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 
 	// Clear the access token cookie
 	http.SetCookie(w, &http.Cookie{
-		Name:     "accessToken",
+		Name:     "access_token",
 		Value:    "",
 		Path:     "/",
 		MaxAge:   -1,
 		HttpOnly: true,
-		Secure:   !h.config.Debug,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	})
+
+	// Clear the refresh token cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:     "refresh_token",
+		Value:    "",
+		Path:     "/api/auth/refresh",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
 	})
 
@@ -306,7 +338,14 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
-	refreshTokenStr := r.PathValue("refreshToken")
+	// Read refresh token from cookie instead of path parameter
+	refreshTokenCookie, err := r.Cookie("refresh_token")
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("refresh token cookie is required"), logger)
+		return
+	}
+	refreshTokenStr := refreshTokenCookie.Value
+
 	if refreshTokenStr == "" {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("refresh token is required"), logger)
 		return
@@ -336,7 +375,7 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newJWTToken, err := h.jwtIssuer.New(traceCtx, user)
+	newAccessToken, err := h.jwtIssuer.New(traceCtx, user)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to generate new JWT token"), logger)
 		return
@@ -348,8 +387,30 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Set new access token as HttpOnly cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:     "access_token",
+		Value:    newAccessToken,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+		Path:     "/",
+		MaxAge:   15 * 60, // 15 minutes
+	})
+
+	// Set new refresh token as HttpOnly cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:     "refresh_token",
+		Value:    newRefreshToken.ID.String(),
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+		Path:     "/api/auth/refresh",
+		MaxAge:   30 * 24 * 60 * 60, // 30 days
+	})
+
 	response := map[string]interface{}{
-		"accessToken":    newJWTToken,
+		"accessToken":    newAccessToken,
 		"expirationTime": newRefreshToken.ExpirationDate.Time.UnixMilli(),
 		"refreshToken":   newRefreshToken.ID.String(),
 	}

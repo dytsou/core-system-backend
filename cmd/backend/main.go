@@ -133,7 +133,7 @@ func main() {
 	mux.HandleFunc("GET /api/auth/login/oauth/{provider}/callback", basicMiddleware.HandlerFunc(authHandler.Callback))
 
 	// JWT refresh route
-	mux.HandleFunc("POST /api/auth/refresh/{refreshToken}", basicMiddleware.HandlerFunc(authHandler.RefreshToken))
+	mux.HandleFunc("POST /api/auth/refresh", basicMiddleware.HandlerFunc(authHandler.RefreshToken))
 
 	// User authenticated routes
 	mux.Handle("GET /api/users/me", jwtMiddleware.AuthenticateMiddleware(userHandler.GetMe))
