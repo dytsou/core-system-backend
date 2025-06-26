@@ -119,7 +119,7 @@ func main() {
 
 	// Middleware
 	traceMiddleware := trace.NewMiddleware(logger, cfg.Debug)
-	jwtMiddleware := jwt.NewMiddleware(logger, validator, problemWriter, jwtService, cfg.Debug)
+	jwtMiddleware := jwt.NewMiddleware(logger, validator, problemWriter, jwtService, userService, cfg.Debug)
 
 	// Basic Middleware (Tracing and Recovery)
 	basicMiddleware := middleware.NewSet(traceMiddleware.RecoverMiddleware)

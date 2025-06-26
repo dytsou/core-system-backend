@@ -85,5 +85,13 @@ func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
 		Role:      roleStr,
 	}
 
+	h.logger.Debug("GetMe: Response",
+		zap.String("response_id", response.ID),
+		zap.String("response_username", response.Username),
+		zap.String("response_name", response.Name),
+		zap.String("response_avatar_url", response.AvatarUrl),
+		zap.String("response_role", response.Role),
+	)
+
 	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
 }

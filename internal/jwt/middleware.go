@@ -9,16 +9,22 @@ import (
 
 	"github.com/NYCU-SDC/summer/pkg/problem"
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
+
+type UserStore interface {
+	GetUserByID(ctx context.Context, id uuid.UUID) (user.User, error)
+}
 
 type Middleware struct {
 	logger        *zap.Logger
 	validator     *validator.Validate
 	problemWriter *problem.HttpWriter
 	service       *Service
+	userStore     UserStore
 	tracer        trace.Tracer
 	debug         bool
 }
@@ -29,6 +35,7 @@ func NewMiddleware(
 	validator *validator.Validate,
 	problemWriter *problem.HttpWriter,
 	service *Service,
+	userStore UserStore,
 	debug bool,
 ) *Middleware {
 	return &Middleware{
@@ -36,6 +43,7 @@ func NewMiddleware(
 		validator:     validator,
 		problemWriter: problemWriter,
 		service:       service,
+		userStore:     userStore,
 		tracer:        otel.Tracer("jwt/middleware"),
 		debug:         debug,
 	}
@@ -65,10 +73,18 @@ func (m *Middleware) AuthenticateMiddleware(handler http.HandlerFunc) http.Handl
 		}
 
 		// Parse and validate JWT token
-		authenticatedUser, err := m.service.Parse(r.Context(), tokenString)
+		jwtUser, err := m.service.Parse(r.Context(), tokenString)
 		if err != nil {
 			m.logger.Error("Failed to parse JWT token", zap.Error(err))
 			m.problemWriter.WriteError(traceCtx, w, fmt.Errorf("%w: %v", internal.ErrInvalidJWTToken, err), m.logger)
+			span.RecordError(err)
+			return
+		}
+
+		authenticatedUser, err := m.userStore.GetUserByID(traceCtx, jwtUser.ID)
+		if err != nil {
+			m.logger.Error("Failed to fetch user data from database", zap.Error(err), zap.String("user_id", jwtUser.ID.String()))
+			m.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to fetch user data: %v", err), m.logger)
 			span.RecordError(err)
 			return
 		}
