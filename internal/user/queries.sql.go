@@ -116,6 +116,40 @@ func (q *Queries) GetUserIDByID(ctx context.Context, id uuid.UUID) (uuid.UUID, e
 	return id, err
 }
 
+const updateUser = `-- name: UpdateUser :one
+UPDATE users 
+SET name = $2, username = $3, avatar_url = $4, updated_at = now()
+WHERE id = $1
+RETURNING id, name, username, avatar_url, role, created_at, updated_at
+`
+
+type UpdateUserParams struct {
+	ID        uuid.UUID
+	Name      pgtype.Text
+	Username  pgtype.Text
+	AvatarUrl pgtype.Text
+}
+
+func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUser,
+		arg.ID,
+		arg.Name,
+		arg.Username,
+		arg.AvatarUrl,
+	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Username,
+		&i.AvatarUrl,
+		&i.Role,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const userExistsByAuth = `-- name: UserExistsByAuth :one
 SELECT EXISTS(SELECT 1 FROM auth WHERE provider = $1 AND provider_id = $2)
 `

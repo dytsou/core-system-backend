@@ -20,6 +20,7 @@ type Querier interface {
 	UserExistsByAuth(ctx context.Context, arg UserExistsByAuthParams) (bool, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	CreateAuth(ctx context.Context, arg CreateAuthParams) (Auth, error)
+	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
 }
 
 type Service struct {
@@ -96,7 +97,21 @@ func (s *Service) FindOrCreate(ctx context.Context, name, username, avatarUrl st
 			span.RecordError(err)
 			return uuid.UUID{}, err
 		}
-		logger.Debug("Found existing user", zap.String("provider", oauthProvider), zap.String("provider_id", oauthProviderID))
+
+		avatarUrl = resolveAvatarUrl(name, avatarUrl)
+		_, err = s.queries.UpdateUser(traceCtx, UpdateUserParams{
+			ID:        existingUserID,
+			Name:      pgtype.Text{String: name, Valid: name != ""},
+			Username:  pgtype.Text{String: username, Valid: username != ""},
+			AvatarUrl: pgtype.Text{String: avatarUrl, Valid: avatarUrl != ""},
+		})
+		if err != nil {
+			err = databaseutil.WrapDBError(err, logger, "update existing user")
+			span.RecordError(err)
+			return uuid.UUID{}, err
+		}
+
+		logger.Debug("Updated existing user", zap.String("provider", oauthProvider), zap.String("provider_id", oauthProviderID), zap.String("user_id", existingUserID.String()))
 		return existingUserID, nil
 	}
 
