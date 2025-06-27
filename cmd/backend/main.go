@@ -111,10 +111,10 @@ func main() {
 
 	// Service
 	userService := user.NewService(logger, dbPool)
-	jwtService := jwt.NewService(logger, dbPool, cfg.Secret, 15*time.Minute, 30*24*time.Hour)
+	jwtService := jwt.NewService(logger, dbPool, cfg.Secret, cfg.AccessTokenExpiration, cfg.RefreshTokenExpiration)
 
 	// Handler
-	authHandler := auth.NewHandler(cfg, logger, validator, problemWriter, userService, jwtService, jwtService)
+	authHandler := auth.NewHandler(logger, validator, problemWriter, userService, jwtService, jwtService, cfg.BaseURL, cfg.AccessTokenExpiration, cfg.RefreshTokenExpiration, cfg.GoogleOauth)
 	userHandler := user.NewHandler(logger, validator, problemWriter, userService)
 
 	// Middleware

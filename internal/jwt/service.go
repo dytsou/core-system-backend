@@ -30,7 +30,7 @@ type Querier interface {
 type Service struct {
 	logger                 *zap.Logger
 	secret                 string
-	expiration             time.Duration
+	accessTokenExpiration  time.Duration
 	refreshTokenExpiration time.Duration
 	queries                Querier
 	tracer                 trace.Tracer
@@ -40,7 +40,7 @@ func NewService(
 	logger *zap.Logger,
 	db DBTX,
 	secret string,
-	expiration time.Duration,
+	accessTokenExpiration time.Duration,
 	refreshTokenExpiration time.Duration,
 ) *Service {
 	return &Service{
@@ -48,7 +48,7 @@ func NewService(
 		queries:                New(db),
 		tracer:                 otel.Tracer("jwt/service"),
 		secret:                 secret,
-		expiration:             expiration,
+		accessTokenExpiration:  accessTokenExpiration,
 		refreshTokenExpiration: refreshTokenExpiration,
 	}
 }
@@ -77,7 +77,7 @@ func (s Service) New(ctx context.Context, user user.User) (string, error) {
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    "core-system",
 			Subject:   id.String(), // user id
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(s.expiration)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(s.accessTokenExpiration)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			NotBefore: jwt.NewNumericDate(time.Now()),
 			ID:        jwtID.String(), // jwt id

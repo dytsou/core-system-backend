@@ -1,16 +1,16 @@
 package config
 
 import (
+	googleOauth "NYCU-SDC/core-system-backend/internal/auth/oauthprovider"
 	"errors"
 	"flag"
-	"os"
-
-	googleOauth "NYCU-SDC/core-system-backend/internal/auth/oauthprovider"
-
+	"fmt"
 	configutil "github.com/NYCU-SDC/summer/pkg/config"
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
+	"os"
+	"time"
 )
 
 const DefaultSecret = "default-secret"
@@ -18,15 +18,20 @@ const DefaultSecret = "default-secret"
 var ErrDatabaseURLRequired = errors.New("database_url is required")
 
 type Config struct {
-	Debug            bool                    `yaml:"debug"              envconfig:"DEBUG"`
-	Host             string                  `yaml:"host"               envconfig:"HOST"`
-	Port             string                  `yaml:"port"               envconfig:"PORT"`
-	BaseURL          string                  `yaml:"base_url"          envconfig:"BASE_URL"`
-	Secret           string                  `yaml:"secret"             envconfig:"SECRET"`
-	DatabaseURL      string                  `yaml:"database_url"       envconfig:"DATABASE_URL"`
-	MigrationSource  string                  `yaml:"migration_source"   envconfig:"MIGRATION_SOURCE"`
-	OtelCollectorUrl string                  `yaml:"otel_collector_url" envconfig:"OTEL_COLLECTOR_URL"`
-	GoogleOauth      googleOauth.GoogleOauth `yaml:"google_oauth"`
+	Debug                     bool                    `yaml:"debug"              envconfig:"DEBUG"`
+	Host                      string                  `yaml:"host"               envconfig:"HOST"`
+	Port                      string                  `yaml:"port"               envconfig:"PORT"`
+	BaseURL                   string                  `yaml:"base_url"          envconfig:"BASE_URL"`
+	Secret                    string                  `yaml:"secret"             envconfig:"SECRET"`
+	DatabaseURL               string                  `yaml:"database_url"       envconfig:"DATABASE_URL"`
+	MigrationSource           string                  `yaml:"migration_source"   envconfig:"MIGRATION_SOURCE"`
+	AccessTokenExpirationStr  string                  `yaml:"access_token_expiration" envconfig:"ACCESS_TOKEN_EXPIRATION"`
+	RefreshTokenExpirationStr string                  `yaml:"refresh_token_expiration" envconfig:"REFRESH_TOKEN_EXPIRATION"`
+	OtelCollectorUrl          string                  `yaml:"otel_collector_url" envconfig:"OTEL_COLLECTOR_URL"`
+	GoogleOauth               googleOauth.GoogleOauth `yaml:"google_oauth"`
+
+	AccessTokenExpiration  time.Duration `yaml:"-"`
+	RefreshTokenExpiration time.Duration `yaml:"-"`
 }
 
 type LogBuffer struct {
@@ -66,6 +71,36 @@ func (c *Config) Validate() error {
 		return ErrDatabaseURLRequired
 	}
 
+	var err error
+
+	// Parse access_token_expiration string into time.Duration
+	if c.AccessTokenExpirationStr != "" {
+		c.AccessTokenExpiration, err = time.ParseDuration(c.AccessTokenExpirationStr)
+		if err != nil {
+			return fmt.Errorf("invalid access_token_expiration: %w", err)
+		}
+		if c.AccessTokenExpiration <= 0 {
+			return fmt.Errorf("access_token_expiration must be greater than zero")
+		}
+	}
+
+	// Parse refresh_token_expiration string into time.Duration
+	if c.RefreshTokenExpirationStr != "" {
+		c.RefreshTokenExpiration, err = time.ParseDuration(c.RefreshTokenExpirationStr)
+		if err != nil {
+			return fmt.Errorf("invalid refresh_token_expiration: %w", err)
+		}
+		if c.RefreshTokenExpiration <= 0 {
+			return fmt.Errorf("refresh_token_expiration must be greater than zero")
+		}
+	}
+
+	// Optional: Warn if duration is too long to be practical for cookie MaxAge
+	const maxReasonableCookieAge = 10 * 365 * 24 * time.Hour
+	if c.AccessTokenExpiration > maxReasonableCookieAge {
+		zap.L().Warn("AccessTokenExpiration is unusually long for cookie MaxAge", zap.Duration("duration", c.AccessTokenExpiration))
+	}
+
 	return nil
 }
 
@@ -73,14 +108,16 @@ func Load() (Config, *LogBuffer) {
 	logger := NewConfigLogger()
 
 	config := &Config{
-		Debug:            false,
-		Host:             "localhost",
-		Port:             "8080",
-		Secret:           DefaultSecret,
-		DatabaseURL:      "",
-		MigrationSource:  "file://internal/database/migrations",
-		OtelCollectorUrl: "",
-		GoogleOauth:      googleOauth.GoogleOauth{},
+		Debug:                     false,
+		Host:                      "localhost",
+		Port:                      "8080",
+		Secret:                    DefaultSecret,
+		DatabaseURL:               "",
+		MigrationSource:           "file://internal/database/migrations",
+		AccessTokenExpirationStr:  "15m",
+		RefreshTokenExpirationStr: "24h",
+		OtelCollectorUrl:          "",
+		GoogleOauth:               googleOauth.GoogleOauth{},
 	}
 
 	var err error

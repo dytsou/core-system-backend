@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"time"
 
 	handlerutil "github.com/NYCU-SDC/summer/pkg/handler"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
@@ -73,20 +74,26 @@ type Handler struct {
 	jwtIssuer JWTIssuer
 	jwtStore  JWTStore
 	provider  map[string]OAuthProvider
+
+	accessTokenExpiration  time.Duration
+	refreshTokenExpiration time.Duration
 }
 
 func NewHandler(
-	config config.Config,
 	logger *zap.Logger,
 	validator *validator.Validate,
 	problemWriter *problem.HttpWriter,
 	userStore UserStore,
 	jwtIssuer JWTIssuer,
 	jwtStore JWTStore,
+
+	baseURL string,
+	accessTokenExpiration time.Duration,
+	refreshTokenExpiration time.Duration,
+	googleOauthConfig oauthprovider.GoogleOauth,
 ) *Handler {
 
 	return &Handler{
-		config: config,
 		logger: logger,
 		tracer: otel.Tracer("auth/handler"),
 
@@ -98,11 +105,14 @@ func NewHandler(
 		jwtStore:  jwtStore,
 		provider: map[string]OAuthProvider{
 			"google": oauthprovider.NewGoogleConfig(
-				config.GoogleOauth.ClientID,
-				config.GoogleOauth.ClientSecret,
-				fmt.Sprintf("%s/api/auth/login/oauth/google/callback", config.BaseURL),
+				googleOauthConfig.ClientID,
+				googleOauthConfig.ClientSecret,
+				fmt.Sprintf("%s/api/auth/login/oauth/google/callback", baseURL),
 			),
 		},
+
+		accessTokenExpiration:  accessTokenExpiration,
+		refreshTokenExpiration: refreshTokenExpiration,
 	}
 }
 
@@ -189,7 +199,7 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	setAccessAndRefreshCookies(w, accessTokenID, refreshTokenID)
+	h.setAccessAndRefreshCookies(w, accessTokenID, refreshTokenID)
 
 	var redirectURL string
 	if redirectTo != "" {
@@ -300,7 +310,7 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	clearAccessAndRefreshCookies(w)
+	h.clearAccessAndRefreshCookies(w)
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, map[string]string{"message": "Successfully logged out"})
 }
@@ -347,7 +357,7 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	setAccessAndRefreshCookies(w, newAccessTokenID, newRefreshTokenID)
+	h.setAccessAndRefreshCookies(w, newAccessTokenID, newRefreshTokenID)
 
 	newRefreshToken, err := h.jwtStore.GetRefreshTokenByID(traceCtx, uuid.MustParse(newRefreshTokenID))
 	if err != nil {
@@ -355,6 +365,7 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Todo delete
 	response := map[string]interface{}{
 		"accessToken":    newAccessTokenID,
 		"expirationTime": newRefreshToken.ExpirationDate.Time.UnixMilli(),
@@ -365,7 +376,7 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 }
 
 // setAccessAndRefreshCookies sets the access/refresh cookies with HTTP-only and secure flags
-func setAccessAndRefreshCookies(w http.ResponseWriter, accessTokenID, refreshTokenID string) {
+func (h *Handler) setAccessAndRefreshCookies(w http.ResponseWriter, accessTokenID, refreshTokenID string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     AccessTokenCookieName,
 		Value:    accessTokenID,
@@ -373,7 +384,7 @@ func setAccessAndRefreshCookies(w http.ResponseWriter, accessTokenID, refreshTok
 		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
 		Path:     "/",
-		MaxAge:   15 * 60, // 15 minutes
+		MaxAge:   int(h.accessTokenExpiration.Seconds()),
 	})
 
 	http.SetCookie(w, &http.Cookie{
@@ -383,12 +394,13 @@ func setAccessAndRefreshCookies(w http.ResponseWriter, accessTokenID, refreshTok
 		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
 		Path:     "/api/auth/refresh",
-		MaxAge:   30 * 24 * 60 * 60, // 30 days
+		MaxAge:   int(h.refreshTokenExpiration.Seconds()),
 	})
 }
 
 // clearAccessAndRefreshCookies sets the access/refresh cookies to empty values and negative MaxAge
-func clearAccessAndRefreshCookies(w http.ResponseWriter) {
+// negative means the cookies will be deleted, zero means the cookies will expire at the end of the session
+func (h *Handler) clearAccessAndRefreshCookies(w http.ResponseWriter) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     AccessTokenCookieName,
 		Value:    "",
