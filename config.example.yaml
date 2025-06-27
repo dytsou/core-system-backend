@@ -22,8 +22,8 @@ migration_source: "file://internal/database/migrations"
 # Access token expiration duration (e.g. "15m", "1h")
 access_token_expiration: "15m"
 
-# Refresh token expiration duration (e.g. "168h" for 7 days)
-refresh_token_expiration: "168h"
+# Refresh token expiration duration (e.g. "720h" for 30 days)
+refresh_token_expiration: "720h"
 
 # URL of the OpenTelemetry collector (optional)
 otel_collector_url: ""

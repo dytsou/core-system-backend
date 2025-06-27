@@ -115,7 +115,7 @@ func Load() (Config, *LogBuffer) {
 		DatabaseURL:               "",
 		MigrationSource:           "file://internal/database/migrations",
 		AccessTokenExpirationStr:  "15m",
-		RefreshTokenExpirationStr: "24h",
+		RefreshTokenExpirationStr: "720h",
 		OtelCollectorUrl:          "",
 		GoogleOauth:               googleOauth.GoogleOauth{},
 	}
