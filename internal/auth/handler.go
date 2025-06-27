@@ -24,6 +24,11 @@ import (
 	"golang.org/x/oauth2"
 )
 
+const (
+	AccessTokenCookieName  = "access_token"
+	RefreshTokenCookieName = "refresh_token"
+)
+
 type JWTIssuer interface {
 	New(ctx context.Context, user user.User) (string, error)
 	Parse(ctx context.Context, tokenString string) (user.User, error)
@@ -184,27 +189,7 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set access token as HttpOnly cookie
-	http.SetCookie(w, &http.Cookie{
-		Name:     "access_token",
-		Value:    accessTokenID,
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteLaxMode,
-		Path:     "/",
-		MaxAge:   15 * 60,
-	})
-
-	// Set refresh token as HttpOnly cookie
-	http.SetCookie(w, &http.Cookie{
-		Name:     "refresh_token",
-		Value:    refreshTokenID,
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
-		Path:     "/api/auth/refresh",
-		MaxAge:   30 * 24 * 60 * 60,
-	})
+	setAccessAndRefreshCookies(w, accessTokenID, refreshTokenID)
 
 	var redirectURL string
 	if redirectTo != "" {
@@ -227,7 +212,7 @@ func (h *Handler) DebugToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	accessTokenCookie, err := r.Cookie("access_token")
+	accessTokenCookie, err := r.Cookie(AccessTokenCookieName)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, errors.New("missing access token cookie"), logger)
 		return
@@ -252,12 +237,12 @@ func (h *Handler) generateJWT(ctx context.Context, userID uuid.UUID) (string, st
 	traceCtx, span := h.tracer.Start(ctx, "generateJWT")
 	defer span.End()
 
-	user, err := h.userStore.GetUserByID(traceCtx, userID)
+	userEntity, err := h.userStore.GetUserByID(traceCtx, userID)
 	if err != nil {
 		return "", "", err
 	}
 
-	jwtToken, err := h.jwtIssuer.New(traceCtx, user)
+	jwtToken, err := h.jwtIssuer.New(traceCtx, userEntity)
 	if err != nil {
 		return "", "", err
 	}
@@ -304,7 +289,7 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	logger := logutil.WithContext(traceCtx, h.logger)
 
 	// Inactivate the current refresh token from cookie
-	refreshTokenCookie, err := r.Cookie("refresh_token")
+	refreshTokenCookie, err := r.Cookie(RefreshTokenCookieName)
 	if err == nil && refreshTokenCookie.Value != "" {
 		refreshTokenID, err := uuid.Parse(refreshTokenCookie.Value)
 		if err == nil {
@@ -315,27 +300,7 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Clear the access token cookie
-	http.SetCookie(w, &http.Cookie{
-		Name:     "access_token",
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteLaxMode,
-	})
-
-	// Clear the refresh token cookie
-	http.SetCookie(w, &http.Cookie{
-		Name:     "refresh_token",
-		Value:    "",
-		Path:     "/api/auth/refresh",
-		MaxAge:   -1,
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
-	})
+	clearAccessAndRefreshCookies(w)
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, map[string]string{"message": "Successfully logged out"})
 }
@@ -346,7 +311,7 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	logger := logutil.WithContext(traceCtx, h.logger)
 
 	// Read refresh token from cookie instead of path parameter
-	refreshTokenCookie, err := r.Cookie("refresh_token")
+	refreshTokenCookie, err := r.Cookie(RefreshTokenCookieName)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("refresh token cookie is required"), logger)
 		return
@@ -382,27 +347,7 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set new access token as HttpOnly cookie
-	http.SetCookie(w, &http.Cookie{
-		Name:     "access_token",
-		Value:    newAccessTokenID,
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteLaxMode,
-		Path:     "/",
-		MaxAge:   15 * 60, // 15 minutes
-	})
-
-	// Set new refresh token as HttpOnly cookie
-	http.SetCookie(w, &http.Cookie{
-		Name:     "refresh_token",
-		Value:    newRefreshTokenID,
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
-		Path:     "/api/auth/refresh",
-		MaxAge:   30 * 24 * 60 * 60, // 30 days
-	})
+	setAccessAndRefreshCookies(w, newAccessTokenID, newRefreshTokenID)
 
 	newRefreshToken, err := h.jwtStore.GetRefreshTokenByID(traceCtx, uuid.MustParse(newRefreshTokenID))
 	if err != nil {
@@ -417,4 +362,50 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
+}
+
+// setAccessAndRefreshCookies sets the access/refresh cookies with HTTP-only and secure flags
+func setAccessAndRefreshCookies(w http.ResponseWriter, accessTokenID, refreshTokenID string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     AccessTokenCookieName,
+		Value:    accessTokenID,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+		Path:     "/",
+		MaxAge:   15 * 60, // 15 minutes
+	})
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     RefreshTokenCookieName,
+		Value:    refreshTokenID,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+		Path:     "/api/auth/refresh",
+		MaxAge:   30 * 24 * 60 * 60, // 30 days
+	})
+}
+
+// clearAccessAndRefreshCookies sets the access/refresh cookies to empty values and negative MaxAge
+func clearAccessAndRefreshCookies(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     AccessTokenCookieName,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	})
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     RefreshTokenCookieName,
+		Value:    "",
+		Path:     "/api/auth/refresh",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	})
 }
