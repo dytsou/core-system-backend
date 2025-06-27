@@ -2,6 +2,7 @@ package internal
 
 import (
 	"errors"
+
 	"github.com/NYCU-SDC/summer/pkg/problem"
 )
 
@@ -12,6 +13,15 @@ var (
 	ErrInvalidExchangeToken = errors.New("invalid exchange token")
 	ErrInvalidCallbackInfo  = errors.New("invalid callback info")
 	ErrPermissionDenied     = errors.New("permission denied")
+	ErrUnauthorizedError    = errors.New("unauthorized error")
+	ErrInternalServerError  = errors.New("internal server error")
+	ErrForbiddenError       = errors.New("forbidden error")
+	ErrNotFound             = errors.New("not found")
+
+	// JWT Authentication Errors
+	ErrMissingAuthHeader       = errors.New("missing access token cookie")
+	ErrInvalidAuthHeaderFormat = errors.New("invalid access token cookie")
+	ErrInvalidJWTToken         = errors.New("invalid JWT token")
 )
 
 func NewProblemWriter() *problem.HttpWriter {
@@ -30,6 +40,21 @@ func ErrorHandler(err error) problem.Problem {
 		return problem.NewValidateProblem("invalid callback info")
 	case errors.Is(err, ErrPermissionDenied):
 		return problem.NewForbiddenProblem("permission denied")
+	case errors.Is(err, ErrUnauthorizedError):
+		return problem.NewUnauthorizedProblem("unauthorized error")
+	case errors.Is(err, ErrInternalServerError):
+		return problem.NewInternalServerProblem("internal server error")
+	case errors.Is(err, ErrForbiddenError):
+		return problem.NewForbiddenProblem("forbidden error")
+	case errors.Is(err, ErrNotFound):
+		return problem.NewNotFoundProblem("not found")
+	// JWT Authentication Errors
+	case errors.Is(err, ErrMissingAuthHeader):
+		return problem.NewUnauthorizedProblem("missing access token cookie")
+	case errors.Is(err, ErrInvalidAuthHeaderFormat):
+		return problem.NewUnauthorizedProblem("invalid access token cookie")
+	case errors.Is(err, ErrInvalidJWTToken):
+		return problem.NewUnauthorizedProblem("invalid JWT token")
 	}
 	return problem.Problem{}
 }

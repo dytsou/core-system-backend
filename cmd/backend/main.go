@@ -2,14 +2,24 @@ package main
 
 import (
 	"NYCU-SDC/core-system-backend/internal"
+	"NYCU-SDC/core-system-backend/internal/auth"
 	"NYCU-SDC/core-system-backend/internal/config"
-	"NYCU-SDC/core-system-backend/internal/example"
+	"NYCU-SDC/core-system-backend/internal/jwt"
+
 	"NYCU-SDC/core-system-backend/internal/trace"
+	"NYCU-SDC/core-system-backend/internal/user"
 	"context"
 	"errors"
 	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
-	"github.com/NYCU-SDC/summer/pkg/log"
+	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/NYCU-SDC/summer/pkg/middleware"
 	"github.com/google/uuid"
 	_ "github.com/jackc/pgx/v5"
@@ -23,12 +33,6 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"log"
-	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
 )
 
 var AppName = "no-app-name"
@@ -39,9 +43,6 @@ var BuildTime = "no-build-time"
 
 var CommitHash = "no-commit-hash"
 
-//	func healthz(w http.ResponseWriter, r *http.Request) {
-//		handlerutil.WriteJSONResponse(w, http.StatusOK, "Hello world!")
-//	}
 func main() {
 	AppName = os.Getenv("APP_NAME")
 	if AppName == "" {
@@ -66,11 +67,6 @@ func main() {
 		if errors.Is(err, config.ErrDatabaseURLRequired) {
 			title := "Database URL is required"
 			message := "Please set the DATABASE_URL environment variable or provide a config file with the database_url key."
-			message = EarlyApplicationFailed(title, message)
-			log.Fatal(message)
-		} else if errors.Is(err, config.ErrInvalidUserRole) {
-			title := "Invalid user role"
-			message := "Please check the user role in the config file, it should be one of the following: admin, user, or guest."
 			message = EarlyApplicationFailed(title, message)
 			log.Fatal(message)
 		} else {
@@ -114,13 +110,16 @@ func main() {
 	problemWriter := internal.NewProblemWriter()
 
 	// Service
-	exampleService := example.NewService(logger, dbPool)
+	userService := user.NewService(logger, dbPool)
+	jwtService := jwt.NewService(logger, dbPool, cfg.Secret, cfg.AccessTokenExpiration, cfg.RefreshTokenExpiration)
 
 	// Handler
-	exampleHandler := example.NewHandler(logger, validator, problemWriter, exampleService)
+	authHandler := auth.NewHandler(logger, validator, problemWriter, userService, jwtService, jwtService, cfg.BaseURL, cfg.AccessTokenExpiration, cfg.RefreshTokenExpiration, cfg.GoogleOauth)
+	userHandler := user.NewHandler(logger, validator, problemWriter, userService)
 
 	// Middleware
 	traceMiddleware := trace.NewMiddleware(logger, cfg.Debug)
+	jwtMiddleware := jwt.NewMiddleware(logger, validator, problemWriter, jwtService, cfg.Debug)
 
 	// Basic Middleware (Tracing and Recovery)
 	basicMiddleware := middleware.NewSet(traceMiddleware.RecoverMiddleware)
@@ -128,11 +127,22 @@ func main() {
 
 	// HTTP Server
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/scoreboards", basicMiddleware.HandlerFunc(exampleHandler.GetAllHandler))
-	mux.HandleFunc("POST /api/scoreboards", basicMiddleware.HandlerFunc(exampleHandler.CreateHandler))
-	mux.HandleFunc("GET /api/scoreboards/{id}", basicMiddleware.HandlerFunc(exampleHandler.GetHandler))
-	mux.HandleFunc("PUT /api/scoreboards/{id}", basicMiddleware.HandlerFunc(exampleHandler.UpdateHandler))
-	mux.HandleFunc("DELETE /api/scoreboards/{id}", basicMiddleware.HandlerFunc(exampleHandler.DeleteHandler))
+
+	// Internal Debug route
+	mux.HandleFunc("POST /api/auth/login/internal", basicMiddleware.HandlerFunc(authHandler.InternalAPITokenLogin))
+
+	// OAuth2 Authentication routes
+	mux.HandleFunc("GET /api/auth/login/oauth/{provider}", basicMiddleware.HandlerFunc(authHandler.Oauth2Start))
+	mux.HandleFunc("GET /api/auth/login/oauth/{provider}/callback", basicMiddleware.HandlerFunc(authHandler.Callback))
+
+	// JWT refresh route
+	mux.HandleFunc("POST /api/auth/refresh", basicMiddleware.HandlerFunc(authHandler.RefreshToken))
+
+	mux.HandleFunc("GET /api/auth/logout", basicMiddleware.HandlerFunc(authHandler.Logout))
+	mux.HandleFunc("POST /api/auth/logout", basicMiddleware.HandlerFunc(authHandler.Logout))
+
+	// User authenticated routes
+	mux.Handle("GET /api/users/me", jwtMiddleware.AuthenticateMiddleware(userHandler.GetMe))
 
 	// handle interrupt signal
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
