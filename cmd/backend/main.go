@@ -128,12 +128,18 @@ func main() {
 	// HTTP Server
 	mux := http.NewServeMux()
 
+	// Internal Debug route
+	mux.HandleFunc("POST /api/auth/login/internal", basicMiddleware.HandlerFunc(authHandler.InternalAPITokenLogin))
+
 	// OAuth2 Authentication routes
 	mux.HandleFunc("GET /api/auth/login/oauth/{provider}", basicMiddleware.HandlerFunc(authHandler.Oauth2Start))
 	mux.HandleFunc("GET /api/auth/login/oauth/{provider}/callback", basicMiddleware.HandlerFunc(authHandler.Callback))
 
 	// JWT refresh route
 	mux.HandleFunc("POST /api/auth/refresh", basicMiddleware.HandlerFunc(authHandler.RefreshToken))
+
+	mux.HandleFunc("GET /api/auth/logout", basicMiddleware.HandlerFunc(authHandler.Logout))
+	mux.HandleFunc("POST /api/auth/logout", basicMiddleware.HandlerFunc(authHandler.Logout))
 
 	// User authenticated routes
 	mux.Handle("GET /api/users/me", jwtMiddleware.AuthenticateMiddleware(userHandler.GetMe))

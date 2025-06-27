@@ -19,6 +19,8 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+const Issuer = "core-system"
+
 type Querier interface {
 	GetUserIDByTokenID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	Create(ctx context.Context, arg CreateParams) (RefreshToken, error)
@@ -75,7 +77,7 @@ func (s Service) New(ctx context.Context, user user.User) (string, error) {
 		Username: username,
 		Role:     user.Role,
 		RegisteredClaims: jwt.RegisteredClaims{
-			Issuer:    "core-system",
+			Issuer:    Issuer,
 			Subject:   id.String(), // user id
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(s.accessTokenExpiration)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

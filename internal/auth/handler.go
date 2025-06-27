@@ -43,6 +43,7 @@ type JWTStore interface {
 }
 
 type UserStore interface {
+	// Todo: confuse name
 	GetUserIDByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (user.User, error)
 	FindOrCreate(ctx context.Context, name, username, avatarUrl string, role []string, oauthProvider, oauthProviderID string) (uuid.UUID, error)
@@ -359,20 +360,39 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 
 	h.setAccessAndRefreshCookies(w, newAccessTokenID, newRefreshTokenID)
 
-	newRefreshToken, err := h.jwtStore.GetRefreshTokenByID(traceCtx, uuid.MustParse(newRefreshTokenID))
-	if err != nil {
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// InternalAPITokenLogin handles login using an internal API token, Todo: this handler need to be protected by an API token or feature flag
+func (h *Handler) InternalAPITokenLogin(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "APITokenLogin")
+	defer span.End()
+	logger := logutil.WithContext(traceCtx, h.logger)
+
+	// Parse and validate the request body
+	var req struct {
+		Username string `json:"username" validate:"required"`
+	}
+	if err := handlerutil.ParseAndValidateRequestBody(traceCtx, h.validator, r, &req); err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
 
-	// Todo delete
-	response := map[string]interface{}{
-		"accessToken":    newAccessTokenID,
-		"expirationTime": newRefreshToken.ExpirationDate.Time.UnixMilli(),
-		"refreshToken":   newRefreshTokenID,
+	userID, err := h.userStore.GetUserIDByID(traceCtx, uuid.MustParse(req.Username))
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("user not found: %v", err), logger)
+		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
+	jwtToken, refreshTokenID, err := h.generateJWT(traceCtx, userID)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to generate JWT token: %v", err), logger)
+		return
+	}
+
+	h.setAccessAndRefreshCookies(w, jwtToken, refreshTokenID)
+
+	handlerutil.WriteJSONResponse(w, http.StatusOK, map[string]string{"message": "Login successful"})
 }
 
 // setAccessAndRefreshCookies sets the access/refresh cookies with HTTP-only and secure flags
