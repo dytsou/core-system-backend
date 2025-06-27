@@ -43,9 +43,8 @@ type JWTStore interface {
 }
 
 type UserStore interface {
-	// Todo: confuse name
-	GetUserIDByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
-	GetUserByID(ctx context.Context, id uuid.UUID) (user.User, error)
+	ExistsByID(ctx context.Context, id uuid.UUID) (bool, error)
+	GetByID(ctx context.Context, id uuid.UUID) (user.User, error)
 	FindOrCreate(ctx context.Context, name, username, avatarUrl string, role []string, oauthProvider, oauthProviderID string) (uuid.UUID, error)
 }
 
@@ -248,7 +247,7 @@ func (h *Handler) generateJWT(ctx context.Context, userID uuid.UUID) (string, st
 	traceCtx, span := h.tracer.Start(ctx, "generateJWT")
 	defer span.End()
 
-	userEntity, err := h.userStore.GetUserByID(traceCtx, userID)
+	userEntity, err := h.userStore.GetByID(traceCtx, userID)
 	if err != nil {
 		return "", "", err
 	}
@@ -378,13 +377,19 @@ func (h *Handler) InternalAPITokenLogin(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	userID, err := h.userStore.GetUserIDByID(traceCtx, uuid.MustParse(req.Username))
+	uid, err := uuid.Parse(req.Username)
 	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid user ID format: %v", err), logger)
+		return
+	}
+
+	exists, err := h.userStore.ExistsByID(traceCtx, uid)
+	if err != nil || !exists {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("user not found: %v", err), logger)
 		return
 	}
 
-	jwtToken, refreshTokenID, err := h.generateJWT(traceCtx, userID)
+	jwtToken, refreshTokenID, err := h.generateJWT(traceCtx, uid)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to generate JWT token: %v", err), logger)
 		return

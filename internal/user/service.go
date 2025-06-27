@@ -14,13 +14,13 @@ import (
 )
 
 type Querier interface {
-	GetUserIDByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
-	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
+	ExistsByID(ctx context.Context, id uuid.UUID) (bool, error)
+	GetByID(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserIDByAuth(ctx context.Context, arg GetUserIDByAuthParams) (uuid.UUID, error)
 	UserExistsByAuth(ctx context.Context, arg UserExistsByAuthParams) (bool, error)
-	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	Create(ctx context.Context, arg CreateParams) (User, error)
 	CreateAuth(ctx context.Context, arg CreateAuthParams) (Auth, error)
-	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
+	Update(ctx context.Context, arg UpdateParams) (User, error)
 }
 
 type Service struct {
@@ -37,26 +37,26 @@ func NewService(logger *zap.Logger, db DBTX) *Service {
 	}
 }
 
-func (s *Service) GetUserIDByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
-	traceCtx, span := s.tracer.Start(ctx, "GetUserIDByID")
+func (s *Service) ExistsByID(ctx context.Context, id uuid.UUID) (bool, error) {
+	traceCtx, span := s.tracer.Start(ctx, "ExistsByID")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	userID, err := s.queries.GetUserIDByID(traceCtx, id)
+	exists, err := s.queries.ExistsByID(traceCtx, id)
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "get user by id")
 		span.RecordError(err)
-		return uuid.UUID{}, err
+		return false, err
 	}
-	return userID, nil
+	return exists, nil
 }
 
-func (s *Service) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
-	traceCtx, span := s.tracer.Start(ctx, "GetUserByID")
+func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (User, error) {
+	traceCtx, span := s.tracer.Start(ctx, "GetByID")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	user, err := s.queries.GetUserByID(traceCtx, id)
+	user, err := s.queries.GetByID(traceCtx, id)
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "get user by id")
 		span.RecordError(err)
@@ -99,7 +99,7 @@ func (s *Service) FindOrCreate(ctx context.Context, name, username, avatarUrl st
 		}
 
 		avatarUrl = resolveAvatarUrl(name, avatarUrl)
-		_, err = s.queries.UpdateUser(traceCtx, UpdateUserParams{
+		_, err = s.queries.Update(traceCtx, UpdateParams{
 			ID:        existingUserID,
 			Name:      pgtype.Text{String: name, Valid: name != ""},
 			Username:  pgtype.Text{String: username, Valid: username != ""},
@@ -122,7 +122,7 @@ func (s *Service) FindOrCreate(ctx context.Context, name, username, avatarUrl st
 		role = []string{"user"}
 	}
 
-	newUser, err := s.queries.CreateUser(traceCtx, CreateUserParams{
+	newUser, err := s.queries.Create(traceCtx, CreateParams{
 		Name:      pgtype.Text{String: name, Valid: name != ""},
 		Username:  pgtype.Text{String: username, Valid: username != ""},
 		AvatarUrl: pgtype.Text{String: avatarUrl, Valid: avatarUrl != ""},
