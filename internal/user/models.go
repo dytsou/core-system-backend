@@ -18,6 +18,13 @@ type Auth struct {
 	UpdatedAt  pgtype.Timestamptz
 }
 
+type RefreshToken struct {
+	ID             uuid.UUID
+	UserID         uuid.UUID
+	IsActive       pgtype.Bool
+	ExpirationDate pgtype.Timestamptz
+}
+
 type User struct {
 	ID        uuid.UUID
 	Name      pgtype.Text

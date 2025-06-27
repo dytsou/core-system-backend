@@ -9,9 +9,28 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Auth struct {
+	ID         uuid.UUID
+	UserID     uuid.UUID
+	Provider   string
+	ProviderID string
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
+}
+
 type RefreshToken struct {
 	ID             uuid.UUID
 	UserID         uuid.UUID
 	IsActive       pgtype.Bool
 	ExpirationDate pgtype.Timestamptz
+}
+
+type User struct {
+	ID        uuid.UUID
+	Name      pgtype.Text
+	Username  pgtype.Text
+	AvatarUrl pgtype.Text
+	Role      []string
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
 }
