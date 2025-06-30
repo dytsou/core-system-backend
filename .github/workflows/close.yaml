@@ -12,6 +12,26 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
 
+      - name: Read close.sh content
+        id: read_script
+        run: |
+          CONTENT=$(cat .deploy/close.sh | base64 -w 0)
+          echo "content=$CONTENT" >> "$GITHUB_OUTPUT"
+
+      - name: Trigger n8n Snapshot Webhook
+        run: |
+          curl -X POST https://webhook.eng.sdc.nycu.club/webhook/close-snapshot \
+            -H "Content-Type: application/json" \
+            -d '{
+              "type": "Snapshot",
+              "pr_number": "${{ github.event.number }}",
+              "pr_title": "${{ github.event.pull_request.title }}",
+              "repo": "${{ github.repository }}",
+              "image_tag": "nycusdc/core-system-backend:pr-${{ github.event.number }}",
+              "script_b64": "${{ steps.read_script.outputs.content }}",
+              "source": "GitHub Actions"
+            }'
+
       - name: Close snapshot
         run: |
           ~/deploy.sh "Close" "${{ github.event.number }}"

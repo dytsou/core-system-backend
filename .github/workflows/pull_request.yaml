@@ -102,7 +102,7 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Read deploy.sh content
+      - name: Read pr-snapshot.sh content
         id: read_script
         run: |
           CONTENT=$(cat .deploy/pr-snapshot.sh | base64 -w 0)
@@ -110,13 +110,14 @@ jobs:
 
       - name: Trigger n8n Snapshot Webhook
         run: |
-          curl -X POST https://webhook.eng.sdc.nycu.club/webhook/deploy \
+          curl -X POST https://webhook.eng.sdc.nycu.club/webhook/deploy-snapshot \
             -H "Content-Type: application/json" \
             -d '{
               "type": "Snapshot",
               "pr_number": "${{ github.event.number }}",
               "pr_title": "${{ github.event.pull_request.title }}",
               "repo": "${{ github.repository }}",
+              "branch": "${{ github.ref_name }}",
               "image_tag": "nycusdc/core-system-backend:pr-${{ github.event.number }}",
               "script_b64": "${{ steps.read_script.outputs.content }}",
               "source": "GitHub Actions"
