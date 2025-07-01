@@ -51,7 +51,7 @@ case "$MODE" in
         ;;
 
     "Close")
-        cd /tmp/"$REPO_NAME"/.deploy/snapshot/"$VERSION"
+        cd /tmp/"$REPO_NAME"-"$VERSION"/repo/.deploy/snapshot/"$VERSION"
         docker compose down
         cd /tmp
         rm -rf "$REPO_NAME"

@@ -9,7 +9,7 @@ deploy() {
 
     mkdir -p "$dir" || true
 
-    envsubst < "./compose.yaml" > "./$dir/compose.yaml"
+    envsubst < "./compose.yaml" > "./$dir/compose.yaml" 
 
     cd "$dir"
 
@@ -20,6 +20,8 @@ deploy() {
     else
         docker compose up -d --wait
     fi
+
+    # 這裡沒有把 dir gc 掉
 
     cd ..
 }
@@ -36,20 +38,7 @@ error_handling() {
     exit 1
 }
 
-notify() {
-    curl -s --header "Content-type: application/json" \
-         --request POST \
-         --data "$1" \
-         "$notificationUrl"
-}
-
-build_pr_payload() {
-    local mode=$1
-    local pr_url="https://github.com/commonground-project/backend/pull/$PR_NUMBER"
-    echo "{\"mode\":\"$mode\",\"prUrl\":\"$pr_url\",\"port\":$PORT,\"version\":\"$VERSION\",\"title\":\"$TITLE\",\"isDraft\":false}"
-}
 if [ "$MODE" == "Snapshot" ] || [ "$MODE" == "Close" ]; then
-    export PORT=$((4000 + $PR_NUMBER))
     export VERSION="pr-$PR_NUMBER"
 fi
 
@@ -57,39 +46,30 @@ case "$MODE" in
     "Snapshot")
         flag="false"
         [ ! -d "$VERSION" ] && flag="true"
-
         deploy "$VERSION" "true" "$flag"
 
-#        if [ "$flag" == "true" ]; then
-#            notify "$(build_pr_payload prOpen)"
-#        fi
         ;;
 
     "Close")
-        cd "$VERSION"
+        cd /tmp/"$REPO_NAME"-"$VERSION"/repo/.deploy/snapshot/"$VERSION"
         docker compose down
-        cd ..
-        rm -r "$VERSION"
+        cd /tmp
+        rm -rf "$REPO_NAME"
 
-#        notify "$(build_pr_payload prClose)"
         ;;
 
     "Dev")
-        export PORT=8082
         export VERSION="dev"
 
         deploy "$VERSION" "true" "false"
 
-#        notify "{\"mode\":\"dev\"}"
         ;;
 
     "Stage")
         export VERSION="stage"
-        export PORT=8083
 
         deploy "stage" "false" "false"
 
-#        notify "{\"mode\":\"stage\"}"
         ;;
 esac
 
