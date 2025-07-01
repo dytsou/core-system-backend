@@ -113,12 +113,8 @@ jobs:
           curl -X POST https://webhook.eng.sdc.nycu.club/webhook/deploy-snapshot \
             -H "Content-Type: application/json" \
             -d '{
-              "type": "Snapshot",
+              "repo": "${{ github.repository }}",
               "pr_number": "${{ github.event.number }}",
               "pr_title": "${{ github.event.pull_request.title }}",
-              "repo": "${{ github.repository }}",
               "branch": "${{ github.ref_name }}",
-              "image_tag": "nycusdc/core-system-backend:pr-${{ github.event.number }}",
-              "script_b64": "${{ steps.read_script.outputs.content }}",
-              "source": "GitHub Actions"
             }'
