@@ -23,13 +23,10 @@ jobs:
           curl -X POST https://webhook.eng.sdc.nycu.club/webhook/close-snapshot \
             -H "Content-Type: application/json" \
             -d '{
-              "type": "Snapshot",
               "pr_number": "${{ github.event.number }}",
               "pr_title": "${{ github.event.pull_request.title }}",
               "repo": "${{ github.repository }}",
-              "image_tag": "nycusdc/core-system-backend:pr-${{ github.event.number }}",
-              "script_b64": "${{ steps.read_script.outputs.content }}",
-              "source": "GitHub Actions"
+              "branch": "${{ github.ref_name }}",
             }'
 
       - name: Close snapshot

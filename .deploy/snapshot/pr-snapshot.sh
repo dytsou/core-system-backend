@@ -39,7 +39,6 @@ error_handling() {
 }
 
 if [ "$MODE" == "Snapshot" ] || [ "$MODE" == "Close" ]; then
-    export PORT=$((4000 + $PR_NUMBER))
     export VERSION="pr-$PR_NUMBER"
 fi
 
@@ -52,15 +51,14 @@ case "$MODE" in
         ;;
 
     "Close")
-        cd "$VERSION"
+        cd /tmp/"$REPO_NAME"/.deploy/snapshot/"$VERSION"
         docker compose down
-        cd ..
-        rm -r "$VERSION"
+        cd /tmp
+        rm -rf "$REPO_NAME"
 
         ;;
 
     "Dev")
-        export PORT=8082
         export VERSION="dev"
 
         deploy "$VERSION" "true" "false"
@@ -69,7 +67,6 @@ case "$MODE" in
 
     "Stage")
         export VERSION="stage"
-        export PORT=8083
 
         deploy "stage" "false" "false"
 
