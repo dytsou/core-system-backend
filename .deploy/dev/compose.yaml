@@ -1,8 +1,3 @@
-❯ pwd
-/home/core-system-backend
-❯ ls
-compose.yaml  config.yaml  deploy.log  deploy.sh  dev  pr-2  service
-❯ cat compose.yaml
 networks:
   core_system_$VERSION:
     driver: bridge

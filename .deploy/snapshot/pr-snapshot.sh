@@ -21,6 +21,8 @@ deploy() {
         docker compose up -d --wait
     fi
 
+    # 這裡沒有把 dir gc 掉
+
     cd ..
 }
 
