@@ -20,9 +20,7 @@ deploy() {
     else
         docker compose up -d --wait
     fi
-
-    # 這裡沒有把 dir gc 掉
-
+    
     cd ..
 }
 
@@ -53,22 +51,17 @@ case "$MODE" in
     "Close")
         cd /tmp/"$REPO_NAME"-"$VERSION"/repo/.deploy/snapshot/"$VERSION"
         docker compose down
-        cd /tmp
-        rm -rf "$REPO_NAME"
-
         ;;
 
     "Dev")
         export VERSION="dev"
-
         deploy "$VERSION" "true" "false"
 
         ;;
 
     "Stage")
         export VERSION="stage"
-
-        deploy "stage" "false" "false"
+        deploy "$VERSION" "false" "false"
 
         ;;
 esac
