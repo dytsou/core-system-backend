@@ -116,5 +116,5 @@ jobs:
               "repo": "${{ github.repository }}",
               "pr_number": "${{ github.event.number }}",
               "pr_title": "${{ github.event.pull_request.title }}",
-              "branch": "${{ github.ref_name }}",
+              "branch": "${{ github.ref_name }}"
             }'

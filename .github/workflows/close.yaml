@@ -26,9 +26,5 @@ jobs:
               "pr_number": "${{ github.event.number }}",
               "pr_title": "${{ github.event.pull_request.title }}",
               "repo": "${{ github.repository }}",
-              "branch": "${{ github.ref_name }}",
+              "branch": "${{ github.ref_name }}"
             }'
-
-      - name: Close snapshot
-        run: |
-          ~/deploy.sh "Close" "${{ github.event.number }}"
