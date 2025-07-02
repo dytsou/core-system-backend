@@ -3,6 +3,7 @@
 set -e
 
 export VERSION="pr-$PR_NUMBER"
+export PORT=$((4000 + $PR_NUMBER))
 
 mkdir -p "$VERSION" || true
 envsubst < "./compose.yaml" > "./"$VERSION"/compose.yaml"

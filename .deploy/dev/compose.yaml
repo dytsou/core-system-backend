@@ -4,10 +4,10 @@ networks:
 
 services:
   backend:
-    image: nycusdc/core-system-backend:$VERSION
-    container_name: core-system-backend-$VERSION
+    image: nycusdc/core-system-backend:dev
+    container_name: core-system-backend-dev
     ports:
-      - '$PORT:8080'
+      - '8082:8080'
     volumes:
       - ../config.yaml:/app/config.yaml
     networks:
