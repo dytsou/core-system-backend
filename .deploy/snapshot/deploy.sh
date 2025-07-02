@@ -15,11 +15,13 @@ error_handling() {
 }
 
 VERSION="pr-$PR_NUMBER"
+
+
 enable_error_handling="false"
 [ ! -d "$VERSION" ] && enable_error_handling="true"
 
 mkdir -p "$VERSION" || true
-envsubst < "./compose.yaml" > "./$VERSION/compose.yaml" 
+envsubst < "./compose.yaml" > "./"$VERSION"/compose.yaml" 
 cd "$VERSION"
 
 docker compose down

@@ -5,6 +5,6 @@ set -e
 VERSION="pr-$PR_NUMBER"
 
 mkdir -p "$VERSION" || true
-envsubst < "./compose.yaml" > "./$VERSION/compose.yaml" 
+envsubst < "./compose.yaml" > "./"$VERSION"/compose.yaml"
 cd "$VERSION"
 docker compose down
