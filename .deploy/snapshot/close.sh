@@ -2,7 +2,7 @@
 
 set -e
 
-VERSION="pr-$PR_NUMBER"
+export VERSION="pr-$PR_NUMBER"
 
 mkdir -p "$VERSION" || true
 envsubst < "./compose.yaml" > "./"$VERSION"/compose.yaml"

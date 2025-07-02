@@ -14,8 +14,7 @@ error_handling() {
     exit 1
 }
 
-VERSION="pr-$PR_NUMBER"
-
+export VERSION="pr-$PR_NUMBER"
 
 enable_error_handling="false"
 [ ! -d "$VERSION" ] && enable_error_handling="true"
