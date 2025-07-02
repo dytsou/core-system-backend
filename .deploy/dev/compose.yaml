@@ -29,3 +29,4 @@ services:
       POSTGRES_DB: core_system
     networks:
       - core_system_$VERSION
+      
