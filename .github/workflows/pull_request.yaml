@@ -99,15 +99,6 @@ jobs:
     needs: Build
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
-
-      - name: Read pr-snapshot.sh content
-        id: read_script
-        run: |
-          CONTENT=$(cat .deploy/pr-snapshot.sh | base64 -w 0)
-          echo "content=$CONTENT" >> "$GITHUB_OUTPUT"
-
       - name: Trigger n8n Snapshot Webhook
         run: |
           curl -X POST https://webhook.eng.sdc.nycu.club/webhook/snapshot \

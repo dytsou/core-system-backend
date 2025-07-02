@@ -7,17 +7,8 @@ on:
 
 jobs:
   Close:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
-
-      - name: Read close.sh content
-        id: read_script
-        run: |
-          CONTENT=$(cat .deploy/close.sh | base64 -w 0)
-          echo "content=$CONTENT" >> "$GITHUB_OUTPUT"
-
       - name: Trigger n8n Snapshot Webhook
         run: |
           curl -X POST https://webhook.eng.sdc.nycu.club/webhook/snapshot \
