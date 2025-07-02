@@ -42,7 +42,7 @@ var BuildTime = "no-build-time"
 
 var CommitHash = "no-commit-hash"
 
-var Environment = "dev"
+var Environment = "no-env"
 
 func main() {
 	AppName = os.Getenv("APP_NAME")
@@ -53,6 +53,11 @@ func main() {
 	if BuildTime == "no-build-time" {
 		now := time.Now()
 		BuildTime = "not provided (now: " + now.Format(time.RFC3339) + ")"
+	}
+
+	Environment = os.Getenv("Environment")
+	if Environment == "" {
+		Environment = "no-env"
 	}
 
 	appMetadata := []zap.Field{
