@@ -110,11 +110,12 @@ jobs:
 
       - name: Trigger n8n Snapshot Webhook
         run: |
-          curl -X POST https://webhook.eng.sdc.nycu.club/webhook/deploy-snapshot \
+          curl -X POST https://webhook.eng.sdc.nycu.club/webhook/snapshot \
             -H "Content-Type: application/json" \
             -d '{
               "repo": "${{ github.repository }}",
               "pr_number": "${{ github.event.number }}",
               "pr_title": "${{ github.event.pull_request.title }}",
               "branch": "${{ github.ref_name }}"
+              "method": "deploy"
             }'
