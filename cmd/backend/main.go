@@ -5,7 +5,6 @@ import (
 	"NYCU-SDC/core-system-backend/internal/auth"
 	"NYCU-SDC/core-system-backend/internal/config"
 	"NYCU-SDC/core-system-backend/internal/jwt"
-
 	"NYCU-SDC/core-system-backend/internal/trace"
 	"NYCU-SDC/core-system-backend/internal/user"
 	"context"
@@ -42,6 +41,8 @@ var Version = "no-version"
 var BuildTime = "no-build-time"
 
 var CommitHash = "no-commit-hash"
+
+var Environment = "dev"
 
 func main() {
 	AppName = os.Getenv("APP_NAME")
@@ -101,7 +102,7 @@ func main() {
 	}
 	defer dbPool.Close()
 
-	shutdown, err := initOpenTelemetry(AppName, Version, BuildTime, CommitHash, cfg.OtelCollectorUrl)
+	shutdown, err := initOpenTelemetry(AppName, Version, BuildTime, CommitHash, Environment, cfg.OtelCollectorUrl)
 	if err != nil {
 		logger.Fatal("Failed to initialize OpenTelemetry", zap.Error(err))
 	}
@@ -219,13 +220,14 @@ func initDatabasePool(databaseURL string) (*pgxpool.Pool, error) {
 	return dbPool, nil
 }
 
-func initOpenTelemetry(appName, version, buildTime, commitHash, otelCollectorUrl string) (func(context.Context) error, error) {
+func initOpenTelemetry(appName, version, buildTime, commitHash, environment, otelCollectorUrl string) (func(context.Context) error, error) {
 	ctx := context.Background()
 
 	serviceName := semconv.ServiceNameKey.String(appName)
 	serviceVersion := semconv.ServiceVersionKey.String(version)
 	serviceNamespace := semconv.ServiceNamespaceKey.String("example")
 	serviceCommitHash := semconv.ServiceVersionKey.String(commitHash)
+	serviceEnvironment := semconv.DeploymentEnvironmentKey.String(environment)
 
 	res, err := resource.New(ctx,
 		resource.WithAttributes(
@@ -233,11 +235,14 @@ func initOpenTelemetry(appName, version, buildTime, commitHash, otelCollectorUrl
 			serviceVersion,
 			serviceNamespace,
 			serviceCommitHash,
+			serviceEnvironment,
 		),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create resource: %w", err)
 	}
+
+	fmt.Println("Resource:", res)
 
 	options := []sdktrace.TracerProviderOption{
 		sdktrace.WithResource(res),
