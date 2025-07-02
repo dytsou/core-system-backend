@@ -1,0 +1,34 @@
+networks:
+  core_system_pr-3:
+    driver: bridge
+
+services:
+  backend:
+    image: nycusdc/core-system-backend:pr-3
+    container_name: core-system-backend-pr-3
+    ports:
+      - '4003:8080'
+    volumes:
+      - ../../../internal/database/migrations:/app/internal/database/migrations
+    networks:
+      - core_system_pr-3
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      HOST: "0.0.0.0"
+      DATABASE_URL: postgres://postgres:password@postgres:5432/core_system?sslmode=disable
+    
+  postgres:
+    image: postgres:latest
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: core_system
+    networks:
+      - core_system_pr-3
