@@ -55,7 +55,7 @@ func main() {
 		BuildTime = "not provided (now: " + now.Format(time.RFC3339) + ")"
 	}
 
-	Environment = os.Getenv("Environment")
+	Environment = os.Getenv("ENV")
 	if Environment == "" {
 		Environment = "no-env"
 	}
