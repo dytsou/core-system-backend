@@ -62,10 +62,13 @@ func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "GetMe")
 	defer span.End()
 
+	// Extract trace_id from context
+	traceID := trace.SpanContextFromContext(traceCtx).TraceID().String()
+
 	// Get authenticated user from context
 	currentUser, ok := GetUserFromContext(traceCtx)
 	if !ok {
-		h.logger.Error("No user found in request context")
+		h.logger.Error("No user found in request context", zap.String("trace_id", traceID))
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("no user found in request context"), h.logger)
 		span.RecordError(fmt.Errorf("no user found in request context"))
 		return
@@ -86,6 +89,7 @@ func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.logger.Debug("GetMe: Response",
+		zap.String("trace_id", traceID),
 		zap.String("response_id", response.ID),
 		zap.String("response_username", response.Username),
 		zap.String("response_name", response.Name),
