@@ -98,11 +98,16 @@ jobs:
 
   Deploy:
     needs: Build
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
-
-      - name: Deploy container to local
+      - name: Trigger n8n Snapshot Webhook
         run: |
-          ~/deploy.sh "Dev"
+          curl -X POST https://webhook.eng.sdc.nycu.club/webhook/dev \
+            -H "Content-Type: application/json" \
+            -d '{
+              "repo": "${{ github.repository }}",
+              "pr_number": "${{ github.event.number }}",
+              "pr_title": "${{ github.event.pull_request.title }}",
+              "branch": "${{ github.ref_name }}"
+              "method": "deploy"
+            }'

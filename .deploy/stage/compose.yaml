@@ -1,15 +1,15 @@
 networks:
-  core_system_$VERSION:
+  core_system_stage:
     driver: bridge
 
 services:
   backend:
-    image: nycusdc/core-system-backend:$VERSION
-    container_name: core-system-backend-$VERSION
+    image: nycusdc/core-system-backend:stage
+    container_name: core-system-backend-stage
     ports:
-      - '$PORT:8080'
+      - '8083:8080'
     networks:
-      - core_system_$VERSION
+      - core_system_stage
     depends_on:
       postgres:
         condition: service_healthy
@@ -17,7 +17,7 @@ services:
       HOST: "0.0.0.0"
       DATABASE_URL: postgres://postgres:password@postgres:5432/core_system?sslmode=disable
       MIGRATION_SOURCE: file:///app/migrations
-    
+
   postgres:
     image: postgres:latest
     healthcheck:
@@ -30,4 +30,5 @@ services:
       POSTGRES_PASSWORD: password
       POSTGRES_DB: core_system
     networks:
-      - core_system_$VERSION
+      - core_system_stage
+      

@@ -1,5 +1,5 @@
 networks:
-  core_system_$VERSION:
+  core_system_dev:
     driver: bridge
 
 services:
@@ -8,13 +8,15 @@ services:
     container_name: core-system-backend-dev
     ports:
       - '8082:8080'
-    volumes:
-      - ../config.yaml:/app/config.yaml
     networks:
-      - core_system_$VERSION
+      - core_system_dev
     depends_on:
       postgres:
         condition: service_healthy
+    environment:
+      HOST: "0.0.0.0"
+      DATABASE_URL: postgres://postgres:password@postgres:5432/core_system?sslmode=disable
+      MIGRATION_SOURCE: file:///app/migrations
 
   postgres:
     image: postgres:latest
@@ -28,5 +30,5 @@ services:
       POSTGRES_PASSWORD: password
       POSTGRES_DB: core_system
     networks:
-      - core_system_$VERSION
+      - core_system_dev
       

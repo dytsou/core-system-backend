@@ -8,8 +8,6 @@ services:
     container_name: core-system-backend-pr-3
     ports:
       - '4003:8080'
-    volumes:
-      - ../../../internal/database/migrations:/app/internal/database/migrations
     networks:
       - core_system_pr-3
     depends_on:
@@ -18,6 +16,7 @@ services:
     environment:
       HOST: "0.0.0.0"
       DATABASE_URL: postgres://postgres:password@postgres:5432/core_system?sslmode=disable
+      MIGRATION_SOURCE: file:///app/migrations
     
   postgres:
     image: postgres:latest
