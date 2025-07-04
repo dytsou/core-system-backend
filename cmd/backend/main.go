@@ -65,6 +65,7 @@ func main() {
 		zap.String("version", Version),
 		zap.String("build_time", BuildTime),
 		zap.String("commit_hash", CommitHash),
+		zap.String("environment", Environment),
 	}
 
 	cfg, cfgLog := config.Load()
