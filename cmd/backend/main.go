@@ -247,8 +247,6 @@ func initOpenTelemetry(appName, version, buildTime, commitHash, environment, ote
 		return nil, fmt.Errorf("failed to create resource: %w", err)
 	}
 
-	fmt.Println("Resource:", res)
-
 	options := []sdktrace.TracerProviderOption{
 		sdktrace.WithResource(res),
 		sdktrace.WithSampler(sdktrace.AlwaysSample()),
