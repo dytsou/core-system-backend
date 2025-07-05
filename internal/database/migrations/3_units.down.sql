@@ -1,0 +1,5 @@
+DROP TABLE IF EXISTS units;
+DROP TABLE IF EXISTS organizations;
+DROP TABLE IF EXISTS unit_members;
+DROP TABLE IF EXISTS org_members;
+DROP TABLE IF EXISTS parent_child;
