@@ -67,9 +67,7 @@ func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated user from context
 	currentUser, ok := GetUserFromContext(traceCtx)
 	if !ok {
-		logger.Error("No user found in request context")
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("no user found in request context"), logger)
-		span.RecordError(fmt.Errorf("no user found in request context"))
 		return
 	}
 
