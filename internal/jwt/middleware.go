@@ -4,7 +4,6 @@ import (
 	"NYCU-SDC/core-system-backend/internal"
 	"NYCU-SDC/core-system-backend/internal/user"
 	"context"
-	"fmt"
 	"net/http"
 
 	"go.uber.org/zap"
@@ -64,7 +63,7 @@ func (m *Middleware) AuthenticateMiddleware(handler http.HandlerFunc) http.Handl
 		// Parse and validate JWT token
 		authenticatedUser, err := m.service.Parse(r.Context(), tokenString)
 		if err != nil {
-			m.problemWriter.WriteError(traceCtx, w, fmt.Errorf("%w: %v", internal.ErrInvalidJWTToken, err), m.logger)
+			m.problemWriter.WriteError(traceCtx, w, internal.ErrInvalidAuthUser, m.logger)
 			return
 		}
 
