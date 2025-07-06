@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	handlerutil "github.com/NYCU-SDC/summer/pkg/handler"
+	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/NYCU-SDC/summer/pkg/problem"
 	"github.com/go-playground/validator/v10"
 	"go.opentelemetry.io/otel"
@@ -61,15 +62,13 @@ func NewHandler(
 func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "GetMe")
 	defer span.End()
-
-	// Extract trace_id from context
-	traceID := trace.SpanContextFromContext(traceCtx).TraceID().String()
+	logger := logutil.WithContext(traceCtx, h.logger)
 
 	// Get authenticated user from context
 	currentUser, ok := GetUserFromContext(traceCtx)
 	if !ok {
-		h.logger.Error("No user found in request context", zap.String("trace_id", traceID))
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("no user found in request context"), h.logger)
+		logger.Error("No user found in request context")
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("no user found in request context"), logger)
 		span.RecordError(fmt.Errorf("no user found in request context"))
 		return
 	}
@@ -87,15 +86,6 @@ func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
 		AvatarUrl: currentUser.AvatarUrl.String,
 		Role:      roleStr,
 	}
-
-	h.logger.Debug("GetMe: Response",
-		zap.String("trace_id", traceID),
-		zap.String("response_id", response.ID),
-		zap.String("response_username", response.Username),
-		zap.String("response_name", response.Name),
-		zap.String("response_avatar_url", response.AvatarUrl),
-		zap.String("response_role", response.Role),
-	)
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
 }
