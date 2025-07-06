@@ -12,46 +12,24 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const addParentChild = `-- name: AddParentChild :one
-INSERT INTO parent_child (parent_id, child_id)
-VALUES ($1, $2)
-RETURNING parent_id, child_id
-`
-
-type AddParentChildParams struct {
-	ParentID uuid.UUID
-	ChildID  uuid.UUID
-}
-
-func (q *Queries) AddParentChild(ctx context.Context, arg AddParentChildParams) (ParentChild, error) {
-	row := q.db.QueryRow(ctx, addParentChild, arg.ParentID, arg.ChildID)
-	var i ParentChild
-	err := row.Scan(&i.ParentID, &i.ChildID)
-	return i, err
-}
-
 const createOrg = `-- name: CreateOrg :one
-INSERT INTO organizations (id, name, description, metadata, type, slug)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO organizations (name, description, metadata, type, slug)
+VALUES ($1, $2, $3, 'organization', $4)
 RETURNING id, name, description, metadata, type, slug, created_at, updated_at
 `
 
 type CreateOrgParams struct {
-	ID          uuid.UUID
 	Name        pgtype.Text
 	Description pgtype.Text
 	Metadata    []byte
-	Type        UnitType
 	Slug        string
 }
 
 func (q *Queries) CreateOrg(ctx context.Context, arg CreateOrgParams) (Organization, error) {
 	row := q.db.QueryRow(ctx, createOrg,
-		arg.ID,
 		arg.Name,
 		arg.Description,
 		arg.Metadata,
-		arg.Type,
 		arg.Slug,
 	)
 	var i Organization
@@ -69,27 +47,19 @@ func (q *Queries) CreateOrg(ctx context.Context, arg CreateOrgParams) (Organizat
 }
 
 const createUnit = `-- name: CreateUnit :one
-INSERT INTO units (id, name, description, metadata, type)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO units (name, description, metadata, type)
+VALUES ($1, $2, $3, 'unit')
 RETURNING id, name, description, metadata, type, created_at, updated_at
 `
 
 type CreateUnitParams struct {
-	ID          uuid.UUID
 	Name        pgtype.Text
 	Description pgtype.Text
 	Metadata    []byte
-	Type        UnitType
 }
 
 func (q *Queries) CreateUnit(ctx context.Context, arg CreateUnitParams) (Unit, error) {
-	row := q.db.QueryRow(ctx, createUnit,
-		arg.ID,
-		arg.Name,
-		arg.Description,
-		arg.Metadata,
-		arg.Type,
-	)
+	row := q.db.QueryRow(ctx, createUnit, arg.Name, arg.Description, arg.Metadata)
 	var i Unit
 	err := row.Scan(
 		&i.ID,
@@ -101,38 +71,6 @@ func (q *Queries) CreateUnit(ctx context.Context, arg CreateUnitParams) (Unit, e
 		&i.UpdatedAt,
 	)
 	return i, err
-}
-
-const deleteOrg = `-- name: DeleteOrg :exec
-DELETE FROM organizations WHERE id = $1
-`
-
-func (q *Queries) DeleteOrg(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, deleteOrg, id)
-	return err
-}
-
-const deleteParentChild = `-- name: DeleteParentChild :exec
-DELETE FROM parent_child WHERE parent_id = $1 AND child_id = $2
-`
-
-type DeleteParentChildParams struct {
-	ParentID uuid.UUID
-	ChildID  uuid.UUID
-}
-
-func (q *Queries) DeleteParentChild(ctx context.Context, arg DeleteParentChildParams) error {
-	_, err := q.db.Exec(ctx, deleteParentChild, arg.ParentID, arg.ChildID)
-	return err
-}
-
-const deleteUnit = `-- name: DeleteUnit :exec
-DELETE FROM units WHERE id = $1
-`
-
-func (q *Queries) DeleteUnit(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, deleteUnit, id)
-	return err
 }
 
 const getOrgByID = `-- name: GetOrgByID :one
@@ -155,145 +93,23 @@ func (q *Queries) GetOrgByID(ctx context.Context, id uuid.UUID) (Organization, e
 	return i, err
 }
 
+const getOrgIDBySlug = `-- name: GetOrgIDBySlug :one
+SELECT id FROM organizations WHERE slug = $1
+`
+
+func (q *Queries) GetOrgIDBySlug(ctx context.Context, slug string) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getOrgIDBySlug, slug)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getUnitByID = `-- name: GetUnitByID :one
 SELECT id, name, description, metadata, type, created_at, updated_at FROM units WHERE id = $1
 `
 
 func (q *Queries) GetUnitByID(ctx context.Context, id uuid.UUID) (Unit, error) {
 	row := q.db.QueryRow(ctx, getUnitByID, id)
-	var i Unit
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.Description,
-		&i.Metadata,
-		&i.Type,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const listSubUnitIDs = `-- name: ListSubUnitIDs :many
-SELECT child_id FROM parent_child WHERE parent_id = $1
-`
-
-func (q *Queries) ListSubUnitIDs(ctx context.Context, parentID uuid.UUID) ([]uuid.UUID, error) {
-	rows, err := q.db.Query(ctx, listSubUnitIDs, parentID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []uuid.UUID
-	for rows.Next() {
-		var child_id uuid.UUID
-		if err := rows.Scan(&child_id); err != nil {
-			return nil, err
-		}
-		items = append(items, child_id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listSubUnits = `-- name: ListSubUnits :many
-SELECT u.id, u.name, u.description, u.metadata, u.type, u.created_at, u.updated_at FROM units u
-JOIN parent_child pc ON pc.child_id = u.id
-WHERE pc.parent_id = $1
-`
-
-func (q *Queries) ListSubUnits(ctx context.Context, parentID uuid.UUID) ([]Unit, error) {
-	rows, err := q.db.Query(ctx, listSubUnits, parentID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Unit
-	for rows.Next() {
-		var i Unit
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.Description,
-			&i.Metadata,
-			&i.Type,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const updateOrg = `-- name: UpdateOrg :one
-UPDATE organizations
-SET name = $2, description = $3, metadata = $4, type = $5, slug = $6, updated_at = now()
-WHERE id = $1
-RETURNING id, name, description, metadata, type, slug, created_at, updated_at
-`
-
-type UpdateOrgParams struct {
-	ID          uuid.UUID
-	Name        pgtype.Text
-	Description pgtype.Text
-	Metadata    []byte
-	Type        UnitType
-	Slug        string
-}
-
-func (q *Queries) UpdateOrg(ctx context.Context, arg UpdateOrgParams) (Organization, error) {
-	row := q.db.QueryRow(ctx, updateOrg,
-		arg.ID,
-		arg.Name,
-		arg.Description,
-		arg.Metadata,
-		arg.Type,
-		arg.Slug,
-	)
-	var i Organization
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.Description,
-		&i.Metadata,
-		&i.Type,
-		&i.Slug,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const updateUnit = `-- name: UpdateUnit :one
-UPDATE units
-SET name = $2, description = $3, metadata = $4, type = $5, updated_at = now()
-WHERE id = $1
-RETURNING id, name, description, metadata, type, created_at, updated_at
-`
-
-type UpdateUnitParams struct {
-	ID          uuid.UUID
-	Name        pgtype.Text
-	Description pgtype.Text
-	Metadata    []byte
-	Type        UnitType
-}
-
-func (q *Queries) UpdateUnit(ctx context.Context, arg UpdateUnitParams) (Unit, error) {
-	row := q.db.QueryRow(ctx, updateUnit,
-		arg.ID,
-		arg.Name,
-		arg.Description,
-		arg.Metadata,
-		arg.Type,
-	)
 	var i Unit
 	err := row.Scan(
 		&i.ID,

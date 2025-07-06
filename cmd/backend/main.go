@@ -5,6 +5,7 @@ import (
 	"NYCU-SDC/core-system-backend/internal/auth"
 	"NYCU-SDC/core-system-backend/internal/config"
 	"NYCU-SDC/core-system-backend/internal/jwt"
+	"NYCU-SDC/core-system-backend/internal/unit"
 
 	"NYCU-SDC/core-system-backend/internal/trace"
 	"NYCU-SDC/core-system-backend/internal/user"
@@ -112,10 +113,12 @@ func main() {
 	// Service
 	userService := user.NewService(logger, dbPool)
 	jwtService := jwt.NewService(logger, dbPool, cfg.Secret, cfg.AccessTokenExpiration, cfg.RefreshTokenExpiration)
+	unitService := unit.NewService(logger, dbPool)
 
 	// Handler
 	authHandler := auth.NewHandler(logger, validator, problemWriter, userService, jwtService, jwtService, cfg.BaseURL, cfg.AccessTokenExpiration, cfg.RefreshTokenExpiration, cfg.GoogleOauth)
 	userHandler := user.NewHandler(logger, validator, problemWriter, userService)
+	unitHandler := unit.NewHandler(logger, validator, problemWriter, unitService)
 
 	// Middleware
 	traceMiddleware := trace.NewMiddleware(logger, cfg.Debug)
@@ -143,6 +146,12 @@ func main() {
 
 	// User authenticated routes
 	mux.Handle("GET /api/users/me", jwtMiddleware.AuthenticateMiddleware(userHandler.GetMe))
+
+	// Unit routes
+	mux.Handle("POST /api/orgs", basicMiddleware.HandlerFunc(unitHandler.CreateOrg))
+	mux.Handle("POST /api/orgs/{slug}/units", basicMiddleware.HandlerFunc(unitHandler.CreateUnit))
+	mux.Handle("GET /api/orgs/{slug}", basicMiddleware.HandlerFunc(unitHandler.GetOrgByID))
+	mux.Handle("GET /api/orgs/{slug}/units/{id}", basicMiddleware.HandlerFunc(unitHandler.GetUnitByID))
 
 	// handle interrupt signal
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
