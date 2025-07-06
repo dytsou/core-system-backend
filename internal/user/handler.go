@@ -1,8 +1,8 @@
 package user
 
 import (
+	"NYCU-SDC/core-system-backend/internal"
 	"context"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -67,7 +67,7 @@ func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated user from context
 	currentUser, ok := GetUserFromContext(traceCtx)
 	if !ok {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("no user found in request context"), logger)
+		h.problemWriter.WriteError(traceCtx, w, internal.ErrNoUserInContext, logger)
 		return
 	}
 

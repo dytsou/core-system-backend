@@ -22,6 +22,10 @@ var (
 	ErrMissingAuthHeader       = errors.New("missing access token cookie")
 	ErrInvalidAuthHeaderFormat = errors.New("invalid access token cookie")
 	ErrInvalidJWTToken         = errors.New("invalid JWT token")
+
+	// User Errors
+	ErrUserNotFound    = errors.New("user not found")
+	ErrNoUserInContext = errors.New("no user found in request context")
 )
 
 func NewProblemWriter() *problem.HttpWriter {
@@ -55,6 +59,11 @@ func ErrorHandler(err error) problem.Problem {
 		return problem.NewUnauthorizedProblem("invalid access token cookie")
 	case errors.Is(err, ErrInvalidJWTToken):
 		return problem.NewUnauthorizedProblem("invalid JWT token")
+	// User Errors
+	case errors.Is(err, ErrUserNotFound):
+		return problem.NewNotFoundProblem("user not found")
+	case errors.Is(err, ErrNoUserInContext):
+		return problem.NewUnauthorizedProblem("no user found in request context")
 	}
 	return problem.Problem{}
 }
