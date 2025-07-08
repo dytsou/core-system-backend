@@ -12,6 +12,24 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const addParentChild = `-- name: AddParentChild :one
+INSERT INTO parent_child (parent_id, child_id)
+VALUES ($1, $2)
+RETURNING parent_id, child_id
+`
+
+type AddParentChildParams struct {
+	ParentID uuid.UUID
+	ChildID  uuid.UUID
+}
+
+func (q *Queries) AddParentChild(ctx context.Context, arg AddParentChildParams) (ParentChild, error) {
+	row := q.db.QueryRow(ctx, addParentChild, arg.ParentID, arg.ChildID)
+	var i ParentChild
+	err := row.Scan(&i.ParentID, &i.ChildID)
+	return i, err
+}
+
 const createOrg = `-- name: CreateOrg :one
 INSERT INTO organizations (name, description, metadata, type, slug)
 VALUES ($1, $2, $3, 'organization', $4)
@@ -121,4 +139,38 @@ func (q *Queries) GetUnitByID(ctx context.Context, id uuid.UUID) (Unit, error) {
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const listSubUnits = `-- name: ListSubUnits :many
+SELECT u.id, u.name, u.description, u.metadata, u.type, u.created_at, u.updated_at FROM units u
+JOIN parent_child pc ON u.id = pc.child_id
+WHERE pc.parent_id = $1
+`
+
+func (q *Queries) ListSubUnits(ctx context.Context, parentID uuid.UUID) ([]Unit, error) {
+	rows, err := q.db.Query(ctx, listSubUnits, parentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Unit
+	for rows.Next() {
+		var i Unit
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.Metadata,
+			&i.Type,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
