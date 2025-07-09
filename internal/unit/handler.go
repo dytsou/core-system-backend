@@ -309,6 +309,98 @@ func (h *Handler) UpdateOrg(w http.ResponseWriter, r *http.Request) {
 	handlerutil.WriteJSONResponse(w, http.StatusOK, updatedOrg)
 }
 
+func (h *Handler) DeleteOrg(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "DeleteUnit")
+	defer span.End()
+
+	path := strings.TrimPrefix(r.URL.Path, "/api/orgs/")
+	parts := strings.Split(path, "/")
+
+	slug := parts[0]
+	if slug == "" {
+		http.Error(w, "slug not provided", http.StatusBadRequest)
+		return
+	}
+
+	id, err := h.service.GetOrgIDBySlug(traceCtx, slug)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
+		span.RecordError(err)
+		return
+	}
+
+	var unitType UnitType = UnitTypeOrganization
+	err = h.service.Delete(traceCtx, id, unitType)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to delete unit: %w", err), h.logger)
+		span.RecordError(err)
+		return
+	}
+
+	err = h.service.RemoveParentChildByID(traceCtx, id)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to remove parent-child relationships: %w", err), h.logger)
+		span.RecordError(err)
+		return
+	}
+
+	h.logger.Debug("Deleted organization",
+		zap.String("org_id", id.String()),
+	)
+
+	handlerutil.WriteJSONResponse(w, http.StatusNoContent, nil)
+}
+
+// DeleteUnit deletes a unit by its ID
+func (h *Handler) DeleteUnit(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "DeleteUnit")
+	defer span.End()
+
+	path := strings.TrimPrefix(r.URL.Path, "/api/orgs/")
+	parts := strings.Split(path, "/")
+	if len(parts) != 3 {
+		http.Error(w, "invalid path", http.StatusBadRequest)
+		return
+	}
+
+	// slug := parts[0]
+	idStr := parts[2]
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid unit ID: %w", err), h.logger)
+		span.RecordError(err)
+		return
+	}
+
+	var unitType UnitType = UnitTypeUnit
+	// org_ID, err := h.service.GetOrgIDBySlug(traceCtx, slug)
+	// if err != nil {
+	// 	h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
+	// 	span.RecordError(err)
+	// 	return
+	// }
+
+	err = h.service.Delete(traceCtx, id, unitType)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to delete unit: %w", err), h.logger)
+		span.RecordError(err)
+		return
+	}
+
+	err = h.service.RemoveParentChildByID(traceCtx, id)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to remove parent-child relationships: %w", err), h.logger)
+		span.RecordError(err)
+		return
+	}
+
+	h.logger.Debug("Deleted unit",
+		zap.String("unit_id", id.String()),
+	)
+
+	handlerutil.WriteJSONResponse(w, http.StatusNoContent, nil)
+}
+
 func (h *Handler) AddParentChild(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "AddParentChild")
 	defer span.End()
@@ -333,6 +425,58 @@ func (h *Handler) AddParentChild(w http.ResponseWriter, r *http.Request) {
 	)
 
 	handlerutil.WriteJSONResponse(w, http.StatusCreated, pc)
+}
+
+func (h *Handler) RemoveParentChild(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "RemoveParentChild")
+	defer span.End()
+
+	prefix := "/api/orgs/relations/"
+	if !strings.HasPrefix(r.URL.Path, prefix) {
+		http.Error(w, "invalid path", http.StatusBadRequest)
+		return
+	}
+	path := strings.TrimPrefix(r.URL.Path, prefix)
+	parts := strings.Split(path, "/")
+	p_idStr := parts[1]
+	println(p_idStr)
+	c_idStr := parts[3]
+	println(c_idStr)
+	if p_idStr == "" || c_idStr == "" {
+		http.Error(w, "parent or child ID not provided", http.StatusBadRequest)
+		return
+	}
+	p_id, err := uuid.Parse(p_idStr)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid parent ID: %w", err), h.logger)
+		span.RecordError(err)
+		return
+	}
+	c_id, err := uuid.Parse(c_idStr)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid child ID: %w", err), h.logger)
+		span.RecordError(err)
+		return
+	}
+
+	params := RemoveParentChildParams{
+		ParentID: p_id,
+		ChildID:  c_id,
+	}
+
+	err = h.service.RemoveParentChild(traceCtx, params)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to remove parent-child relationship: %w", err), h.logger)
+		span.RecordError(err)
+		return
+	}
+
+	h.logger.Debug("Removed parent-child relationship",
+		zap.String("parent_id", params.ParentID.String()),
+		zap.String("child_id", params.ChildID.String()),
+	)
+
+	handlerutil.WriteJSONResponse(w, http.StatusNoContent, nil)
 }
 
 func (h *Handler) ListOrgSubUnits(w http.ResponseWriter, r *http.Request) {

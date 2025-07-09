@@ -91,6 +91,24 @@ func (q *Queries) CreateUnit(ctx context.Context, arg CreateUnitParams) (Unit, e
 	return i, err
 }
 
+const deleteOrg = `-- name: DeleteOrg :exec
+DELETE FROM organizations WHERE id = $1
+`
+
+func (q *Queries) DeleteOrg(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteOrg, id)
+	return err
+}
+
+const deleteUnit = `-- name: DeleteUnit :exec
+DELETE FROM units WHERE id = $1
+`
+
+func (q *Queries) DeleteUnit(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteUnit, id)
+	return err
+}
+
 const getOrgByID = `-- name: GetOrgByID :one
 SELECT id, name, description, metadata, type, slug, created_at, updated_at FROM organizations WHERE id = $1
 `
@@ -197,6 +215,29 @@ func (q *Queries) ListSubUnits(ctx context.Context, parentID uuid.UUID) ([]Unit,
 		return nil, err
 	}
 	return items, nil
+}
+
+const removeParentChild = `-- name: RemoveParentChild :exec
+DELETE FROM parent_child WHERE parent_id = $1 AND child_id = $2
+`
+
+type RemoveParentChildParams struct {
+	ParentID uuid.UUID
+	ChildID  uuid.UUID
+}
+
+func (q *Queries) RemoveParentChild(ctx context.Context, arg RemoveParentChildParams) error {
+	_, err := q.db.Exec(ctx, removeParentChild, arg.ParentID, arg.ChildID)
+	return err
+}
+
+const removeParentChildByID = `-- name: RemoveParentChildByID :exec
+DELETE FROM parent_child WHERE parent_id = $1 OR child_id = $1
+`
+
+func (q *Queries) RemoveParentChildByID(ctx context.Context, parentID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, removeParentChildByID, parentID)
+	return err
 }
 
 const updateOrg = `-- name: UpdateOrg :one

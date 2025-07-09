@@ -29,6 +29,12 @@ SET name = $2, description = $3, metadata = $4, updated_at = now()
 WHERE id = $1
 RETURNING *;
 
+-- name: DeleteUnit :exec
+DELETE FROM units WHERE id = $1;
+
+-- name: DeleteOrg :exec
+DELETE FROM organizations WHERE id = $1;
+
 -- name: AddParentChild :one
 INSERT INTO parent_child (parent_id, child_id)
 VALUES ($1, $2)
@@ -41,3 +47,9 @@ WHERE pc.parent_id = $1;
 
 -- name: ListSubUnitIDs :many
 SELECT child_id FROM parent_child WHERE parent_id = $1;
+
+-- name: RemoveParentChild :exec
+DELETE FROM parent_child WHERE parent_id = $1 AND child_id = $2;
+
+-- name: RemoveParentChildByID :exec
+DELETE FROM parent_child WHERE parent_id = $1 OR child_id = $1;

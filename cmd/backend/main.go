@@ -155,12 +155,15 @@ func main() {
 	mux.Handle("POST /api/orgs/relations", basicMiddleware.HandlerFunc(unitHandler.AddParentChild))
 	mux.Handle("PUT /api/orgs/{slug}", basicMiddleware.HandlerFunc(unitHandler.UpdateOrg))
 	mux.Handle("PUT /api/orgs/{slug}/units/{id}", basicMiddleware.HandlerFunc(unitHandler.UpdateUnit))
+	mux.Handle("DELETE /api/orgs/{slug}", basicMiddleware.HandlerFunc(unitHandler.DeleteOrg))
+	mux.Handle("DELETE /api/orgs/{slug}/units/{id}", basicMiddleware.HandlerFunc(unitHandler.DeleteUnit))
 
 	// List sub-units
 	mux.Handle("GET /api/orgs/{slug}/units", basicMiddleware.HandlerFunc(unitHandler.ListOrgSubUnits))
 	mux.Handle("GET /api/orgs/{slug}/units/{id}/subunits", basicMiddleware.HandlerFunc(unitHandler.ListUnitSubUnits))
 	mux.Handle("GET /api/orgs/{slug}/unit-ids", basicMiddleware.HandlerFunc(unitHandler.ListOrgSubUnitIDs))
 	mux.Handle("GET /api/orgs/{slug}/units/{id}/subunit-ids", basicMiddleware.HandlerFunc(unitHandler.ListUnitSubUnitIDs))
+	mux.Handle("DELETE /api/orgs/relations/parent_id/{p_id}/child_id/{c_id}", basicMiddleware.HandlerFunc(unitHandler.RemoveParentChild))
 
 	// handle interrupt signal
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
