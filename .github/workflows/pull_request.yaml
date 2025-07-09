@@ -107,7 +107,7 @@ jobs:
               "source": {
                 "title": "Core System",
                 "repo": "${{ github.repository }}",
-                "branch": "${{ github.ref_name }}",
+                "branch": "${{ github.head_ref || github.ref_name }}",
                 "commit": "${{ github.sha }}",
                 "pr_number": "${{ github.event.pull_request.number }}",
                 "pr_title": "${{ github.event.pull_request.title }}"
