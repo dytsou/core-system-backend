@@ -157,6 +157,8 @@ func main() {
 	// List sub-units
 	mux.Handle("GET /api/orgs/{slug}/units", basicMiddleware.HandlerFunc(unitHandler.ListOrgSubUnits))
 	mux.Handle("GET /api/orgs/{slug}/units/{id}/subunits", basicMiddleware.HandlerFunc(unitHandler.ListUnitSubUnits))
+	mux.Handle("GET /api/orgs/{slug}/unit-ids", basicMiddleware.HandlerFunc(unitHandler.ListOrgSubUnitIDs))
+	mux.Handle("GET /api/orgs/{slug}/units/{id}/subunit-ids", basicMiddleware.HandlerFunc(unitHandler.ListUnitSubUnitIDs))
 
 	// handle interrupt signal
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

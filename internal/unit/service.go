@@ -74,8 +74,7 @@ type Querier interface {
 	GetUnitByID(ctx context.Context, id uuid.UUID) (Unit, error)
 	GetOrgIDBySlug(ctx context.Context, slug string) (uuid.UUID, error)
 	ListSubUnits(ctx context.Context, parentID uuid.UUID) ([]Unit, error)
-	// ListSubUnits(ctx context.Context, parentID uuid.UUID) ([]Unit, error)
-	// ListSubUnitIDs(ctx context.Context, parentID uuid.UUID) ([]uuid.UUID, error)
+	ListSubUnitIDs(ctx context.Context, parentID uuid.UUID) ([]uuid.UUID, error)
 	// UpdateUnit(ctx context.Context, arg UpdateUnitParams) (Unit, error)
 	// DeleteUnit(ctx context.Context, id uuid.UUID) error
 	// CreateOrg(ctx context.Context, arg CreateOrgParams) (Organization, error)
@@ -208,6 +207,21 @@ func (s *Service) ListSubUnits(ctx context.Context, parentID uuid.UUID) ([]Unit,
 	return subUnits, nil
 }
 
+// ListSubUnitIDs retrieves all child unit IDs of a parent unit
+func (s *Service) ListSubUnitIDs(ctx context.Context, parentID uuid.UUID) ([]uuid.UUID, error) {
+	traceCtx, span := s.tracer.Start(ctx, "ListSubUnitIDs")
+	defer span.End()
+	logger := logutil.WithContext(traceCtx, s.logger)
+	unitIDs, err := s.queries.ListSubUnitIDs(traceCtx, parentID)
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "list sub unit IDs")
+		span.RecordError(err)
+		return nil, err
+	}
+	logger.Debug("Listed sub unit IDs", zap.String("parent_id", parentID.String()), zap.Int("count", len(unitIDs)))
+	return unitIDs, nil
+}
+
 // // UpdateUnit updates the base fields of a unit
 // func (s *Service) UpdateUnit(ctx context.Context, id uuid.UUID, base Base) (Unit, error) {
 // 	traceCtx, span := s.tracer.Start(ctx, "UpdateUnit")
@@ -244,21 +258,6 @@ func (s *Service) ListSubUnits(ctx context.Context, parentID uuid.UUID) ([]Unit,
 // 	}
 // 	logger.Debug("Deleted unit", zap.String("unit_id", id.String()))
 // 	return nil
-// }
-
-// // ListChildUnits retrieves all child units of a parent unit
-// func (s *Service) ListSubUnitIDs(ctx context.Context, parentID uuid.UUID) ([]Unit, error) {
-// 	traceCtx, span := s.tracer.Start(ctx, "ListSubUnitIDs")
-// 	defer span.End()
-// 	logger := logutil.WithContext(traceCtx, s.logger)
-// 	unitids, err := s.queries.ListSubUnitIDs(traceCtx, parentID)
-// 	if err != nil {
-// 		err = databaseutil.WrapDBError(err, logger, "list child units")
-// 		span.RecordError(err)
-// 		return nil, err
-// 	}
-// 	logger.Debug("Listed child units", zap.String("parent_id", parentID.String()), zap.Int("count", len(units)))
-// 	return unitids, nil
 // }
 
 // AddParentChild adds a parent-child relationship between two units

@@ -279,3 +279,60 @@ func (h *Handler) ListUnitSubUnits(w http.ResponseWriter, r *http.Request) {
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, subUnits)
 }
+
+func (h *Handler) ListOrgSubUnitIDs(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "ListOrgSubUnits")
+	defer span.End()
+
+	prefix := "/api/orgs/"
+	if !strings.HasPrefix(r.URL.Path, prefix) {
+		http.Error(w, "invalid path", http.StatusBadRequest)
+		return
+	}
+	path := strings.TrimPrefix(r.URL.Path, prefix)
+	parts := strings.Split(path, "/")
+	slug := parts[0]
+	if slug == "" {
+		http.Error(w, "slug not provided", http.StatusBadRequest)
+		return
+	}
+
+	org_ID, err := h.service.GetOrgIDBySlug(traceCtx, slug)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
+		span.RecordError(err)
+		return
+	}
+
+	subUnits, err := h.service.ListSubUnitIDs(traceCtx, org_ID)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list sub-units: %w", err), h.logger)
+		span.RecordError(err)
+		return
+	}
+
+	handlerutil.WriteJSONResponse(w, http.StatusOK, subUnits)
+}
+
+func (h *Handler) ListUnitSubUnitIDs(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "ListUnitSubUnits")
+	defer span.End()
+
+	path := strings.TrimPrefix(r.URL.Path, "/api/orgs/")
+	parts := strings.Split(path, "/")
+	idStr := parts[2]
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid unit ID: %w", err), h.logger)
+		span.RecordError(err)
+		return
+	}
+	subUnits, err := h.service.ListSubUnitIDs(traceCtx, id)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list sub-units: %w", err), h.logger)
+		span.RecordError(err)
+		return
+	}
+
+	handlerutil.WriteJSONResponse(w, http.StatusOK, subUnits)
+}

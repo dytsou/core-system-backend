@@ -26,3 +26,6 @@ RETURNING *;
 SELECT u.* FROM units u
 JOIN parent_child pc ON u.id = pc.child_id
 WHERE pc.parent_id = $1;
+
+-- name: ListSubUnitIDs :many
+SELECT child_id FROM parent_child WHERE parent_id = $1;

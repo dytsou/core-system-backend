@@ -141,6 +141,30 @@ func (q *Queries) GetUnitByID(ctx context.Context, id uuid.UUID) (Unit, error) {
 	return i, err
 }
 
+const listSubUnitIDs = `-- name: ListSubUnitIDs :many
+SELECT child_id FROM parent_child WHERE parent_id = $1
+`
+
+func (q *Queries) ListSubUnitIDs(ctx context.Context, parentID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listSubUnitIDs, parentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var child_id uuid.UUID
+		if err := rows.Scan(&child_id); err != nil {
+			return nil, err
+		}
+		items = append(items, child_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSubUnits = `-- name: ListSubUnits :many
 SELECT u.id, u.name, u.description, u.metadata, u.type, u.created_at, u.updated_at FROM units u
 JOIN parent_child pc ON u.id = pc.child_id
