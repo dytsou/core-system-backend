@@ -75,7 +75,8 @@ type Querier interface {
 	GetOrgIDBySlug(ctx context.Context, slug string) (uuid.UUID, error)
 	ListSubUnits(ctx context.Context, parentID uuid.UUID) ([]Unit, error)
 	ListSubUnitIDs(ctx context.Context, parentID uuid.UUID) ([]uuid.UUID, error)
-	// UpdateUnit(ctx context.Context, arg UpdateUnitParams) (Unit, error)
+	UpdateUnit(ctx context.Context, arg UpdateUnitParams) (Unit, error)
+	UpdateOrg(ctx context.Context, arg UpdateOrgParams) (Organization, error)
 	// DeleteUnit(ctx context.Context, id uuid.UUID) error
 	// CreateOrg(ctx context.Context, arg CreateOrgParams) (Organization, error)
 
@@ -222,27 +223,47 @@ func (s *Service) ListSubUnitIDs(ctx context.Context, parentID uuid.UUID) ([]uui
 	return unitIDs, nil
 }
 
-// // UpdateUnit updates the base fields of a unit
-// func (s *Service) UpdateUnit(ctx context.Context, id uuid.UUID, base Base) (Unit, error) {
-// 	traceCtx, span := s.tracer.Start(ctx, "UpdateUnit")
-// 	defer span.End()
-// 	logger := logutil.WithContext(traceCtx, s.logger)
+// UpdateUnit updates the base fields of a unit
+func (s *Service) UpdateUnit(ctx context.Context, id uuid.UUID, args UpdateUnitParams) (Unit, error) {
+	traceCtx, span := s.tracer.Start(ctx, "UpdateUnit")
+	defer span.End()
+	logger := logutil.WithContext(traceCtx, s.logger)
 
-// 	unit, err := s.queries.UpdateUnit(traceCtx, UpdateUnitParams{
-// 		ID:          id,
-// 		Name:        pgtype.Text{String: base.Name, Valid: base.Name != ""},
-// 		Description: pgtype.Text{String: base.Description, Valid: base.Description != ""},
-// 		Metadata:    base.Metadata,
-// 		Type:        base.Type,
-// 	})
-// 	if err != nil {
-// 		err = databaseutil.WrapDBError(err, logger, "update unit")
-// 		span.RecordError(err)
-// 		return Unit{}, err
-// 	}
-// 	logger.Debug("Updated unit", zap.String("unit_id", id.String()))
-// 	return unit, nil
-// }
+	unit, err := s.queries.UpdateUnit(traceCtx, UpdateUnitParams{
+		ID:          id,
+		Name:        args.Name,
+		Description: args.Description,
+		Metadata:    args.Metadata,
+	})
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "update unit")
+		span.RecordError(err)
+		return Unit{}, err
+	}
+	logger.Debug("Updated unit", zap.String("unit_id", id.String()))
+	return unit, nil
+}
+
+func (s *Service) UpdateOrg(ctx context.Context, id uuid.UUID, args UpdateOrgParams) (Organization, error) {
+	traceCtx, span := s.tracer.Start(ctx, "UpdateOrg")
+	defer span.End()
+	logger := logutil.WithContext(traceCtx, s.logger)
+
+	org, err := s.queries.UpdateOrg(traceCtx, UpdateOrgParams{
+		ID:          id,
+		Name:        args.Name,
+		Description: args.Description,
+		Metadata:    args.Metadata,
+		Slug:        args.Slug,
+	})
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "update org")
+		span.RecordError(err)
+		return Organization{}, err
+	}
+	logger.Debug("Updated org", zap.String("org_id", id.String()))
+	return org, nil
+}
 
 // // DeleteUnit deletes a unit by ID
 // func (s *Service) DeleteUnit(ctx context.Context, id uuid.UUID) error {

@@ -39,14 +39,14 @@ func NewHandler(
 	}
 }
 
-type CreateOrgRequest struct {
+type OrgRequest struct {
 	Name        string            `json:"name" validate:"required"`
 	Description string            `json:"description"`
 	Metadata    map[string]string `json:"metadata"`
 	Slug        string            `json:"slug" validate:"required"`
 }
 
-type CreateUnitRequest struct {
+type UnitRequest struct {
 	Name        string            `json:"name" validate:"required"`
 	Description string            `json:"description"`
 	Metadata    map[string]string `json:"metadata"`
@@ -55,7 +55,7 @@ type CreateUnitRequest struct {
 func (h *Handler) CreateUnit(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "CreateUnit")
 	defer span.End()
-	var req CreateUnitRequest
+	var req UnitRequest
 
 	if err := handlerutil.ParseAndValidateRequestBody(traceCtx, h.validator, r, &req); err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid request body: %w", err), h.logger)
@@ -92,7 +92,7 @@ func (h *Handler) CreateUnit(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) CreateOrg(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "CreateOrg")
 	defer span.End()
-	var req CreateOrgRequest
+	var req OrgRequest
 
 	if err := handlerutil.ParseAndValidateRequestBody(traceCtx, h.validator, r, &req); err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid request body: %w", err), h.logger)
@@ -195,6 +195,118 @@ func (h *Handler) GetOrgByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	handlerutil.WriteJSONResponse(w, http.StatusOK, unit)
+}
+
+func (h *Handler) UpdateUnit(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "UpdateUnit")
+	defer span.End()
+
+	var req UnitRequest
+	if err := handlerutil.ParseAndValidateRequestBody(traceCtx, h.validator, r, &req); err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid request body: %w", err), h.logger)
+		span.RecordError(err)
+		return
+	}
+
+	path := strings.TrimPrefix(r.URL.Path, "/api/orgs/")
+	parts := strings.Split(path, "/")
+	// slug := parts[0]
+	idStr := parts[2]
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid unit ID: %w", err), h.logger)
+		span.RecordError(err)
+		return
+	}
+
+	metadataBytes, err := json.Marshal(req.Metadata)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to marshal metadata: %w", err), h.logger)
+		span.RecordError(err)
+		return
+	}
+
+	params := UpdateUnitParams{
+		ID:          id,
+		Name:        pgtype.Text{String: req.Name, Valid: true},
+		Description: pgtype.Text{String: req.Description, Valid: req.Description != ""},
+		Metadata:    metadataBytes,
+	}
+
+	updatedUnit, err := h.service.UpdateUnit(traceCtx, id, params)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to update unit: %w", err), h.logger)
+		span.RecordError(err)
+		return
+	}
+
+	h.logger.Debug("Updated unit",
+		zap.String("unit_id", updatedUnit.ID.String()),
+		zap.String("unit_name", updatedUnit.Name.String),
+		zap.String("unit_description", updatedUnit.Description.String),
+		zap.String("unit_type", string(updatedUnit.Type)),
+		zap.ByteString("unit_metadata", updatedUnit.Metadata),
+	)
+
+	handlerutil.WriteJSONResponse(w, http.StatusOK, updatedUnit)
+}
+
+func (h *Handler) UpdateOrg(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "UpdateOrg")
+	defer span.End()
+
+	var req OrgRequest
+	if err := handlerutil.ParseAndValidateRequestBody(traceCtx, h.validator, r, &req); err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid request body: %w", err), h.logger)
+		span.RecordError(err)
+		return
+	}
+
+	path := strings.TrimPrefix(r.URL.Path, "/api/orgs/")
+	parts := strings.Split(path, "/")
+	slug := parts[0]
+	if slug == "" {
+		http.Error(w, "slug not provided", http.StatusBadRequest)
+		return
+	}
+	id, err := h.service.GetOrgIDBySlug(traceCtx, slug)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
+		span.RecordError(err)
+		return
+	}
+
+	metadataBytes, err := json.Marshal(req.Metadata)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to marshal metadata: %w", err), h.logger)
+		span.RecordError(err)
+		return
+	}
+
+	params := UpdateOrgParams{
+		ID:          id,
+		Name:        pgtype.Text{String: req.Name, Valid: true},
+		Description: pgtype.Text{String: req.Description, Valid: req.Description != ""},
+		Metadata:    metadataBytes,
+		Slug:        req.Slug,
+	}
+
+	updatedOrg, err := h.service.UpdateOrg(traceCtx, id, params)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to update organization: %w", err), h.logger)
+		span.RecordError(err)
+		return
+	}
+
+	h.logger.Debug("Updated organization",
+		zap.String("org_id", updatedOrg.ID.String()),
+		zap.String("org_name", updatedOrg.Name.String),
+		zap.String("org_description", updatedOrg.Description.String),
+		zap.String("unit_type", string(updatedOrg.Type)),
+		zap.ByteString("org_metadata", updatedOrg.Metadata),
+	)
+
+	handlerutil.WriteJSONResponse(w, http.StatusOK, updatedOrg)
 }
 
 func (h *Handler) AddParentChild(w http.ResponseWriter, r *http.Request) {

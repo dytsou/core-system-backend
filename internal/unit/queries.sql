@@ -17,6 +17,18 @@ SELECT * FROM organizations WHERE id = $1;
 -- name: GetOrgIDBySlug :one
 SELECT id FROM organizations WHERE slug = $1;
 
+-- name: UpdateOrg :one
+UPDATE organizations
+SET slug = $2, name = $3, description = $4, metadata = $5, updated_at = now()
+WHERE id = $1
+RETURNING *;
+
+-- name: UpdateUnit :one
+UPDATE units
+SET name = $2, description = $3, metadata = $4, updated_at = now()
+WHERE id = $1
+RETURNING *;
+
 -- name: AddParentChild :one
 INSERT INTO parent_child (parent_id, child_id)
 VALUES ($1, $2)

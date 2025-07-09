@@ -153,6 +153,8 @@ func main() {
 	mux.Handle("GET /api/orgs/{slug}", basicMiddleware.HandlerFunc(unitHandler.GetOrgByID))
 	mux.Handle("GET /api/orgs/{slug}/units/{id}", basicMiddleware.HandlerFunc(unitHandler.GetUnitByID))
 	mux.Handle("POST /api/orgs/relations", basicMiddleware.HandlerFunc(unitHandler.AddParentChild))
+	mux.Handle("PUT /api/orgs/{slug}", basicMiddleware.HandlerFunc(unitHandler.UpdateOrg))
+	mux.Handle("PUT /api/orgs/{slug}/units/{id}", basicMiddleware.HandlerFunc(unitHandler.UpdateUnit))
 
 	// List sub-units
 	mux.Handle("GET /api/orgs/{slug}/units", basicMiddleware.HandlerFunc(unitHandler.ListOrgSubUnits))

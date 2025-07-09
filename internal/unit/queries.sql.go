@@ -198,3 +198,74 @@ func (q *Queries) ListSubUnits(ctx context.Context, parentID uuid.UUID) ([]Unit,
 	}
 	return items, nil
 }
+
+const updateOrg = `-- name: UpdateOrg :one
+UPDATE organizations
+SET slug = $2, name = $3, description = $4, metadata = $5, updated_at = now()
+WHERE id = $1
+RETURNING id, name, description, metadata, type, slug, created_at, updated_at
+`
+
+type UpdateOrgParams struct {
+	ID          uuid.UUID
+	Slug        string
+	Name        pgtype.Text
+	Description pgtype.Text
+	Metadata    []byte
+}
+
+func (q *Queries) UpdateOrg(ctx context.Context, arg UpdateOrgParams) (Organization, error) {
+	row := q.db.QueryRow(ctx, updateOrg,
+		arg.ID,
+		arg.Slug,
+		arg.Name,
+		arg.Description,
+		arg.Metadata,
+	)
+	var i Organization
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.Metadata,
+		&i.Type,
+		&i.Slug,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateUnit = `-- name: UpdateUnit :one
+UPDATE units
+SET name = $2, description = $3, metadata = $4, updated_at = now()
+WHERE id = $1
+RETURNING id, name, description, metadata, type, created_at, updated_at
+`
+
+type UpdateUnitParams struct {
+	ID          uuid.UUID
+	Name        pgtype.Text
+	Description pgtype.Text
+	Metadata    []byte
+}
+
+func (q *Queries) UpdateUnit(ctx context.Context, arg UpdateUnitParams) (Unit, error) {
+	row := q.db.QueryRow(ctx, updateUnit,
+		arg.ID,
+		arg.Name,
+		arg.Description,
+		arg.Metadata,
+	)
+	var i Unit
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.Metadata,
+		&i.Type,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
