@@ -268,12 +268,12 @@ func (s *Service) UpdateOrg(ctx context.Context, id uuid.UUID, args UpdateOrgPar
 }
 
 // Delete deletes a unit by ID
-func (s *Service) Delete(ctx context.Context, id uuid.UUID, genericUnitType UnitType) error {
+func (s *Service) Delete(ctx context.Context, id uuid.UUID, unitType UnitType) error {
 	traceCtx, span := s.tracer.Start(ctx, "Delete")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	switch genericUnitType {
+	switch unitType {
 	case UnitTypeUnit:
 		err := s.queries.DeleteUnit(traceCtx, id)
 		if err != nil {
@@ -289,9 +289,9 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID, genericUnitType Unit
 			return err
 		}
 	default:
-		err := fmt.Errorf("invalid unit type for deletion: %s", genericUnitType)
+		err := fmt.Errorf("invalid unit type for deletion: %s", unitType)
 		span.RecordError(err)
-		logger.Error("Invalid unit type for deletion", zap.String("unit_type", string(genericUnitType)))
+		logger.Error("Invalid unit type for deletion", zap.String("unit_type", string(unitType)))
 	}
 	logger.Debug("Deleted unit", zap.String("unit_id", id.String()))
 	return nil

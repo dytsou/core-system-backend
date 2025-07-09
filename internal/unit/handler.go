@@ -150,14 +150,14 @@ func (h *Handler) GetUnitByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var genericUnitType UnitType = UnitTypeUnit
+	unitType := UnitTypeUnit
 	org_ID, err := h.service.GetOrgIDBySlug(traceCtx, slug)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
 		span.RecordError(err)
 		return
 	}
-	unit, err := h.service.GetByID(traceCtx, id, org_ID, genericUnitType)
+	unit, err := h.service.GetByID(traceCtx, id, org_ID, unitType)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get unit by ID: %w", err), h.logger)
 		span.RecordError(err)
@@ -181,14 +181,14 @@ func (h *Handler) GetOrgByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var genericUnitType UnitType = UnitTypeOrganization
+	unitType := UnitTypeOrganization
 	org_ID, err := h.service.GetOrgIDBySlug(traceCtx, slug)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
 		span.RecordError(err)
 		return
 	}
-	unit, err := h.service.GetByID(traceCtx, org_ID, org_ID, genericUnitType)
+	unit, err := h.service.GetByID(traceCtx, org_ID, org_ID, unitType)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get unit by ID: %w", err), h.logger)
 		span.RecordError(err)
@@ -329,8 +329,8 @@ func (h *Handler) DeleteOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var genericUnitType UnitType = UnitTypeOrganization
-	err = h.service.Delete(traceCtx, id, genericUnitType)
+	unitType := UnitTypeOrganization
+	err = h.service.Delete(traceCtx, id, unitType)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to delete unit: %w", err), h.logger)
 		span.RecordError(err)
@@ -372,7 +372,7 @@ func (h *Handler) DeleteUnit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var genericUnitType UnitType = UnitTypeUnit
+	unitType := UnitTypeUnit
 	// org_ID, err := h.service.GetOrgIDBySlug(traceCtx, slug)
 	// if err != nil {
 	// 	h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
@@ -380,7 +380,7 @@ func (h *Handler) DeleteUnit(w http.ResponseWriter, r *http.Request) {
 	// 	return
 	// }
 
-	err = h.service.Delete(traceCtx, id, genericUnitType)
+	err = h.service.Delete(traceCtx, id, unitType)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to delete unit: %w", err), h.logger)
 		span.RecordError(err)
