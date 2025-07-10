@@ -12,6 +12,48 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type DbStrategy string
+
+const (
+	DbStrategyShared   DbStrategy = "shared"
+	DbStrategyIsolated DbStrategy = "isolated"
+)
+
+func (e *DbStrategy) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = DbStrategy(s)
+	case string:
+		*e = DbStrategy(s)
+	default:
+		return fmt.Errorf("unsupported scan type for DbStrategy: %T", src)
+	}
+	return nil
+}
+
+type NullDbStrategy struct {
+	DbStrategy DbStrategy
+	Valid      bool // Valid is true if DbStrategy is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullDbStrategy) Scan(value interface{}) error {
+	if value == nil {
+		ns.DbStrategy, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.DbStrategy.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullDbStrategy) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.DbStrategy), nil
+}
+
 type UnitType string
 
 const (
@@ -89,6 +131,11 @@ type RefreshToken struct {
 	UserID         uuid.UUID
 	IsActive       pgtype.Bool
 	ExpirationDate pgtype.Timestamptz
+}
+
+type Tenant struct {
+	ID         uuid.UUID
+	DbStrategy DbStrategy
 }
 
 type Unit struct {
