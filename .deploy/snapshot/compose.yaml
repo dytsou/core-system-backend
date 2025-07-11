@@ -1,0 +1,33 @@
+networks:
+  core_system_$VERSION:
+    driver: bridge
+
+services:
+  backend:
+    image: nycusdc/core-system-backend:$VERSION
+    container_name: core-system-backend-$VERSION
+    ports:
+      - '$PORT:8080'
+    networks:
+      - core_system_$VERSION
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      HOST: "0.0.0.0"
+      DATABASE_URL: postgres://postgres:password@postgres:5432/core_system?sslmode=disable
+      MIGRATION_SOURCE: file:///app/migrations
+    
+  postgres:
+    image: postgres:latest
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: core_system
+    networks:
+      - core_system_$VERSION

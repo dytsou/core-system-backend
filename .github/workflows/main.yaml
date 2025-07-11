@@ -1,4 +1,4 @@
-name: Lint, Test, and Build Backend
+name: Dev Backend
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
 
 jobs:
   Lint:
-    runs-on:  ubuntu-latest
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -49,7 +49,7 @@ jobs:
 
   Build:
     needs: Test
-    runs-on:  ubuntu-latest
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -73,7 +73,7 @@ jobs:
         run: |
           go mod download
           make gen
-          env GOOS=linux GOARCH=arm64 go build -o bin/backend cmd/backend/main.go
+          go build -o bin/backend cmd/backend/main.go
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -89,7 +89,6 @@ jobs:
         with:
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          platforms: linux/arm64
           push: true
           tags: |
             nycusdc/core-system-backend:dev
@@ -98,11 +97,33 @@ jobs:
 
   Deploy:
     needs: Build
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
-
-      - name: Deploy container to local
+      - name: Trigger n8n Snapshot Webhook
         run: |
-          ~/deploy.sh "Dev"
+          curl --location --request POST 'https://webhook.eng.sdc.nycu.club/webhook/deploy' \
+            --header 'Content-Type: application/json' \
+              --data-raw '{
+            "source": {
+              "title": "Core System Backend",
+              "repo": "${{ github.repository }}",
+              "branch": "${{ github.head_ref || github.ref_name }}",
+              "commit": "${{ github.sha }}"
+            },
+            "method": "deploy",
+            "metadata": {
+              "environment": "dev"
+            },
+            "post": {
+              "notify_discord": {
+                "enable": true,
+                "channel": "core-system-activity"
+              },
+              "setup_domain": {
+                "enable": true,
+                "title": "Endpoint",
+                "name": "api.dev.core-system.sdc",
+                "value": "eng-deploy:internal"
+              }
+            }
+          }'
