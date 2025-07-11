@@ -123,7 +123,7 @@ jobs:
               "setup_domain": {
                 "enable": true,
                 "title": "Endpoint",
-                "name": "backend.dev.core-system.sdc",
+                "name": "api.dev.core-system.sdc",
                 "value": "eng-deploy:internal"
               }
             }
