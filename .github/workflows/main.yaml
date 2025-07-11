@@ -113,7 +113,7 @@ jobs:
             "method": "deploy",
             "metadata": {
               "environment": "dev",
-              "component": "backend",
+              "component": "backend"
             },
             "post": {
               "notify_discord": {
