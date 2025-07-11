@@ -14,7 +14,7 @@ services:
       MIGRATION_SOURCE: file:///app/migrations
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.core-system-backend.rule=Host(`api.dev.core-system.sdc.nycu.edu.tw`)"
+      - "traefik.http.routers.core-system-backend.rule=Host(`backend.dev.core-system.sdc.nycu.club`)"
       - "traefik.http.routers.core-system-backend.entrypoints=websecure"
       - "traefik.http.routers.core-system-backend.tls=true"
       - "traefik.http.routers.core-system-backend.tls.certresolver=cloudflare"

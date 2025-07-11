@@ -123,7 +123,7 @@ jobs:
               "setup_domain": {
                 "enable": true,
                 "title": "Endpoint",
-                "name": "backend.dev.core-system.sdc.nycu.edu.tw",
+                "name": "backend.dev.core-system.sdc",
                 "value": "eng-deploy:internal"
               }
             }
