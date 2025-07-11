@@ -135,6 +135,15 @@ func main() {
 	// HTTP Server
 	mux := http.NewServeMux()
 
+	// Health check route
+	mux.HandleFunc("GET /api/health", basicMiddleware.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, err := w.Write([]byte("OK"))
+		if err != nil {
+			logger.Error("Failed to write response", zap.Error(err))
+		}
+	}))
+
 	// Internal Debug route
 	mux.HandleFunc("POST /api/auth/login/internal", basicMiddleware.HandlerFunc(authHandler.InternalAPITokenLogin))
 
