@@ -123,7 +123,7 @@ jobs:
               "setup_domain": {
                 "enable": true,
                 "title": "Endpoint",
-                "name": "api.dev.core-system.sdc",
+                "name": "api.dev.core-system.sdc.nycu.club",
                 "value": "gcp-eng-deploy:internal"
               }
             }
