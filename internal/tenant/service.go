@@ -3,6 +3,7 @@ package tenant
 import (
 	"NYCU-SDC/core-system-backend/internal"
 	"context"
+
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
@@ -13,6 +14,8 @@ import (
 type Querier interface {
 	Create(ctx context.Context, param CreateParams) (Tenant, error)
 	Get(ctx context.Context, id uuid.UUID) (Tenant, error)
+	Update(ctx context.Context, param UpdateParams) (Tenant, error)
+	Delete(ctx context.Context, id uuid.UUID) error
 }
 
 type Service struct {
@@ -62,4 +65,36 @@ func (s *Service) CreateByID(ctx context.Context, id uuid.UUID) (Tenant, error) 
 	logger.Info("tenant created", zap.String("tenant_id", tenant.ID.String()), zap.String("db_strategy", string(tenant.DbStrategy)))
 
 	return tenant, nil
+}
+
+func (s *Service) UpdateByID(ctx context.Context, param UpdateParams) (Tenant, error) {
+	traceCtx, span := s.tracer.Start(ctx, "UpdateByID")
+	defer span.End()
+	logger := internal.WithContext(traceCtx, s.logger)
+
+	tenant, err := s.query.Update(traceCtx, param)
+	if err != nil {
+		err = databaseutil.WrapDBErrorWithKeyValue(err, "tenants", "id", param.ID.String(), logger, "update tenant by id")
+		span.RecordError(err)
+		return Tenant{}, err
+	}
+
+	logger.Info("tenant updated", zap.String("tenant_id", tenant.ID.String()), zap.String("db_strategy", string(tenant.DbStrategy)))
+
+	return tenant, nil
+}
+
+func (s *Service) DeleteByID(ctx context.Context, id uuid.UUID) error {
+	traceCtx, span := s.tracer.Start(ctx, "DeleteByID")
+	defer span.End()
+	logger := internal.WithContext(traceCtx, s.logger)
+
+	err := s.query.Delete(traceCtx, id)
+	if err != nil {
+		err = databaseutil.WrapDBErrorWithKeyValue(err, "tenants", "id", id.String(), logger, "delete tenant by id")
+		span.RecordError(err)
+		return err
+	}
+	logger.Info("tenant deleted", zap.String("tenant_id", id.String()))
+	return nil
 }
