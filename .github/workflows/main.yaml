@@ -124,7 +124,7 @@ jobs:
                 "enable": true,
                 "title": "Endpoint",
                 "name": "api.dev.core-system.sdc",
-                "value": "eng-deploy:internal"
+                "value": "gcp-eng-deploy:internal"
               }
             }
           }'
