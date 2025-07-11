@@ -105,14 +105,15 @@ jobs:
             --header 'Content-Type: application/json' \
               --data-raw '{
             "source": {
-              "title": "Core System Backend",
+              "title": "Core System",
               "repo": "${{ github.repository }}",
               "branch": "${{ github.head_ref || github.ref_name }}",
               "commit": "${{ github.sha }}"
             },
             "method": "deploy",
             "metadata": {
-              "environment": "dev"
+              "environment": "dev",
+              "component": "backend",
             },
             "post": {
               "notify_discord": {
