@@ -102,29 +102,29 @@ jobs:
     steps:
       - name: Trigger n8n Snapshot Webhook
         run: |
-          curl -X POST https://webhook.eng.sdc.nycu.club/webhook/deploy \
-            -H "Content-Type: application/json" \
-            -d '{
-              "source": {
-                "title": "Core System Backend",
-                "repo": "${{ github.repository }}",
-                "branch": "${{ github.head_ref || github.ref_name }}",
-                "commit": "${{ github.sha }}",
+          curl --location --request POST 'https://webhook.eng.sdc.nycu.club/webhook/deploy' \
+            --header 'Content-Type: application/json' \
+              --data-raw '{
+            "source": {
+              "title": "Core System Backend",
+              "repo": "${{ github.repository }}",,
+              "branch": "${{ github.head_ref || github.ref_name }}",
+              "commit": "${{ github.sha }}"
+            },
+            "method": "deploy",
+            "metadata": {
+              "environment": "dev"
+            },
+            "post": {
+              "notify_discord": {
+                "enable": true,
+                "channel": "core-system-activity"
               },
-              "method": "deploy",
-              "metadata": {
-                "environment": "dev"
-              },
-              "post": {
-                "notify_discord": {
-                  "enable": true,
-                  "channel": "core-system-activity"
-                },
-                "setup_domain": {
-                  "enable": true,
-                  "title": "Endpoint",
-                  "name": "backend.dev.core-system.sdc.nycu.edu.tw",
-                  "value": "eng-deploy:internal"
-                }
+              "setup_domain": {
+                "enable": true,
+                "title": "Endpoint",
+                "name": "backend.dev.core-system.sdc.nycu.edu.tw",
+                "value": "eng-deploy:internal"
               }
-            }'
+            }
+          }'
