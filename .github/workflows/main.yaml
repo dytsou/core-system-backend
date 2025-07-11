@@ -107,7 +107,7 @@ jobs:
               --data-raw '{
             "source": {
               "title": "Core System Backend",
-              "repo": "${{ github.repository }}",,
+              "repo": "${{ github.repository }}",
               "branch": "${{ github.head_ref || github.ref_name }}",
               "commit": "${{ github.sha }}"
             },
