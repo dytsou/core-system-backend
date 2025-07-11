@@ -13,6 +13,7 @@ services:
       DATABASE_URL: postgres://postgres:password@postgres:5432/core_system?sslmode=disable
       MIGRATION_SOURCE: file:///app/migrations
     labels:
+      - "vector.enable=true"
       - "traefik.enable=true"
       - "traefik.http.routers.core-system-backend.rule=Host(`api.dev.core-system.sdc.nycu.club`)"
       - "traefik.http.routers.core-system-backend.entrypoints=websecure"
