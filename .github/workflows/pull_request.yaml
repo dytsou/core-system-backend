@@ -1,4 +1,4 @@
-name: Lint, Test, and Build Backend
+name: Snapshot Backend
 
 on:
   pull_request:
