@@ -1,15 +1,11 @@
-networks:
-  core_system_dev:
-    driver: bridge
 
 services:
   backend:
     image: nycusdc/core-system-backend:dev
     container_name: core-system-backend-dev
-    ports:
-      - '8082:8080'
     networks:
       - core_system_dev
+      - traefik
     depends_on:
       postgres:
         condition: service_healthy
@@ -17,6 +13,12 @@ services:
       HOST: "0.0.0.0"
       DATABASE_URL: postgres://postgres:password@postgres:5432/core_system?sslmode=disable
       MIGRATION_SOURCE: file:///app/migrations
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.vaultwarden.rule=Host(`api.dev.core-system.sdc.nycu.edu.tw`)"
+      - "traefik.http.routers.vaultwarden.core-system-backend=websecure"
+      - "traefik.http.routers.vaultwarden.tls=true"
+      - "traefik.http.routers.vaultwarden.tls.certresolver=cloudflare"
 
   postgres:
     image: postgres:latest
@@ -31,4 +33,8 @@ services:
       POSTGRES_DB: core_system
     networks:
       - core_system_dev
-      
+
+networks:
+  core_system_dev:
+  traefik:
+    external: true
