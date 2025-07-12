@@ -19,7 +19,7 @@ type orgReader interface {
 }
 
 type reader interface {
-	GetByID(ctx context.Context, id uuid.UUID) (Tenant, error)
+	Get(ctx context.Context, id uuid.UUID) (Tenant, error)
 }
 
 type Middleware struct {
@@ -52,7 +52,7 @@ func (m *Middleware) Middleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		tenant, err := m.reader.GetByID(traceCtx, orgID)
+		tenant, err := m.reader.Get(traceCtx, orgID)
 		if err != nil {
 			err = databaseutil.WrapDBErrorWithKeyValue(err, "tenant", "id", orgID.String(), logger, "get tenant by ID")
 			span.RecordError(err)

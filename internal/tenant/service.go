@@ -32,8 +32,8 @@ func NewService(logger *zap.Logger, db DBTX) *Service {
 	}
 }
 
-func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (Tenant, error) {
-	traceCtx, span := s.tracer.Start(ctx, "GetByID")
+func (s *Service) Get(ctx context.Context, id uuid.UUID) (Tenant, error) {
+	traceCtx, span := s.tracer.Start(ctx, "Get")
 	defer span.End()
 	logger := internal.WithContext(traceCtx, s.logger)
 
@@ -47,8 +47,8 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (Tenant, error) {
 	return tenant, nil
 }
 
-func (s *Service) CreateByID(ctx context.Context, id uuid.UUID) (Tenant, error) {
-	traceCtx, span := s.tracer.Start(ctx, "CreateByID")
+func (s *Service) Create(ctx context.Context, id uuid.UUID) (Tenant, error) {
+	traceCtx, span := s.tracer.Start(ctx, "Create")
 	defer span.End()
 	logger := internal.WithContext(traceCtx, s.logger)
 
@@ -67,8 +67,8 @@ func (s *Service) CreateByID(ctx context.Context, id uuid.UUID) (Tenant, error) 
 	return tenant, nil
 }
 
-func (s *Service) UpdateByID(ctx context.Context, param UpdateParams) (Tenant, error) {
-	traceCtx, span := s.tracer.Start(ctx, "UpdateByID")
+func (s *Service) Update(ctx context.Context, param UpdateParams) (Tenant, error) {
+	traceCtx, span := s.tracer.Start(ctx, "Update")
 	defer span.End()
 	logger := internal.WithContext(traceCtx, s.logger)
 
@@ -84,8 +84,8 @@ func (s *Service) UpdateByID(ctx context.Context, param UpdateParams) (Tenant, e
 	return tenant, nil
 }
 
-func (s *Service) DeleteByID(ctx context.Context, id uuid.UUID) error {
-	traceCtx, span := s.tracer.Start(ctx, "DeleteByID")
+func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
+	traceCtx, span := s.tracer.Start(ctx, "Delete")
 	defer span.End()
 	logger := internal.WithContext(traceCtx, s.logger)
 
