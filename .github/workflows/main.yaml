@@ -103,6 +103,7 @@ jobs:
         run: |
           curl --location --fail-with-body --request POST 'https://webhook.eng.sdc.nycu.club/webhook/deploy' \
             --header 'Content-Type: application/json' \
+            --header "x-deploy-token: ${{ secrets.N8N_DEPLOY_TOKEN }}" \
             --data-raw '{
             "source": {
               "title": "Core System",
