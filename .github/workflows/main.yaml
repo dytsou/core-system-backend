@@ -99,11 +99,11 @@ jobs:
     needs: Build
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger n8n Snapshot Webhook
+      - name: Trigger n8n Deploy Webhook
         run: |
-          curl --location --request POST 'https://webhook.eng.sdc.nycu.club/webhook/deploy' \
+          curl --location --fail-with-body --request POST 'https://webhook.eng.sdc.nycu.club/webhook/deploy' \
             --header 'Content-Type: application/json' \
-              --data-raw '{
+            --data-raw '{
             "source": {
               "title": "Core System",
               "repo": "${{ github.repository }}",
@@ -128,3 +128,4 @@ jobs:
               }
             }
           }'
+
