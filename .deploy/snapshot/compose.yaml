@@ -1,6 +1,8 @@
 networks:
   core_system_$VERSION:
     driver: bridge
+  traefik:
+    external: true
 
 services:
   backend:
