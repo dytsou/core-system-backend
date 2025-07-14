@@ -110,7 +110,8 @@ jobs:
                 "branch": "${{ github.head_ref || github.ref_name }}",
                 "commit": "${{ github.sha }}",
                 "pr_number": "${{ github.event.pull_request.number }}",
-                "pr_title": "${{ github.event.pull_request.title }}"
+                "pr_title": "${{ github.event.pull_request.title }}",
+                "pr_body": "${{ github.event.pull_request.body }}"
               },
               "method": "deploy",
               "metadata": {
