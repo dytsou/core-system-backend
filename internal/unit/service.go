@@ -1,6 +1,7 @@
 package unit
 
 import (
+	"NYCU-SDC/core-system-backend/internal/tenant"
 	"context"
 	"fmt"
 
@@ -88,9 +89,10 @@ type Querier interface {
 // Generic unit for unit and organization
 
 type Service struct {
-	logger  *zap.Logger
-	queries Querier
-	tracer  trace.Tracer
+	logger    *zap.Logger
+	queries   Querier
+	tracer    trace.Tracer
+	tenantSvc *tenant.Service
 }
 
 type Base struct {
@@ -109,48 +111,72 @@ type BaseRequest struct {
 
 func NewService(logger *zap.Logger, db DBTX) *Service {
 	return &Service{
-		logger:  logger,
-		queries: New(db),
-		tracer:  otel.Tracer("unit/service"),
+		logger:    logger,
+		queries:   New(db),
+		tracer:    otel.Tracer("unit/service"),
+		tenantSvc: tenant.NewService(logger, db),
 	}
 }
 
 // CreateUnit creates a new unit
-func (s *Service) CreateUnit(ctx context.Context, req CreateUnitParams) (Unit, error) {
+func (s *Service) CreateUnit(ctx context.Context, Name string, OrgID uuid.UUID, Description string, Metadata []byte) (Unit, error) {
 	traceCtx, span := s.tracer.Start(ctx, "CreateUnit")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
 	unit, err := s.queries.CreateUnit(traceCtx, CreateUnitParams{
-		Name:        req.Name,
-		Description: req.Description,
-		Metadata:    req.Metadata,
+		Name:        pgtype.Text{String: Name, Valid: true},
+		OrgID:       OrgID,
+		Description: pgtype.Text{String: Description, Valid: Description != ""},
+		Metadata:    Metadata,
 	})
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "create unit")
 		span.RecordError(err)
 		return Unit{}, err
 	}
-	logger.Debug("Created unit", zap.String("unit_id", unit.ID.String()))
+
+	logger.Debug("Created unit",
+		zap.String("unit_id", unit.ID.String()),
+		zap.String("org_id", OrgID.String()),
+		zap.String("name", unit.Name.String),
+		zap.String("description", unit.Description.String),
+		zap.String("metadata", string(unit.Metadata)))
+
 	return unit, nil
 }
 
-func (s *Service) CreateOrg(ctx context.Context, req CreateOrgParams) (Organization, error) {
+func (s *Service) CreateOrg(ctx context.Context, Name string, Description string, OwnerID uuid.UUID, Metadata []byte, Slug string) (Organization, error) {
 	traceCtx, span := s.tracer.Start(ctx, "CreateOrg")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
+
 	org, err := s.queries.CreateOrg(traceCtx, CreateOrgParams{
-		Name:        req.Name,
-		Description: req.Description,
-		Metadata:    req.Metadata,
-		Slug:        req.Slug,
+		Name:        pgtype.Text{String: Name, Valid: true},
+		OwnerID:     OwnerID,
+		Description: pgtype.Text{String: Description, Valid: Description != ""},
+		Metadata:    Metadata,
+		Slug:        Slug,
 	})
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "create organization")
 		span.RecordError(err)
 		return Organization{}, err
 	}
-	logger.Debug("Created organization", zap.String("org_id", org.ID.String()), zap.String("org_name", org.Name.String), zap.String("org_slug", org.Slug))
+
+	_, err = s.tenantSvc.Create(traceCtx, org.ID)
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "create tenant")
+		span.RecordError(err)
+		return Organization{}, err
+	}
+
+	logger.Debug("Created organization",
+		zap.String("org_id", org.ID.String()),
+		zap.String("org_owner_id", org.OwnerID.String()),
+		zap.String("org_name", org.Name.String),
+		zap.String("org_slug", org.Slug),
+		zap.String("org_description", org.Description.String))
 	return org, nil
 }
 

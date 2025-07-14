@@ -1,6 +1,8 @@
 package unit
 
 import (
+	"NYCU-SDC/core-system-backend/internal"
+	"NYCU-SDC/core-system-backend/internal/user"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -69,23 +71,28 @@ func (h *Handler) CreateUnit(w http.ResponseWriter, r *http.Request) {
 		span.RecordError(err)
 		return
 	}
-	createdUnit, err := h.service.CreateUnit(traceCtx, CreateUnitParams{
-		Name:        pgtype.Text{String: req.Name, Valid: true},
-		Description: pgtype.Text{String: req.Description, Valid: req.Description != ""},
-		Metadata:    metadataBytes,
-	})
+
+	orgSlug, err := internal.GetSlugFromContext(traceCtx)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org slug from context: %w", err), h.logger)
+		span.RecordError(err)
+		return
+	}
+
+	orgID, err := h.service.GetOrgIDBySlug(traceCtx, orgSlug)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
+		span.RecordError(err)
+		return
+	}
+
+	createdUnit, err := h.service.CreateUnit(traceCtx, req.Name, orgID, req.Description, metadataBytes)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to create unit: %w", err), h.logger)
 		span.RecordError(err)
 		return
 	}
-	h.logger.Debug("Creat unit",
-		zap.String("unit_id", createdUnit.ID.String()),
-		zap.String("unit_name", createdUnit.Name.String),
-		zap.String("unit_description", createdUnit.Description.String),
-		zap.String("unit_type", string(createdUnit.Type)),
-		zap.ByteString("unit_metadata", createdUnit.Metadata),
-	)
+
 	handlerutil.WriteJSONResponse(w, http.StatusCreated, createdUnit)
 }
 
@@ -106,28 +113,24 @@ func (h *Handler) CreateOrg(w http.ResponseWriter, r *http.Request) {
 		span.RecordError(err)
 		return
 	}
-	params := CreateOrgParams{
-		Name:        pgtype.Text{String: req.Name, Valid: true},
-		Description: pgtype.Text{String: req.Description, Valid: req.Description != ""},
-		Metadata:    metadataBytes,
-		Slug:        req.Slug,
+
+	currentUser, ok := user.GetFromContext(traceCtx)
+	if !ok {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("no user found in request context"), h.logger)
+		span.RecordError(fmt.Errorf("no user found in request context"))
+		return
 	}
 
-	createdUnit, err := h.service.CreateOrg(traceCtx, params)
+	fmt.Println("User ID: ", currentUser.ID)
+
+	createdOrg, err := h.service.CreateOrg(traceCtx, req.Name, req.Description, currentUser.ID, metadataBytes, req.Slug)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to create unit: %w", err), h.logger)
 		span.RecordError(err)
 		return
 	}
 
-	h.logger.Debug("Creat unit",
-		zap.String("unit_id", createdUnit.ID.String()),
-		zap.String("unit_name", createdUnit.Name.String),
-		zap.String("unit_description", createdUnit.Description.String),
-		zap.String("unit_type", string(createdUnit.Type)),
-		zap.ByteString("unit_metadata", createdUnit.Metadata),
-	)
-	handlerutil.WriteJSONResponse(w, http.StatusCreated, createdUnit)
+	handlerutil.WriteJSONResponse(w, http.StatusCreated, createdOrg)
 }
 
 func (h *Handler) GetUnitByID(w http.ResponseWriter, r *http.Request) {
@@ -151,13 +154,14 @@ func (h *Handler) GetUnitByID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	unitType := UnitTypeUnit
-	org_ID, err := h.service.GetOrgIDBySlug(traceCtx, slug)
+	orgID, err := h.service.GetOrgIDBySlug(traceCtx, slug)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
 		span.RecordError(err)
 		return
 	}
-	unit, err := h.service.GetByID(traceCtx, id, org_ID, unitType)
+
+	unit, err := h.service.GetByID(traceCtx, id, orgID, unitType)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get unit by ID: %w", err), h.logger)
 		span.RecordError(err)
@@ -182,13 +186,13 @@ func (h *Handler) GetOrgByID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	unitType := UnitTypeOrganization
-	org_ID, err := h.service.GetOrgIDBySlug(traceCtx, slug)
+	orgID, err := h.service.GetOrgIDBySlug(traceCtx, slug)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
 		span.RecordError(err)
 		return
 	}
-	unit, err := h.service.GetByID(traceCtx, org_ID, org_ID, unitType)
+	unit, err := h.service.GetByID(traceCtx, orgID, orgID, unitType)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get unit by ID: %w", err), h.logger)
 		span.RecordError(err)

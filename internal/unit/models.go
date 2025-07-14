@@ -112,6 +112,7 @@ type OrgMember struct {
 
 type Organization struct {
 	ID          uuid.UUID
+	OwnerID     uuid.UUID
 	Name        pgtype.Text
 	Description pgtype.Text
 	Metadata    []byte
@@ -140,6 +141,7 @@ type Tenant struct {
 
 type Unit struct {
 	ID          uuid.UUID
+	OrgID       uuid.UUID
 	Name        pgtype.Text
 	Description pgtype.Text
 	Metadata    []byte

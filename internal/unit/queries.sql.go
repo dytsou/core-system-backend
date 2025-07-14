@@ -31,13 +31,14 @@ func (q *Queries) AddParentChild(ctx context.Context, arg AddParentChildParams) 
 }
 
 const createOrg = `-- name: CreateOrg :one
-INSERT INTO organizations (name, description, metadata, type, slug)
-VALUES ($1, $2, $3, 'organization', $4)
-RETURNING id, name, description, metadata, type, slug, created_at, updated_at
+INSERT INTO organizations (name, owner_id, description, metadata, type, slug)
+VALUES ($1, $2, $3, $4, 'organization', $5)
+RETURNING id, owner_id, name, description, metadata, type, slug, created_at, updated_at
 `
 
 type CreateOrgParams struct {
 	Name        pgtype.Text
+	OwnerID     uuid.UUID
 	Description pgtype.Text
 	Metadata    []byte
 	Slug        string
@@ -46,6 +47,7 @@ type CreateOrgParams struct {
 func (q *Queries) CreateOrg(ctx context.Context, arg CreateOrgParams) (Organization, error) {
 	row := q.db.QueryRow(ctx, createOrg,
 		arg.Name,
+		arg.OwnerID,
 		arg.Description,
 		arg.Metadata,
 		arg.Slug,
@@ -53,6 +55,7 @@ func (q *Queries) CreateOrg(ctx context.Context, arg CreateOrgParams) (Organizat
 	var i Organization
 	err := row.Scan(
 		&i.ID,
+		&i.OwnerID,
 		&i.Name,
 		&i.Description,
 		&i.Metadata,
@@ -65,22 +68,29 @@ func (q *Queries) CreateOrg(ctx context.Context, arg CreateOrgParams) (Organizat
 }
 
 const createUnit = `-- name: CreateUnit :one
-INSERT INTO units (name, description, metadata, type)
-VALUES ($1, $2, $3, 'unit')
-RETURNING id, name, description, metadata, type, created_at, updated_at
+INSERT INTO units (name, org_id, description, metadata, type)
+VALUES ($1, $2, $3, $4, 'unit')
+RETURNING id, org_id, name, description, metadata, type, created_at, updated_at
 `
 
 type CreateUnitParams struct {
 	Name        pgtype.Text
+	OrgID       uuid.UUID
 	Description pgtype.Text
 	Metadata    []byte
 }
 
 func (q *Queries) CreateUnit(ctx context.Context, arg CreateUnitParams) (Unit, error) {
-	row := q.db.QueryRow(ctx, createUnit, arg.Name, arg.Description, arg.Metadata)
+	row := q.db.QueryRow(ctx, createUnit,
+		arg.Name,
+		arg.OrgID,
+		arg.Description,
+		arg.Metadata,
+	)
 	var i Unit
 	err := row.Scan(
 		&i.ID,
+		&i.OrgID,
 		&i.Name,
 		&i.Description,
 		&i.Metadata,
@@ -110,7 +120,7 @@ func (q *Queries) DeleteUnit(ctx context.Context, id uuid.UUID) error {
 }
 
 const getOrgByID = `-- name: GetOrgByID :one
-SELECT id, name, description, metadata, type, slug, created_at, updated_at FROM organizations WHERE id = $1
+SELECT id, owner_id, name, description, metadata, type, slug, created_at, updated_at FROM organizations WHERE id = $1
 `
 
 func (q *Queries) GetOrgByID(ctx context.Context, id uuid.UUID) (Organization, error) {
@@ -118,6 +128,7 @@ func (q *Queries) GetOrgByID(ctx context.Context, id uuid.UUID) (Organization, e
 	var i Organization
 	err := row.Scan(
 		&i.ID,
+		&i.OwnerID,
 		&i.Name,
 		&i.Description,
 		&i.Metadata,
@@ -141,7 +152,7 @@ func (q *Queries) GetOrgIDBySlug(ctx context.Context, slug string) (uuid.UUID, e
 }
 
 const getUnitByID = `-- name: GetUnitByID :one
-SELECT id, name, description, metadata, type, created_at, updated_at FROM units WHERE id = $1
+SELECT id, org_id, name, description, metadata, type, created_at, updated_at FROM units WHERE id = $1
 `
 
 func (q *Queries) GetUnitByID(ctx context.Context, id uuid.UUID) (Unit, error) {
@@ -149,6 +160,7 @@ func (q *Queries) GetUnitByID(ctx context.Context, id uuid.UUID) (Unit, error) {
 	var i Unit
 	err := row.Scan(
 		&i.ID,
+		&i.OrgID,
 		&i.Name,
 		&i.Description,
 		&i.Metadata,
@@ -184,7 +196,7 @@ func (q *Queries) ListSubUnitIDs(ctx context.Context, parentID uuid.UUID) ([]uui
 }
 
 const listSubUnits = `-- name: ListSubUnits :many
-SELECT u.id, u.name, u.description, u.metadata, u.type, u.created_at, u.updated_at FROM units u
+SELECT u.id, u.org_id, u.name, u.description, u.metadata, u.type, u.created_at, u.updated_at FROM units u
 JOIN parent_child pc ON u.id = pc.child_id
 WHERE pc.parent_id = $1
 `
@@ -200,6 +212,7 @@ func (q *Queries) ListSubUnits(ctx context.Context, parentID uuid.UUID) ([]Unit,
 		var i Unit
 		if err := rows.Scan(
 			&i.ID,
+			&i.OrgID,
 			&i.Name,
 			&i.Description,
 			&i.Metadata,
@@ -244,7 +257,7 @@ const updateOrg = `-- name: UpdateOrg :one
 UPDATE organizations
 SET slug = $2, name = $3, description = $4, metadata = $5, updated_at = now()
 WHERE id = $1
-RETURNING id, name, description, metadata, type, slug, created_at, updated_at
+RETURNING id, owner_id, name, description, metadata, type, slug, created_at, updated_at
 `
 
 type UpdateOrgParams struct {
@@ -266,6 +279,7 @@ func (q *Queries) UpdateOrg(ctx context.Context, arg UpdateOrgParams) (Organizat
 	var i Organization
 	err := row.Scan(
 		&i.ID,
+		&i.OwnerID,
 		&i.Name,
 		&i.Description,
 		&i.Metadata,
@@ -281,7 +295,7 @@ const updateUnit = `-- name: UpdateUnit :one
 UPDATE units
 SET name = $2, description = $3, metadata = $4, updated_at = now()
 WHERE id = $1
-RETURNING id, name, description, metadata, type, created_at, updated_at
+RETURNING id, org_id, name, description, metadata, type, created_at, updated_at
 `
 
 type UpdateUnitParams struct {
@@ -301,6 +315,7 @@ func (q *Queries) UpdateUnit(ctx context.Context, arg UpdateUnitParams) (Unit, e
 	var i Unit
 	err := row.Scan(
 		&i.ID,
+		&i.OrgID,
 		&i.Name,
 		&i.Description,
 		&i.Metadata,

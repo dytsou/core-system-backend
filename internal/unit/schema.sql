@@ -3,6 +3,7 @@ CREATE TYPE unit_type AS ENUM ('unit', 'organization');
 
 CREATE TABLE IF NOT EXISTS units (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_id UUID NOT NULL REFERENCES organizations(id),
     name VARCHAR(255),
     description VARCHAR(255),
     metadata JSONB,
@@ -13,6 +14,7 @@ CREATE TABLE IF NOT EXISTS units (
 
 CREATE TABLE IF NOT EXISTS organizations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    owner_id UUID NOT NULL REFERENCES users(id),
     name VARCHAR(255),
     description VARCHAR(255),
     metadata JSONB,
