@@ -9,6 +9,7 @@ import (
 	"github.com/NYCU-SDC/summer/pkg/problem"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"net/http"
@@ -29,6 +30,22 @@ type Middleware struct {
 
 	reader    reader
 	orgReader orgReader
+}
+
+func NewMiddleware(
+	logger *zap.Logger,
+	masterDBPool *pgxpool.Pool,
+
+	reader reader,
+	orgReader orgReader,
+) *Middleware {
+	return &Middleware{
+		tracer:       otel.Tracer("tenant/middleware"),
+		logger:       logger,
+		reader:       reader,
+		orgReader:    orgReader,
+		masterDBPool: masterDBPool,
+	}
 }
 
 func (m *Middleware) Middleware(next http.HandlerFunc) http.HandlerFunc {

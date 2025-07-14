@@ -39,3 +39,11 @@ func GetDBTXFromContext(ctx context.Context) (DBTX, error) {
 	}
 	return conn, nil
 }
+
+func GetSlugFromContext(ctx context.Context) (string, error) {
+	orgSlug, ok := ctx.Value(OrgSlugContextKey).(string)
+	if !ok {
+		return "", fmt.Errorf("organization slug not found in context")
+	}
+	return orgSlug, nil
+}

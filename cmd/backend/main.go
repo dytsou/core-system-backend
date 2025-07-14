@@ -5,6 +5,7 @@ import (
 	"NYCU-SDC/core-system-backend/internal/auth"
 	"NYCU-SDC/core-system-backend/internal/config"
 	"NYCU-SDC/core-system-backend/internal/jwt"
+	"NYCU-SDC/core-system-backend/internal/tenant"
 	"NYCU-SDC/core-system-backend/internal/unit"
 
 	"NYCU-SDC/core-system-backend/internal/trace"
@@ -123,6 +124,7 @@ func main() {
 	// Middleware
 	traceMiddleware := trace.NewMiddleware(logger, cfg.Debug)
 	jwtMiddleware := jwt.NewMiddleware(logger, validator, problemWriter, jwtService)
+	tenantMiddleware := tenant.NewMiddleware(logger, dbPool, tenant.NewService(logger, dbPool), unit.NewService(logger, dbPool))
 
 	// Basic Middleware (Tracing and Recovery)
 	basicMiddleware := middleware.NewSet(traceMiddleware.RecoverMiddleware)
@@ -148,8 +150,8 @@ func main() {
 	mux.Handle("GET /api/users/me", jwtMiddleware.AuthenticateMiddleware(userHandler.GetMe))
 
 	// Unit routes
-	mux.Handle("POST /api/orgs", basicMiddleware.HandlerFunc(unitHandler.CreateOrg))
-	mux.Handle("POST /api/orgs/{slug}/units", basicMiddleware.HandlerFunc(unitHandler.CreateUnit))
+	mux.Handle("POST /api/orgs", jwtMiddleware.AuthenticateMiddleware(unitHandler.CreateOrg))
+	mux.Handle("POST /api/orgs/{slug}/units", tenantMiddleware.Middleware(unitHandler.CreateUnit))
 	mux.Handle("GET /api/orgs/{slug}", basicMiddleware.HandlerFunc(unitHandler.GetOrgByID))
 	mux.Handle("GET /api/orgs/{slug}/units/{id}", basicMiddleware.HandlerFunc(unitHandler.GetUnitByID))
 	mux.Handle("POST /api/orgs/relations", basicMiddleware.HandlerFunc(unitHandler.AddParentChild))
