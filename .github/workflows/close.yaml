@@ -22,7 +22,7 @@ jobs:
                 "commit": "${{ github.sha }}",
                 "pr_number": "${{ github.event.pull_request.number }}"
               },
-              "method": "close",
+              "method": "cleanup",
               "metadata": {
                 "environment": "snapshot",
                 "component": "backend"
