@@ -101,7 +101,7 @@ jobs:
       - name: Process PR body for webhook
         run: |
           # 將 PR body 轉義並移除換行符
-          PR_BODY_ESCAPED=$(echo '${{ github.event.pull_request.body }}' | jq -R -s .)
+          PR_BODY_ESCAPED=$(echo '${{ github.event.pull_request.body }}' | jq -R -s @json)
           echo "PR_BODY_PROCESSED=$PR_BODY_ESCAPED" >> $GITHUB_ENV
 
       - name: Trigger n8n Snapshot Webhook
