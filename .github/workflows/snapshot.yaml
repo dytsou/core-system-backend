@@ -98,11 +98,11 @@ jobs:
     needs: Build
     runs-on: ubuntu-latest
     steps:
-      - name: Process PR body for webhook
-        run: |
-          # 將 PR body 轉義並移除換行符
-          PR_BODY_ESCAPED=$(echo '${{ github.event.pull_request.body }}' | jq -R -s @json)
-          echo "PR_BODY_PROCESSED=$PR_BODY_ESCAPED" >> $GITHUB_ENV
+      - name: Extract PR body for webhook
+        uses: ocean1029/extract-pr-body-action@v1 
+        id: extract
+        with:
+          pr_body: ${{ github.event.pull_request.body }}
 
       - name: Trigger n8n Snapshot Webhook
         run: |
@@ -117,7 +117,8 @@ jobs:
                 "commit": "${{ github.sha }}",
                 "pr_number": "${{ github.event.pull_request.number }}",
                 "pr_title": "${{ github.event.pull_request.title }}",
-                "pr_body": ${{ env.PR_BODY_PROCESSED }}
+                "pr_type": "${{ steps.extract.outputs.type_block }}",
+                "pr_purpose": "${{ steps.extract.outputs.purpose_block }}"
               },
               "method": "deploy",
               "metadata": {
