@@ -136,14 +136,20 @@ func (h *Handler) CreateOrg(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetUnitByID(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "GetUnitByID")
 	defer span.End()
+
+	slug, err := internal.GetSlugFromContext(traceCtx)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org slug from context: %w", err), h.logger)
+		span.RecordError(err)
+		return
+	}
+
 	path := strings.TrimPrefix(r.URL.Path, "/api/orgs/")
 	parts := strings.Split(path, "/")
 	if len(parts) != 3 {
 		http.Error(w, "invalid path", http.StatusBadRequest)
 		return
 	}
-
-	slug := parts[0]
 	idStr := parts[2]
 
 	id, err := uuid.Parse(idStr)
@@ -174,14 +180,10 @@ func (h *Handler) GetOrgByID(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "GetUnitByID")
 	defer span.End()
 
-	prefix := "/api/orgs/"
-	if !strings.HasPrefix(r.URL.Path, prefix) {
-		http.Error(w, "invalid path", http.StatusBadRequest)
-		return
-	}
-	slug := strings.TrimPrefix(r.URL.Path, prefix)
-	if slug == "" {
-		http.Error(w, "slug not provided", http.StatusBadRequest)
+	slug, err := internal.GetSlugFromContext(traceCtx)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org slug from context: %w", err), h.logger)
+		span.RecordError(err)
 		return
 	}
 
@@ -280,13 +282,13 @@ func (h *Handler) UpdateOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	path := strings.TrimPrefix(r.URL.Path, "/api/orgs/")
-	parts := strings.Split(path, "/")
-	slug := parts[0]
-	if slug == "" {
-		http.Error(w, "slug not provided", http.StatusBadRequest)
+	slug, err := internal.GetSlugFromContext(traceCtx)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org slug from context: %w", err), h.logger)
+		span.RecordError(err)
 		return
 	}
+
 	id, err := h.service.GetOrgIDBySlug(traceCtx, slug)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
@@ -331,12 +333,10 @@ func (h *Handler) DeleteOrg(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "DeleteUnit")
 	defer span.End()
 
-	path := strings.TrimPrefix(r.URL.Path, "/api/orgs/")
-	parts := strings.Split(path, "/")
-
-	slug := parts[0]
-	if slug == "" {
-		http.Error(w, "slug not provided", http.StatusBadRequest)
+	slug, err := internal.GetSlugFromContext(traceCtx)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org slug from context: %w", err), h.logger)
+		span.RecordError(err)
 		return
 	}
 
@@ -456,21 +456,21 @@ func (h *Handler) RemoveParentChild(w http.ResponseWriter, r *http.Request) {
 	}
 	path := strings.TrimPrefix(r.URL.Path, prefix)
 	parts := strings.Split(path, "/")
-	p_idStr := parts[1]
-	println(p_idStr)
-	c_idStr := parts[3]
-	println(c_idStr)
-	if p_idStr == "" || c_idStr == "" {
+	pIDStr := parts[1]
+	println(pIDStr)
+	cIDStr := parts[3]
+	println(cIDStr)
+	if pIDStr == "" || cIDStr == "" {
 		http.Error(w, "parent or child ID not provided", http.StatusBadRequest)
 		return
 	}
-	p_id, err := uuid.Parse(p_idStr)
+	pID, err := uuid.Parse(pIDStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid parent ID: %w", err), h.logger)
 		span.RecordError(err)
 		return
 	}
-	c_id, err := uuid.Parse(c_idStr)
+	cID, err := uuid.Parse(cIDStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid child ID: %w", err), h.logger)
 		span.RecordError(err)
@@ -478,8 +478,8 @@ func (h *Handler) RemoveParentChild(w http.ResponseWriter, r *http.Request) {
 	}
 
 	params := RemoveParentChildParams{
-		ParentID: p_id,
-		ChildID:  c_id,
+		ParentID: pID,
+		ChildID:  cID,
 	}
 
 	err = h.service.RemoveParentChild(traceCtx, params)
@@ -506,22 +506,21 @@ func (h *Handler) ListOrgSubUnits(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid path", http.StatusBadRequest)
 		return
 	}
-	path := strings.TrimPrefix(r.URL.Path, prefix)
-	parts := strings.Split(path, "/")
-	slug := parts[0]
-	if slug == "" {
-		http.Error(w, "slug not provided", http.StatusBadRequest)
+	slug, err := internal.GetSlugFromContext(traceCtx)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org slug from context: %w", err), h.logger)
+		span.RecordError(err)
 		return
 	}
 
-	org_ID, err := h.service.GetOrgIDBySlug(traceCtx, slug)
+	orgId, err := h.service.GetOrgIDBySlug(traceCtx, slug)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
 		span.RecordError(err)
 		return
 	}
 
-	subUnits, err := h.service.ListSubUnits(traceCtx, org_ID)
+	subUnits, err := h.service.ListSubUnits(traceCtx, orgId)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list sub-units: %w", err), h.logger)
 		span.RecordError(err)
@@ -558,27 +557,21 @@ func (h *Handler) ListOrgSubUnitIDs(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "ListOrgSubUnits")
 	defer span.End()
 
-	prefix := "/api/orgs/"
-	if !strings.HasPrefix(r.URL.Path, prefix) {
-		http.Error(w, "invalid path", http.StatusBadRequest)
-		return
-	}
-	path := strings.TrimPrefix(r.URL.Path, prefix)
-	parts := strings.Split(path, "/")
-	slug := parts[0]
-	if slug == "" {
-		http.Error(w, "slug not provided", http.StatusBadRequest)
+	slug, err := internal.GetSlugFromContext(traceCtx)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org slug from context: %w", err), h.logger)
+		span.RecordError(err)
 		return
 	}
 
-	org_ID, err := h.service.GetOrgIDBySlug(traceCtx, slug)
+	orgID, err := h.service.GetOrgIDBySlug(traceCtx, slug)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
 		span.RecordError(err)
 		return
 	}
 
-	subUnits, err := h.service.ListSubUnitIDs(traceCtx, org_ID)
+	subUnits, err := h.service.ListSubUnitIDs(traceCtx, orgID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list sub-units: %w", err), h.logger)
 		span.RecordError(err)
