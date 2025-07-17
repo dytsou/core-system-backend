@@ -1,10 +1,7 @@
 package question
 
 import (
-	"NYCU-SDC/core-system-backend/internal/form"
 	"context"
-	"github.com/jackc/pgx/v5/pgtype"
-
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/google/uuid"
@@ -34,19 +31,10 @@ func NewService(logger *zap.Logger, db DBTX) *Service {
 	}
 }
 
-func (s *Service) Create(ctx context.Context, request form.QuestionRequest) (Question, error) {
+func (s *Service) Create(ctx context.Context, input CreateParams) (Question, error) {
 	ctx, span := s.tracer.Start(ctx, "CreateQuestion")
 	defer span.End()
 	logger := logutil.WithContext(ctx, s.logger)
-
-	input := CreateParams{
-		FormID:      request.FormID,
-		Required:    request.Required,
-		Type:        request.Type,
-		Label:       pgtype.Text{String: request.Label, Valid: true},
-		Description: pgtype.Text{String: request.Description, Valid: true},
-		Order:       request.Order,
-	}
 
 	q, err := s.queries.Create(ctx, input)
 	if err != nil {
