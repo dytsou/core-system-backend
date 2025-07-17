@@ -103,6 +103,14 @@ jobs:
         id: extract
         with:
           pr_body: ${{ github.event.pull_request.body }}
+      
+      - name: Process PR body for webhook
+        run: |
+          PR_TYPE=$(echo '${{ steps.extract.outputs.type_block }}' | jq -R -s @json)
+          PR_PURPOSE=$(echo '${{ steps.extract.outputs.purpose_block }}' | jq -R -s @json)
+          echo "PR_TYPE=$PR_TYPE" >> $GITHUB_ENV
+          echo "PR_PURPOSE=$PR_PURPOSE" >> $GITHUB_ENV
+
 
       - name: Trigger n8n Snapshot Webhook
         run: |
@@ -117,8 +125,8 @@ jobs:
                 "commit": "${{ github.sha }}",
                 "pr_number": "${{ github.event.pull_request.number }}",
                 "pr_title": "${{ github.event.pull_request.title }}",
-                "pr_type": "${{ steps.extract.outputs.type_block }}",
-                "pr_purpose": "${{ steps.extract.outputs.purpose_block }}"
+                "pr_type": "${{ env.PR_TYPE }}",
+                "pr_purpose": "${{ env.PR_PURPOSE }}"
               },
               "method": "deploy",
               "metadata": {
