@@ -201,6 +201,20 @@ func (h *Handler) GetOrgByID(w http.ResponseWriter, r *http.Request) {
 	handlerutil.WriteJSONResponse(w, http.StatusOK, unit)
 }
 
+func (h *Handler) GetAllOrganizations(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "GetAllOrganizations")
+	defer span.End()
+
+	organizations, err := h.service.GetAllOrganizations(traceCtx)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get all organizations: %w", err), h.logger)
+		span.RecordError(err)
+		return
+	}
+
+	handlerutil.WriteJSONResponse(w, http.StatusOK, organizations)
+}
+
 func (h *Handler) UpdateUnit(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "UpdateUnit")
 	defer span.End()

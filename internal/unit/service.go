@@ -72,6 +72,7 @@ type Querier interface {
 	CreateUnit(ctx context.Context, arg CreateUnitParams) (Unit, error)
 	CreateOrg(ctx context.Context, arg CreateOrgParams) (Organization, error)
 	GetOrgByID(ctx context.Context, id uuid.UUID) (Organization, error)
+	GetAllOrganizations(ctx context.Context) ([]Organization, error)
 	GetUnitByID(ctx context.Context, id uuid.UUID) (Unit, error)
 	GetOrgIDBySlug(ctx context.Context, slug string) (uuid.UUID, error)
 	ListSubUnits(ctx context.Context, parentID uuid.UUID) ([]Unit, error)
@@ -191,6 +192,19 @@ func (s *Service) GetOrgIDBySlug(ctx context.Context, slug string) (uuid.UUID, e
 		return uuid.Nil, err
 	}
 	return org_id, nil
+}
+
+func (s *Service) GetAllOrganizations(ctx context.Context) ([]Organization, error) {
+	traceCtx, span := s.tracer.Start(ctx, "GetAllOrganizations")
+	defer span.End()
+	logger := logutil.WithContext(traceCtx, s.logger)
+	organizations, err := s.queries.GetAllOrganizations(traceCtx)
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "get all organizations")
+		span.RecordError(err)
+		return nil, err
+	}
+	return organizations, nil
 }
 
 // GetByID retrieves a unit by ID

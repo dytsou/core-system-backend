@@ -119,6 +119,40 @@ func (q *Queries) DeleteUnit(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+const getAllOrganizations = `-- name: GetAllOrganizations :many
+SELECT id, owner_id, name, description, metadata, type, slug, created_at, updated_at FROM organizations
+`
+
+func (q *Queries) GetAllOrganizations(ctx context.Context) ([]Organization, error) {
+	rows, err := q.db.Query(ctx, getAllOrganizations)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Organization
+	for rows.Next() {
+		var i Organization
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.Name,
+			&i.Description,
+			&i.Metadata,
+			&i.Type,
+			&i.Slug,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getOrgByID = `-- name: GetOrgByID :one
 SELECT id, owner_id, name, description, metadata, type, slug, created_at, updated_at FROM organizations WHERE id = $1
 `

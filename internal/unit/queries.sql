@@ -14,6 +14,9 @@ SELECT * FROM units WHERE id = $1;
 -- name: GetOrgByID :one
 SELECT * FROM organizations WHERE id = $1;
 
+-- name: GetAllOrganizations :many
+SELECT * FROM organizations;
+
 -- name: GetOrgIDBySlug :one
 SELECT id FROM organizations WHERE slug = $1;
 

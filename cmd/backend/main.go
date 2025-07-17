@@ -153,6 +153,7 @@ func main() {
 	mux.Handle("POST /api/orgs", jwtMiddleware.AuthenticateMiddleware(unitHandler.CreateOrg))
 	mux.Handle("POST /api/orgs/{slug}/units", tenantMiddleware.Middleware(unitHandler.CreateUnit))
 	mux.Handle("GET /api/orgs/{slug}", basicMiddleware.HandlerFunc(unitHandler.GetOrgByID))
+	mux.Handle("GET /api/orgs", basicMiddleware.HandlerFunc(unitHandler.GetAllOrganizations))
 	mux.Handle("GET /api/orgs/{slug}/units/{id}", basicMiddleware.HandlerFunc(unitHandler.GetUnitByID))
 	mux.Handle("POST /api/orgs/relations", basicMiddleware.HandlerFunc(unitHandler.AddParentChild))
 	mux.Handle("PUT /api/orgs/{slug}", basicMiddleware.HandlerFunc(unitHandler.UpdateOrg))
