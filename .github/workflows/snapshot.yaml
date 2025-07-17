@@ -114,7 +114,7 @@ jobs:
 
       - name: Trigger n8n Snapshot Webhook
         run: |
-          curl -X POST https://webhook.eng.sdc.nycu.club/webhook/deploy \
+          curl --location --fail-with-body -X POST https://webhook.eng.sdc.nycu.club/webhook/deploy \
             -H "Content-Type: application/json" \
             -H "x-deploy-token: ${{ secrets.N8N_DEPLOY_TOKEN }}" \
             -d '{
@@ -137,6 +137,12 @@ jobs:
                 "notify_discord": {
                   "enable": true,
                   "channel": "core-system-activity"
+                },
+                "setup_domain": {
+                  "enable": true,
+                  "title": "Endpoint",
+                  "name": "pr-${{ github.event.pull_request.number }}.api.dev.core-system.sdc.nycu.club",
+                  "value": "gcp-eng-deploy:internal"
                 }
               }
             }'
