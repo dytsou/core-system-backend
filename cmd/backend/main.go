@@ -5,6 +5,7 @@ import (
 	"NYCU-SDC/core-system-backend/internal/auth"
 	"NYCU-SDC/core-system-backend/internal/config"
 	"NYCU-SDC/core-system-backend/internal/jwt"
+	"NYCU-SDC/core-system-backend/internal/response"
 	"NYCU-SDC/core-system-backend/internal/trace"
 	"NYCU-SDC/core-system-backend/internal/user"
 	"context"
@@ -119,10 +120,12 @@ func main() {
 	// Service
 	userService := user.NewService(logger, dbPool)
 	jwtService := jwt.NewService(logger, dbPool, cfg.Secret, cfg.AccessTokenExpiration, cfg.RefreshTokenExpiration)
+	responseService := response.NewService(logger, dbPool)
 
 	// Handler
 	authHandler := auth.NewHandler(logger, validator, problemWriter, userService, jwtService, jwtService, cfg.BaseURL, cfg.AccessTokenExpiration, cfg.RefreshTokenExpiration, cfg.GoogleOauth)
 	userHandler := user.NewHandler(logger, validator, problemWriter, userService)
+	responseHandler := response.NewHandler(logger, validator, problemWriter, responseService)
 
 	// Middleware
 	traceMiddleware := trace.NewMiddleware(logger, cfg.Debug)
@@ -159,6 +162,13 @@ func main() {
 
 	// User authenticated routes
 	mux.Handle("GET /api/users/me", jwtMiddleware.AuthenticateMiddleware(userHandler.GetMe))
+
+	// Response routes
+	mux.Handle("GET /api/forms/{formId}/responses", jwtMiddleware.AuthenticateMiddleware(responseHandler.ListHandler))
+	mux.Handle("POST /api/forms/{formId}/responses", jwtMiddleware.AuthenticateMiddleware(responseHandler.SubmitHandler))
+	mux.Handle("GET /api/forms/{formId}/responses/{responseId}", jwtMiddleware.AuthenticateMiddleware(responseHandler.GetHandler))
+	mux.Handle("DELETE /api/forms/{formId}/responses/{responseId}", jwtMiddleware.AuthenticateMiddleware(responseHandler.DeleteHandler))
+	mux.Handle("GET /api/forms/{formId}/questions/{questionId}", jwtMiddleware.AuthenticateMiddleware(responseHandler.GetAnswersByQuestionIDHandler))
 
 	// handle interrupt signal
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
