@@ -1,7 +1,6 @@
 package form
 
 import (
-	"NYCU-SDC/core-system-backend/internal/config"
 	"NYCU-SDC/core-system-backend/internal/form/question"
 	"NYCU-SDC/core-system-backend/internal/user"
 	"context"
@@ -48,7 +47,6 @@ type QuestionStore interface {
 }
 
 type Handler struct {
-	config config.Config
 	logger *zap.Logger
 	tracer trace.Tracer
 
