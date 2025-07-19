@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS answers;
+DROP TABLE IF EXISTS responses;
