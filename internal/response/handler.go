@@ -2,7 +2,6 @@ package response
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -109,7 +108,7 @@ func (h *Handler) SubmitHandler(w http.ResponseWriter, r *http.Request) {
 
 	user, ok := user.GetUserFromContext(traceCtx)
 	if !ok {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("user not authenticated"), logger)
+		h.problemWriter.WriteError(traceCtx, w, internal.ErrNoUserInContext, logger)
 		return
 	}
 
