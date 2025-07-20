@@ -106,7 +106,7 @@ func (h *Handler) SubmitHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, ok := user.GetUserFromContext(traceCtx)
+	currentUser, ok := user.GetUserFromContext(traceCtx)
 	if !ok {
 		h.problemWriter.WriteError(traceCtx, w, internal.ErrNoUserInContext, logger)
 		return
@@ -120,17 +120,17 @@ func (h *Handler) SubmitHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	response, err := h.store.Submit(traceCtx, formId, user.ID, answers)
+	newResponse, err := h.store.Submit(traceCtx, formId, currentUser.ID, answers)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
 
 	submitResponse := SubmitResponse{
-		ID:        response.ID.String(),
-		FormID:    response.FormID.String(),
-		CreatedAt: response.CreatedAt.Time,
-		UpdatedAt: response.UpdatedAt.Time,
+		ID:        newResponse.ID.String(),
+		FormID:    newResponse.FormID.String(),
+		CreatedAt: newResponse.CreatedAt.Time,
+		UpdatedAt: newResponse.UpdatedAt.Time,
 	}
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, submitResponse)
@@ -155,17 +155,17 @@ func (h *Handler) ListHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	responseJson := make([]ResponseJSON, len(responses))
-	for i, response := range responses {
-		responseJson[i] = ResponseJSON{
-			ID:          response.ID.String(),
-			FormID:      response.FormID.String(),
-			SubmittedBy: response.SubmittedBy.String(),
-			CreatedAt:   response.CreatedAt.Time,
-			UpdatedAt:   response.UpdatedAt.Time,
+	responseJsons := make([]ResponseJSON, len(responses))
+	for i, currentResponse := range responses {
+		responseJsons[i] = ResponseJSON{
+			ID:          currentResponse.ID.String(),
+			FormID:      currentResponse.FormID.String(),
+			SubmittedBy: currentResponse.SubmittedBy.String(),
+			CreatedAt:   currentResponse.CreatedAt.Time,
+			UpdatedAt:   currentResponse.UpdatedAt.Time,
 		}
 	}
-	handlerutil.WriteJSONResponse(w, http.StatusOK, responseJson)
+	handlerutil.WriteJSONResponse(w, http.StatusOK, responseJsons)
 }
 
 // GetHandler retrieves a response by id
@@ -188,7 +188,7 @@ func (h *Handler) GetHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response, answers, err := h.store.Get(traceCtx, formId, responseId)
+	currentResponse, answers, err := h.store.Get(traceCtx, formId, responseId)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
@@ -204,15 +204,15 @@ func (h *Handler) GetHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, GetResponse{
-		ID:        response.ID.String(),
-		FormID:    response.FormID.String(),
-		CreatedAt: response.CreatedAt.Time,
-		UpdatedAt: response.UpdatedAt.Time,
+		ID:        currentResponse.ID.String(),
+		FormID:    currentResponse.FormID.String(),
+		CreatedAt: currentResponse.CreatedAt.Time,
+		UpdatedAt: currentResponse.UpdatedAt.Time,
 		Answers:   answerResponses,
 	})
 }
 
-// DeleteResponseHandler deletes a response by id
+// DeleteHandler deletes a response by id
 func (h *Handler) DeleteHandler(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "DeleteResponse")
 	defer span.End()
