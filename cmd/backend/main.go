@@ -133,7 +133,9 @@ func main() {
 	basicMiddleware = basicMiddleware.Append(traceMiddleware.TraceMiddleWare)
 
 	// Auth Middleware
-	authMiddleware := basicMiddleware.Append(jwtMiddleware.AuthenticateMiddleware)
+	authMiddleware := middleware.NewSet(traceMiddleware.RecoverMiddleware)
+	authMiddleware = authMiddleware.Append(traceMiddleware.TraceMiddleWare)
+	authMiddleware = authMiddleware.Append(jwtMiddleware.AuthenticateMiddleware)
 
 	// HTTP Server
 	mux := http.NewServeMux()
