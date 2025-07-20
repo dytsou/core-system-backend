@@ -34,8 +34,8 @@ func NewService(logger *zap.Logger, db DBTX) *Service {
 	}
 }
 
-func (s *Service) Create(ctx context.Context, req FormRequest, userID uuid.UUID) (Form, error) {
-	ctx, span := s.tracer.Start(ctx, "CreateForm")
+func (s *Service) Create(ctx context.Context, req Request, userID uuid.UUID) (Form, error) {
+	ctx, span := s.tracer.Start(ctx, "Create")
 	defer span.End()
 	logger := logutil.WithContext(ctx, s.logger)
 
@@ -52,8 +52,8 @@ func (s *Service) Create(ctx context.Context, req FormRequest, userID uuid.UUID)
 	return form, nil
 }
 
-func (s *Service) Update(ctx context.Context, id uuid.UUID, request FormRequest, userID uuid.UUID) (Form, error) {
-	ctx, span := s.tracer.Start(ctx, "UpdateForm")
+func (s *Service) Update(ctx context.Context, id uuid.UUID, request Request, userID uuid.UUID) (Form, error) {
+	ctx, span := s.tracer.Start(ctx, "Update")
 	defer span.End()
 	logger := logutil.WithContext(ctx, s.logger)
 
@@ -72,7 +72,7 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, request FormRequest,
 }
 
 func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
-	ctx, span := s.tracer.Start(ctx, "DeleteForm")
+	ctx, span := s.tracer.Start(ctx, "Delete")
 	defer span.End()
 	logger := logutil.WithContext(ctx, s.logger)
 

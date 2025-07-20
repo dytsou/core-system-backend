@@ -2,6 +2,7 @@ package question
 
 import (
 	"context"
+
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/google/uuid"
@@ -27,12 +28,12 @@ func NewService(logger *zap.Logger, db DBTX) *Service {
 	return &Service{
 		logger:  logger,
 		queries: New(db),
-		tracer:  otel.Tracer("forms/service"),
+		tracer:  otel.Tracer("question/service"),
 	}
 }
 
 func (s *Service) Create(ctx context.Context, input CreateParams) (Question, error) {
-	ctx, span := s.tracer.Start(ctx, "CreateQuestion")
+	ctx, span := s.tracer.Start(ctx, "Create")
 	defer span.End()
 	logger := logutil.WithContext(ctx, s.logger)
 
@@ -46,7 +47,7 @@ func (s *Service) Create(ctx context.Context, input CreateParams) (Question, err
 }
 
 func (s *Service) Update(ctx context.Context, input UpdateParams) (Question, error) {
-	ctx, span := s.tracer.Start(ctx, "UpdateQuestion")
+	ctx, span := s.tracer.Start(ctx, "Update")
 	defer span.End()
 	logger := logutil.WithContext(ctx, s.logger)
 
@@ -60,7 +61,7 @@ func (s *Service) Update(ctx context.Context, input UpdateParams) (Question, err
 }
 
 func (s *Service) Delete(ctx context.Context, formID uuid.UUID, id uuid.UUID) error {
-	ctx, span := s.tracer.Start(ctx, "DeleteQuestion")
+	ctx, span := s.tracer.Start(ctx, "Delete")
 	defer span.End()
 	logger := logutil.WithContext(ctx, s.logger)
 
@@ -76,7 +77,7 @@ func (s *Service) Delete(ctx context.Context, formID uuid.UUID, id uuid.UUID) er
 }
 
 func (s *Service) ListByFormID(ctx context.Context, formID uuid.UUID) ([]Question, error) {
-	ctx, span := s.tracer.Start(ctx, "ListQuestionsByFormID")
+	ctx, span := s.tracer.Start(ctx, "ListByFormID")
 	defer span.End()
 	logger := logutil.WithContext(ctx, s.logger)
 

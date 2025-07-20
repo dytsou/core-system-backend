@@ -149,15 +149,15 @@ func main() {
 	mux.Handle("GET /api/users/me", jwtMiddleware.AuthenticateMiddleware(userHandler.GetMe))
 
 	// Form routes
-	mux.HandleFunc("POST /api/forms", formHandler.CreateFormHandler)
-	mux.HandleFunc("GET /api/forms", formHandler.ListFormHandler)
-	mux.HandleFunc("POST /api/forms/{formId}/questions", formHandler.AddQuestionHandler)
-	mux.HandleFunc("GET /api/forms/{formId}/questions", formHandler.ListQuestionsHandler)
-	mux.HandleFunc("PUT /api/forms/{formId}/questions/{questionId}", formHandler.UpdateQuestionHandler)
-	mux.HandleFunc("DELETE /api/forms/{formId}/questions/{questionId}", formHandler.DeleteQuestionHandler)
-	mux.HandleFunc("PUT /api/forms/{id}", formHandler.UpdateFormHandler)
-	mux.HandleFunc("DELETE /api/forms/{id}", formHandler.DeleteFormHandler)
-	mux.HandleFunc("GET /api/forms/{id}", formHandler.GetFormHandler)
+	mux.HandleFunc("POST /api/forms", jwtMiddleware.AuthenticateMiddleware(formHandler.CreateFormHandler))
+	mux.HandleFunc("GET /api/forms", jwtMiddleware.AuthenticateMiddleware(formHandler.ListFormHandler))
+	mux.HandleFunc("POST /api/forms/{formId}/questions", jwtMiddleware.AuthenticateMiddleware(formHandler.AddQuestionHandler))
+	mux.HandleFunc("GET /api/forms/{formId}/questions", jwtMiddleware.AuthenticateMiddleware(formHandler.ListQuestionsHandler))
+	mux.HandleFunc("PUT /api/forms/{formId}/questions/{questionId}", jwtMiddleware.AuthenticateMiddleware(formHandler.UpdateQuestionHandler))
+	mux.HandleFunc("DELETE /api/forms/{formId}/questions/{questionId}", jwtMiddleware.AuthenticateMiddleware(formHandler.DeleteQuestionHandler))
+	mux.HandleFunc("PUT /api/forms/{id}", jwtMiddleware.AuthenticateMiddleware(formHandler.UpdateFormHandler))
+	mux.HandleFunc("DELETE /api/forms/{id}", jwtMiddleware.AuthenticateMiddleware(formHandler.DeleteFormHandler))
+	mux.HandleFunc("GET /api/forms/{id}", jwtMiddleware.AuthenticateMiddleware(formHandler.GetFormHandler))
 
 	// handle interrupt signal
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

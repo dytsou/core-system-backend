@@ -5,6 +5,8 @@ import (
 	"NYCU-SDC/core-system-backend/internal/user"
 	"context"
 	"fmt"
+	"net/http"
+
 	handlerutil "github.com/NYCU-SDC/summer/pkg/handler"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/NYCU-SDC/summer/pkg/problem"
@@ -14,10 +16,9 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
-	"net/http"
 )
 
-type FormRequest struct {
+type Request struct {
 	Title       string `json:"title" validate:"required"`
 	Description string `json:"description"`
 }
@@ -31,9 +32,9 @@ type QuestionRequest struct {
 	Order       int32  `json:"order" validate:"required"`
 }
 
-type FormStore interface {
-	Create(ctx context.Context, request FormRequest, userid uuid.UUID) (Form, error)
-	Update(ctx context.Context, id uuid.UUID, request FormRequest, userid uuid.UUID) (Form, error)
+type Store interface {
+	Create(ctx context.Context, request Request, userid uuid.UUID) (Form, error)
+	Update(ctx context.Context, id uuid.UUID, request Request, userid uuid.UUID) (Form, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 	GetByID(ctx context.Context, id uuid.UUID) (Form, error)
 	List(ctx context.Context) ([]Form, error)
@@ -53,7 +54,7 @@ type Handler struct {
 	validator     *validator.Validate
 	problemWriter *problem.HttpWriter
 
-	formStore     FormStore
+	formStore     Store
 	questionStore QuestionStore
 }
 
@@ -61,7 +62,7 @@ func NewHandler(
 	logger *zap.Logger,
 	validator *validator.Validate,
 	problemWriter *problem.HttpWriter,
-	formStore FormStore,
+	formStore Store,
 	questionStore QuestionStore,
 ) *Handler {
 	return &Handler{
@@ -79,19 +80,19 @@ func (h *Handler) CreateFormHandler(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
-	var req FormRequest
+	var req Request
 	if err := handlerutil.ParseAndValidateRequestBody(traceCtx, h.validator, r, &req); err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
 
-	user, ok := user.GetUserFromContext(traceCtx)
+	currentUser, ok := user.GetUserFromContext(traceCtx)
 	if !ok {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("user not authenticated"), logger)
 		return
 	}
 
-	form, err := h.formStore.Create(traceCtx, req, user.ID)
+	form, err := h.formStore.Create(traceCtx, req, currentUser.ID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
@@ -113,20 +114,20 @@ func (h *Handler) UpdateFormHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req FormRequest
+	var req Request
 	if err := handlerutil.ParseAndValidateRequestBody(traceCtx, h.validator, r, &req); err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
 
 	//get user
-	user, ok := user.GetUserFromContext(traceCtx)
+	currentUser, ok := user.GetUserFromContext(traceCtx)
 	if !ok {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("user not authenticated"), logger)
 		return
 	}
 
-	form, err := h.formStore.Update(traceCtx, formID, req, user.ID)
+	form, err := h.formStore.Update(traceCtx, formID, req, currentUser.ID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
