@@ -42,7 +42,7 @@ func (s *Service) Create(ctx context.Context, req Request, userID uuid.UUID) (Fo
 	form, err := s.queries.Create(ctx, CreateParams{
 		Title:       req.Title,
 		Description: pgtype.Text{String: req.Description, Valid: true},
-		LastEdit:    pgtype.UUID{Bytes: userID, Valid: true},
+		LastEditor:  pgtype.UUID{Bytes: userID, Valid: true},
 	})
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "create form")
@@ -61,7 +61,7 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, request Request, use
 		ID:          id,
 		Title:       request.Title,
 		Description: pgtype.Text{String: request.Description, Valid: true},
-		LastEdit:    pgtype.UUID{Bytes: userID, Valid: true},
+		LastEditor:  pgtype.UUID{Bytes: userID, Valid: true},
 	})
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "update form")
