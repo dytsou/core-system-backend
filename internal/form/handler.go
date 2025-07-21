@@ -1,10 +1,10 @@
 package form
 
 import (
+	"NYCU-SDC/core-system-backend/internal"
 	"NYCU-SDC/core-system-backend/internal/form/question"
 	"NYCU-SDC/core-system-backend/internal/user"
 	"context"
-	"fmt"
 	"net/http"
 
 	handlerutil "github.com/NYCU-SDC/summer/pkg/handler"
@@ -88,7 +88,7 @@ func (h *Handler) CreateFormHandler(w http.ResponseWriter, r *http.Request) {
 
 	currentUser, ok := user.GetUserFromContext(traceCtx)
 	if !ok {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("user not authenticated"), logger)
+		h.problemWriter.WriteError(traceCtx, w, internal.ErrNoUserInContext, logger)
 		return
 	}
 
@@ -123,7 +123,7 @@ func (h *Handler) UpdateFormHandler(w http.ResponseWriter, r *http.Request) {
 	//get user
 	currentUser, ok := user.GetUserFromContext(traceCtx)
 	if !ok {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("user not authenticated"), logger)
+		h.problemWriter.WriteError(traceCtx, w, internal.ErrNoUserInContext, logger)
 		return
 	}
 
@@ -176,7 +176,7 @@ func (h *Handler) GetFormHandler(w http.ResponseWriter, r *http.Request) {
 	handlerutil.WriteJSONResponse(w, http.StatusOK, currentForm)
 }
 
-func (h *Handler) ListFormHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) ListFormsHandler(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "ListFormHandler")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
