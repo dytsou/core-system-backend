@@ -22,7 +22,7 @@ type Form struct {
 	ID          uuid.UUID
 	Title       string
 	Description pgtype.Text
-	LastEdit    pgtype.UUID
+	LastEditor  pgtype.UUID
 	CreatedAt   pgtype.Timestamptz
 	UpdatedAt   pgtype.Timestamptz
 }

@@ -18,6 +18,27 @@ type Auth struct {
 	UpdatedAt  pgtype.Timestamptz
 }
 
+type Form struct {
+	ID          uuid.UUID
+	Title       string
+	Description pgtype.Text
+	LastEditor  pgtype.UUID
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+}
+
+type Question struct {
+	ID          uuid.UUID
+	FormID      uuid.UUID
+	Required    bool
+	Type        string
+	Label       pgtype.Text
+	Description pgtype.Text
+	Order       int32
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+}
+
 type RefreshToken struct {
 	ID             uuid.UUID
 	UserID         uuid.UUID

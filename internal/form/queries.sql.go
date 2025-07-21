@@ -13,25 +13,25 @@ import (
 )
 
 const create = `-- name: Create :one
-INSERT INTO forms (title, description, last_edit)
+INSERT INTO forms (title, description, last_editor)
 VALUES ($1, $2, $3) 
-RETURNING id, title, description, last_edit, created_at, updated_at
+RETURNING id, title, description, last_editor, created_at, updated_at
 `
 
 type CreateParams struct {
 	Title       string
 	Description pgtype.Text
-	LastEdit    pgtype.UUID
+	LastEditor  pgtype.UUID
 }
 
 func (q *Queries) Create(ctx context.Context, arg CreateParams) (Form, error) {
-	row := q.db.QueryRow(ctx, create, arg.Title, arg.Description, arg.LastEdit)
+	row := q.db.QueryRow(ctx, create, arg.Title, arg.Description, arg.LastEditor)
 	var i Form
 	err := row.Scan(
 		&i.ID,
 		&i.Title,
 		&i.Description,
-		&i.LastEdit,
+		&i.LastEditor,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -48,7 +48,7 @@ func (q *Queries) Delete(ctx context.Context, id uuid.UUID) error {
 }
 
 const getByID = `-- name: GetByID :one
-SELECT id, title, description, last_edit, created_at, updated_at FROM forms WHERE id = $1
+SELECT id, title, description, last_editor, created_at, updated_at FROM forms WHERE id = $1
 `
 
 func (q *Queries) GetByID(ctx context.Context, id uuid.UUID) (Form, error) {
@@ -58,7 +58,7 @@ func (q *Queries) GetByID(ctx context.Context, id uuid.UUID) (Form, error) {
 		&i.ID,
 		&i.Title,
 		&i.Description,
-		&i.LastEdit,
+		&i.LastEditor,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -66,7 +66,7 @@ func (q *Queries) GetByID(ctx context.Context, id uuid.UUID) (Form, error) {
 }
 
 const list = `-- name: List :many
-SELECT id, title, description, last_edit, created_at, updated_at FROM forms ORDER BY updated_at DESC
+SELECT id, title, description, last_editor, created_at, updated_at FROM forms ORDER BY updated_at DESC
 `
 
 func (q *Queries) List(ctx context.Context) ([]Form, error) {
@@ -82,7 +82,7 @@ func (q *Queries) List(ctx context.Context) ([]Form, error) {
 			&i.ID,
 			&i.Title,
 			&i.Description,
-			&i.LastEdit,
+			&i.LastEditor,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -98,16 +98,16 @@ func (q *Queries) List(ctx context.Context) ([]Form, error) {
 
 const update = `-- name: Update :one
 UPDATE forms
-SET title = $2, description = $3, last_edit = $4, updated_at = now()
+SET title = $2, description = $3, last_editor = $4, updated_at = now()
 WHERE id = $1
-RETURNING id, title, description, last_edit, created_at, updated_at
+RETURNING id, title, description, last_editor, created_at, updated_at
 `
 
 type UpdateParams struct {
 	ID          uuid.UUID
 	Title       string
 	Description pgtype.Text
-	LastEdit    pgtype.UUID
+	LastEditor  pgtype.UUID
 }
 
 func (q *Queries) Update(ctx context.Context, arg UpdateParams) (Form, error) {
@@ -115,14 +115,14 @@ func (q *Queries) Update(ctx context.Context, arg UpdateParams) (Form, error) {
 		arg.ID,
 		arg.Title,
 		arg.Description,
-		arg.LastEdit,
+		arg.LastEditor,
 	)
 	var i Form
 	err := row.Scan(
 		&i.ID,
 		&i.Title,
 		&i.Description,
-		&i.LastEdit,
+		&i.LastEditor,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
