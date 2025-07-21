@@ -70,7 +70,7 @@ func (s *Service) Submit(ctx context.Context, formID uuid.UUID, userID uuid.UUID
 
 	response, err := Create(s, traceCtx, formID, userID, answers)
 	if err != nil {
-		err = databaseutil.WrapDBErrorWithKeyValue(err, "response", "form_id", formID.String(), logger, "create response")
+		err = databaseutil.WrapDBError(err, logger, "create response")
 		span.RecordError(err)
 		return Response{}, err
 	}
