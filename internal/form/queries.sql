@@ -1,11 +1,11 @@
 -- name: Create :one
-INSERT INTO forms (title, description, last_edit)
+INSERT INTO forms (title, description, last_editor)
 VALUES ($1, $2, $3) 
 RETURNING *;
 
 -- name: Update :one
 UPDATE forms
-SET title = $2, description = $3, last_edit = $4, updated_at = now()
+SET title = $2, description = $3, last_editor = $4, updated_at = now()
 WHERE id = $1
 RETURNING *;
 
