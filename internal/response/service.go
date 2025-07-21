@@ -70,7 +70,7 @@ func (s *Service) Submit(ctx context.Context, formID uuid.UUID, userID uuid.UUID
 
 	response, err := Create(s, traceCtx, formID, userID, answers)
 	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "create response")
+		err = databaseutil.WrapDBErrorWithKeyValue(err, "response", "form_id", formID.String(), logger, "create response")
 		span.RecordError(err)
 		return Response{}, err
 	}
@@ -88,7 +88,7 @@ func Create(s *Service, ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 		SubmittedBy: userID,
 	})
 	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "update response")
+		err = databaseutil.WrapDBError(err, logger, "create response")
 		span.RecordError(err)
 		return Response{}, err
 	}
@@ -101,7 +101,7 @@ func Create(s *Service, ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 			Value:      answer.Value,
 		})
 		if err != nil {
-			err = databaseutil.WrapDBError(err, logger, "create answer")
+			err = databaseutil.WrapDBErrorWithKeyValue(err, "answer", "response_id", newResponse.ID.String(), logger, "create answer")
 			span.RecordError(err)
 			return Response{}, err
 		}
@@ -129,7 +129,7 @@ func Update(s *Service, ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 			Value:      answer.Value,
 		})
 		if err != nil {
-			err = databaseutil.WrapDBError(err, logger, "check answer content")
+			err = databaseutil.WrapDBErrorWithKeyValue(err, "answer", "id", answer.ID.String(), logger, "check answer content")
 			span.RecordError(err)
 			return Response{}, err
 		}
@@ -139,7 +139,7 @@ func Update(s *Service, ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 				Value: answer.Value,
 			})
 			if err != nil {
-				err = databaseutil.WrapDBError(err, logger, "update answer")
+				err = databaseutil.WrapDBErrorWithKeyValue(err, "answer", "id", answer.ID.String(), logger, "update answer")
 				span.RecordError(err)
 				return Response{}, err
 			}
@@ -183,14 +183,14 @@ func (s *Service) Get(ctx context.Context, formID uuid.UUID, id uuid.UUID) (Resp
 		FormID: formID,
 	})
 	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "get response by id")
+		err = databaseutil.WrapDBErrorWithKeyValue(err, "response", "id", id.String(), logger, "get response by id")
 		span.RecordError(err)
 		return Response{}, []Answer{}, err
 	}
 
 	answers, err := s.queries.GetAnswersByResponseID(traceCtx, id)
 	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "get answers by response id")
+		err = databaseutil.WrapDBErrorWithKeyValue(err, "answer", "response_id", response.ID.String(), logger, "get answers by response id")
 		span.RecordError(err)
 		return Response{}, []Answer{}, err
 	}
@@ -206,7 +206,7 @@ func (s *Service) ListByFormID(ctx context.Context, formID uuid.UUID) ([]Respons
 
 	responses, err := s.queries.ListByFormID(traceCtx, formID)
 	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "list responses by form id")
+		err = databaseutil.WrapDBErrorWithKeyValue(err, "response", "form_id", formID.String(), logger, "list responses by form id")
 		span.RecordError(err)
 		return []Response{}, err
 	}
@@ -222,7 +222,7 @@ func GetAnswersByResponseID(s *Service, ctx context.Context, responseID uuid.UUI
 	answers, err := s.queries.GetAnswersByResponseID(traceCtx, responseID)
 
 	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "get response by id")
+		err = databaseutil.WrapDBErrorWithKeyValue(err, "answer", "response_id", responseID.String(), logger, "get answers by response id")
 		span.RecordError(err)
 		return []Answer{}, err
 	}
@@ -238,7 +238,7 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
 
 	err := s.queries.Delete(traceCtx, id)
 	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "delete response")
+		err = databaseutil.WrapDBErrorWithKeyValue(err, "response", "id", id.String(), logger, "delete response")
 		span.RecordError(err)
 		return err
 	}
@@ -257,7 +257,7 @@ func (s *Service) GetAnswersByQuestionID(ctx context.Context, questionID uuid.UU
 		FormID:     formID,
 	})
 	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "get answers by question id")
+		err = databaseutil.WrapDBErrorWithKeyValue(err, "answer", "question_id", questionID.String(), logger, "get answers by question id")
 		span.RecordError(err)
 		return []GetAnswersByQuestionIDRow{}, err
 	}

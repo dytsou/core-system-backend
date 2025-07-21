@@ -6,6 +6,15 @@ CREATE TABLE IF NOT EXISTS responses (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Create answer type enum
+CREATE TYPE answer_type AS ENUM (
+    'short_text',
+    'long_text', 
+    'single_choice',
+    'multiple_choice',
+    'date'
+);
+
 CREATE TABLE IF NOT EXISTS answers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     response_id UUID NOT NULL REFERENCES responses(id) ON DELETE CASCADE,
