@@ -167,7 +167,7 @@ func main() {
 
 	// Form routes
 	mux.HandleFunc("POST /api/forms", jwtMiddleware.AuthenticateMiddleware(formHandler.CreateFormHandler))
-	mux.HandleFunc("GET /api/forms", jwtMiddleware.AuthenticateMiddleware(formHandler.ListFormHandler))
+	mux.HandleFunc("GET /api/forms", jwtMiddleware.AuthenticateMiddleware(formHandler.ListFormsHandler))
 	mux.HandleFunc("POST /api/forms/{formId}/questions", jwtMiddleware.AuthenticateMiddleware(formHandler.AddQuestionHandler))
 	mux.HandleFunc("GET /api/forms/{formId}/questions", jwtMiddleware.AuthenticateMiddleware(formHandler.ListQuestionsHandler))
 	mux.HandleFunc("PUT /api/forms/{formId}/questions/{questionId}", jwtMiddleware.AuthenticateMiddleware(formHandler.UpdateQuestionHandler))
