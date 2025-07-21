@@ -101,7 +101,8 @@ func (h *Handler) SubmitHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var request SubmitRequest
-	if err := handlerutil.ParseAndValidateRequestBody(traceCtx, h.validator, r, &request); err != nil {
+	err = handlerutil.ParseAndValidateRequestBody(traceCtx, h.validator, r, &request)
+	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
