@@ -54,7 +54,7 @@ type Handler struct {
 	validator     *validator.Validate
 	problemWriter *problem.HttpWriter
 
-	Store         Store
+	store         Store
 	questionStore QuestionStore
 }
 
@@ -62,7 +62,7 @@ func NewHandler(
 	logger *zap.Logger,
 	validator *validator.Validate,
 	problemWriter *problem.HttpWriter,
-	Store Store,
+	store Store,
 	questionStore QuestionStore,
 ) *Handler {
 	return &Handler{
@@ -70,7 +70,7 @@ func NewHandler(
 		tracer:        otel.Tracer("form/handler"),
 		validator:     validator,
 		problemWriter: problemWriter,
-		Store:         Store,
+		store:         store,
 		questionStore: questionStore,
 	}
 }
@@ -92,13 +92,13 @@ func (h *Handler) CreateFormHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	form, err := h.Store.Create(traceCtx, req, currentUser.ID)
+	newForm, err := h.store.Create(traceCtx, req, currentUser.ID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusCreated, form)
+	handlerutil.WriteJSONResponse(w, http.StatusCreated, newForm)
 }
 
 func (h *Handler) UpdateFormHandler(w http.ResponseWriter, r *http.Request) {
@@ -127,13 +127,13 @@ func (h *Handler) UpdateFormHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	form, err := h.Store.Update(traceCtx, formID, req, currentUser.ID)
+	currentForm, err := h.store.Update(traceCtx, formID, req, currentUser.ID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusOK, form)
+	handlerutil.WriteJSONResponse(w, http.StatusOK, currentForm)
 }
 
 func (h *Handler) DeleteFormHandler(w http.ResponseWriter, r *http.Request) {
@@ -148,7 +148,7 @@ func (h *Handler) DeleteFormHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.Store.Delete(traceCtx, formID)
+	err = h.store.Delete(traceCtx, formID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
@@ -168,7 +168,7 @@ func (h *Handler) GetFormHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	currentForm, err := h.Store.GetByID(traceCtx, formID)
+	currentForm, err := h.store.GetByID(traceCtx, formID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
@@ -181,7 +181,7 @@ func (h *Handler) ListFormHandler(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
-	forms, err := h.Store.List(traceCtx)
+	forms, err := h.store.List(traceCtx)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
