@@ -4,14 +4,14 @@ import (
 	"NYCU-SDC/core-system-backend/internal"
 	"NYCU-SDC/core-system-backend/internal/user"
 	"context"
-	"fmt"
 	"net/http"
+
+	"go.uber.org/zap"
 
 	"github.com/NYCU-SDC/summer/pkg/problem"
 	"github.com/go-playground/validator/v10"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
 )
 
 type Middleware struct {
@@ -50,26 +50,20 @@ func (m *Middleware) AuthenticateMiddleware(handler http.HandlerFunc) http.Handl
 		// Extract access token from cookie
 		accessTokenCookie, err := r.Cookie("access_token")
 		if err != nil {
-			m.logger.Error("Missing access token cookie")
 			m.problemWriter.WriteError(traceCtx, w, internal.ErrMissingAuthHeader, m.logger)
-			span.RecordError(internal.ErrMissingAuthHeader)
 			return
 		}
 
 		tokenString := accessTokenCookie.Value
 		if tokenString == "" {
-			m.logger.Error("Empty access token cookie")
 			m.problemWriter.WriteError(traceCtx, w, internal.ErrInvalidAuthHeaderFormat, m.logger)
-			span.RecordError(internal.ErrInvalidAuthHeaderFormat)
 			return
 		}
 
 		// Parse and validate JWT token
 		authenticatedUser, err := m.service.Parse(r.Context(), tokenString)
 		if err != nil {
-			m.logger.Error("Failed to parse JWT token", zap.Error(err))
-			m.problemWriter.WriteError(traceCtx, w, fmt.Errorf("%w: %v", internal.ErrInvalidJWTToken, err), m.logger)
-			span.RecordError(err)
+			m.problemWriter.WriteError(traceCtx, w, internal.ErrInvalidAuthUser, m.logger)
 			return
 		}
 

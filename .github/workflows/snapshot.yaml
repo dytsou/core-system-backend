@@ -1,4 +1,4 @@
-name: Lint, Test, and Build Backend
+name: Snapshot Backend
 
 on:
   pull_request:
@@ -97,11 +97,29 @@ jobs:
 
   Deploy:
     needs: Build
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
-
-      - name: Deploy container to local
+      - name: Trigger n8n Snapshot Webhook
         run: |
-          ~/deploy.sh "Snapshot" "${{ github.event.number }}" "${{ github.event.pull_request.title }}"
+          curl -X POST https://webhook.eng.sdc.nycu.club/webhook/deploy \
+            -H "Content-Type: application/json" \
+            -d '{
+              "source": {
+                "title": "Core System",
+                "repo": "${{ github.repository }}",
+                "branch": "${{ github.head_ref || github.ref_name }}",
+                "commit": "${{ github.sha }}",
+                "pr_number": "${{ github.event.pull_request.number }}",
+                "pr_title": "${{ github.event.pull_request.title }}"
+              },
+              "method": "deploy",
+              "metadata": {
+                "environment": "snapshot"
+              },
+              "post": {
+                "notify_discord": {
+                  "enable": true,
+                  "channel": "core-system-activity"
+                }
+              }
+            }'
