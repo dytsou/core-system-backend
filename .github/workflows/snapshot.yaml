@@ -99,7 +99,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Extract PR body for webhook
-        uses: ocean1029/extract-pr-body-action@main
+        uses: NYCU-SDC/Extract-PRbody@V1.0
         id: extract
         with:
           pr_body: ${{ github.event.pull_request.body }}
