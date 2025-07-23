@@ -318,10 +318,6 @@ func (h *Handler) DeleteOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logger.Debug("Deleted organization",
-		zap.String("org_id", id.String()),
-	)
-
 	handlerutil.WriteJSONResponse(w, http.StatusNoContent, nil)
 }
 
