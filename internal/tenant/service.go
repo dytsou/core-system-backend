@@ -95,6 +95,8 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
 		span.RecordError(err)
 		return err
 	}
+
 	logger.Info("tenant deleted", zap.String("tenant_id", id.String()))
+
 	return nil
 }
