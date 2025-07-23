@@ -138,13 +138,7 @@ func (h *Handler) GetUnitByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	path := strings.TrimPrefix(r.URL.Path, "/api/orgs/")
-	parts := strings.Split(path, "/")
-	if len(parts) != 3 {
-		http.Error(w, "invalid path", http.StatusBadRequest)
-		return
-	}
-	idStr := parts[2]
+	idStr := r.PathValue("id")
 
 	id, err := uuid.Parse(idStr)
 	if err != nil {
@@ -219,10 +213,7 @@ func (h *Handler) UpdateUnit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	path := strings.TrimPrefix(r.URL.Path, "/api/orgs/")
-	parts := strings.Split(path, "/")
-	// slug := parts[0]
-	idStr := parts[2]
+	idStr := r.PathValue("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid unit ID: %w", err), h.logger)
@@ -340,15 +331,7 @@ func (h *Handler) DeleteUnit(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	h.logger = logutil.WithContext(traceCtx, h.logger)
 
-	path := strings.TrimPrefix(r.URL.Path, "/api/orgs/")
-	parts := strings.Split(path, "/")
-	if len(parts) != 3 {
-		http.Error(w, "invalid path", http.StatusBadRequest)
-		return
-	}
-
-	// slug := parts[0]
-	idStr := parts[2]
+	idStr := r.PathValue("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid unit ID: %w", err), h.logger)
@@ -397,15 +380,9 @@ func (h *Handler) RemoveParentChild(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	h.logger = logutil.WithContext(traceCtx, h.logger)
 
-	prefix := "/api/orgs/relations/"
-	if !strings.HasPrefix(r.URL.Path, prefix) {
-		http.Error(w, "invalid path", http.StatusBadRequest)
-		return
-	}
-	path := strings.TrimPrefix(r.URL.Path, prefix)
-	parts := strings.Split(path, "/")
-	pIDStr := parts[1]
-	cIDStr := parts[3]
+	pIDStr := r.PathValue("p_id")
+	cIDStr := r.PathValue("c_id")
+
 	if pIDStr == "" || cIDStr == "" {
 		http.Error(w, "parent or child ID not provided", http.StatusBadRequest)
 		return
@@ -471,9 +448,7 @@ func (h *Handler) ListUnitSubUnits(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	h.logger = logutil.WithContext(traceCtx, h.logger)
 
-	path := strings.TrimPrefix(r.URL.Path, "/api/orgs/")
-	parts := strings.Split(path, "/")
-	idStr := parts[2]
+	idStr := r.PathValue("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid unit ID: %w", err), h.logger)
@@ -519,9 +494,7 @@ func (h *Handler) ListUnitSubUnitIDs(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	h.logger = logutil.WithContext(traceCtx, h.logger)
 
-	path := strings.TrimPrefix(r.URL.Path, "/api/orgs/")
-	parts := strings.Split(path, "/")
-	idStr := parts[2]
+	idStr := r.PathValue("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid unit ID: %w", err), h.logger)
