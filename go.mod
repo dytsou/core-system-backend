@@ -5,13 +5,12 @@ go 1.24.2
 toolchain go1.24.3
 
 require (
-	github.com/NYCU-SDC/summer v0.0.0-20250606122013-dfbe1c5b21f1
+	github.com/NYCU-SDC/summer v0.0.0-20250706055324-8772c8199305
 	github.com/go-playground/validator/v10 v10.26.0
 	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.7.4
 	github.com/joho/godotenv v1.5.1
-	github.com/stretchr/testify v1.10.0
 	go.opentelemetry.io/otel v1.36.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.36.0
 	go.opentelemetry.io/otel/sdk v1.36.0
@@ -25,7 +24,6 @@ require (
 require (
 	cloud.google.com/go/compute/metadata v0.6.0 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.2 // indirect
-	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.8 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
@@ -40,8 +38,6 @@ require (
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/lib/pq v1.10.9 // indirect
-	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/stretchr/objx v0.5.2 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.36.0 // indirect
 	go.opentelemetry.io/otel/metric v1.36.0 // indirect
