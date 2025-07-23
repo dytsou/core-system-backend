@@ -1,3 +1,11 @@
+CREATE TYPE question_type AS ENUM(
+    'short_text',
+    'long_text',
+    'single_choice',
+    'multiple_choice',
+    'date'
+);
+
 CREATE TABLE IF NOT EXISTS forms (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     title TEXT NOT NULL,
@@ -19,10 +27,4 @@ CREATE TABLE IF NOT EXISTS questions(
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TYPE question_type AS ENUM(
-    'short_text',
-    'long_text',
-    'single_choice',
-    'multiple_choice',
-    'date'
-);
+
