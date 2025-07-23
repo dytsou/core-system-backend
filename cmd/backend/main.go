@@ -45,6 +45,8 @@ var BuildTime = "no-build-time"
 
 var CommitHash = "no-commit-hash"
 
+var Environment = "no-env"
+
 func main() {
 	AppName = os.Getenv("APP_NAME")
 	if AppName == "" {
@@ -56,11 +58,17 @@ func main() {
 		BuildTime = "not provided (now: " + now.Format(time.RFC3339) + ")"
 	}
 
+	Environment = os.Getenv("ENV")
+	if Environment == "" {
+		Environment = "no-env"
+	}
+
 	appMetadata := []zap.Field{
 		zap.String("app_name", AppName),
 		zap.String("version", Version),
 		zap.String("build_time", BuildTime),
 		zap.String("commit_hash", CommitHash),
+		zap.String("environment", Environment),
 	}
 
 	cfg, cfgLog := config.Load()
@@ -103,7 +111,7 @@ func main() {
 	}
 	defer dbPool.Close()
 
-	shutdown, err := initOpenTelemetry(AppName, Version, BuildTime, CommitHash, cfg.OtelCollectorUrl)
+	shutdown, err := initOpenTelemetry(AppName, Version, BuildTime, CommitHash, Environment, cfg.OtelCollectorUrl)
 	if err != nil {
 		logger.Fatal("Failed to initialize OpenTelemetry", zap.Error(err))
 	}
@@ -130,8 +138,22 @@ func main() {
 	basicMiddleware := middleware.NewSet(traceMiddleware.RecoverMiddleware)
 	basicMiddleware = basicMiddleware.Append(traceMiddleware.TraceMiddleWare)
 
+	// Auth Middleware
+	authMiddleware := middleware.NewSet(traceMiddleware.RecoverMiddleware)
+	authMiddleware = authMiddleware.Append(traceMiddleware.TraceMiddleWare)
+	authMiddleware = authMiddleware.Append(jwtMiddleware.AuthenticateMiddleware)
+
 	// HTTP Server
 	mux := http.NewServeMux()
+
+	// Health check route
+	mux.HandleFunc("GET /api/health", basicMiddleware.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, err := w.Write([]byte("OK"))
+		if err != nil {
+			logger.Error("Failed to write response", zap.Error(err))
+		}
+	}))
 
 	// Internal Debug route
 	mux.HandleFunc("POST /api/auth/login/internal", basicMiddleware.HandlerFunc(authHandler.InternalAPITokenLogin))
@@ -147,7 +169,7 @@ func main() {
 	mux.HandleFunc("POST /api/auth/logout", basicMiddleware.HandlerFunc(authHandler.Logout))
 
 	// User authenticated routes
-	mux.Handle("GET /api/users/me", jwtMiddleware.AuthenticateMiddleware(userHandler.GetMe))
+	mux.Handle("GET /api/users/me", authMiddleware.HandlerFunc(userHandler.GetMe))
 
 	// Unit routes
 	mux.Handle("POST /api/orgs", jwtMiddleware.AuthenticateMiddleware(unitHandler.CreateOrg))
@@ -243,13 +265,14 @@ func initDatabasePool(databaseURL string) (*pgxpool.Pool, error) {
 	return dbPool, nil
 }
 
-func initOpenTelemetry(appName, version, buildTime, commitHash, otelCollectorUrl string) (func(context.Context) error, error) {
+func initOpenTelemetry(appName, version, buildTime, commitHash, environment, otelCollectorUrl string) (func(context.Context) error, error) {
 	ctx := context.Background()
 
 	serviceName := semconv.ServiceNameKey.String(appName)
 	serviceVersion := semconv.ServiceVersionKey.String(version)
 	serviceNamespace := semconv.ServiceNamespaceKey.String("example")
 	serviceCommitHash := semconv.ServiceVersionKey.String(commitHash)
+	serviceEnvironment := semconv.DeploymentEnvironmentKey.String(environment)
 
 	res, err := resource.New(ctx,
 		resource.WithAttributes(
@@ -257,6 +280,7 @@ func initOpenTelemetry(appName, version, buildTime, commitHash, otelCollectorUrl
 			serviceVersion,
 			serviceNamespace,
 			serviceCommitHash,
+			serviceEnvironment,
 		),
 	)
 	if err != nil {

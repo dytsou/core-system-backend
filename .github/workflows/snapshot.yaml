@@ -1,7 +1,7 @@
-name: Lint, Test, and Build Backend
+name: Snapshot Backend
 
 on:
-  push:
+  pull_request:
     branches:
       - main
 
@@ -23,7 +23,6 @@ jobs:
           version: v2.0
 
   Test:
-    needs: Lint
     runs-on: ubuntu-latest
     steps:
       - name: Checkout source
@@ -92,17 +91,35 @@ jobs:
           platforms: linux/arm64
           push: true
           tags: |
-            nycusdc/core-system-backend:dev
+            nycusdc/core-system-backend:pr-${{ github.event.number }}
             nycusdc/core-system-backend:${{ github.sha }}
           context: .
 
   Deploy:
     needs: Build
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
-
-      - name: Deploy container to local
+      - name: Trigger n8n Snapshot Webhook
         run: |
-          ~/deploy.sh "Dev"
+          curl -X POST https://webhook.eng.sdc.nycu.club/webhook/deploy \
+            -H "Content-Type: application/json" \
+            -d '{
+              "source": {
+                "title": "Core System",
+                "repo": "${{ github.repository }}",
+                "branch": "${{ github.head_ref || github.ref_name }}",
+                "commit": "${{ github.sha }}",
+                "pr_number": "${{ github.event.pull_request.number }}",
+                "pr_title": "${{ github.event.pull_request.title }}"
+              },
+              "method": "deploy",
+              "metadata": {
+                "environment": "snapshot"
+              },
+              "post": {
+                "notify_discord": {
+                  "enable": true,
+                  "channel": "core-system-activity"
+                }
+              }
+            }'

@@ -3,11 +3,11 @@ package user
 import (
 	"NYCU-SDC/core-system-backend/internal"
 	"context"
-	"fmt"
 	"net/http"
 	"strings"
 
 	handlerutil "github.com/NYCU-SDC/summer/pkg/handler"
+	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/NYCU-SDC/summer/pkg/problem"
 	"github.com/go-playground/validator/v10"
 	"go.opentelemetry.io/otel"
@@ -57,13 +57,12 @@ func NewHandler(
 func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "GetMe")
 	defer span.End()
+	logger := logutil.WithContext(traceCtx, h.logger)
 
 	// Get authenticated user from context
 	currentUser, ok := GetFromContext(traceCtx)
 	if !ok {
-		h.logger.Error("No user found in request context")
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("no user found in request context"), h.logger)
-		span.RecordError(fmt.Errorf("no user found in request context"))
+		h.problemWriter.WriteError(traceCtx, w, internal.ErrNoUserInContext, logger)
 		return
 	}
 
@@ -80,14 +79,6 @@ func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
 		AvatarUrl: currentUser.AvatarUrl.String,
 		Role:      roleStr,
 	}
-
-	h.logger.Debug("GetMe: Response",
-		zap.String("response_id", response.ID),
-		zap.String("response_username", response.Username),
-		zap.String("response_name", response.Name),
-		zap.String("response_avatar_url", response.AvatarUrl),
-		zap.String("response_role", response.Role),
-	)
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
 }

@@ -323,31 +323,31 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	// Read refresh token from cookie instead of path parameter
 	refreshTokenCookie, err := r.Cookie(RefreshTokenCookieName)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("refresh token cookie is required"), logger)
+		h.problemWriter.WriteError(traceCtx, w, internal.ErrMissingAuthHeader, logger)
 		return
 	}
 	refreshTokenStr := refreshTokenCookie.Value
 
 	if refreshTokenStr == "" {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("refresh token is required"), logger)
+		h.problemWriter.WriteError(traceCtx, w, internal.ErrMissingAuthHeader, logger)
 		return
 	}
 
 	refreshTokenID, err := uuid.Parse(refreshTokenStr)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid refresh token format"), logger)
+		h.problemWriter.WriteError(traceCtx, w, internal.ErrInvalidAuthHeaderFormat, logger)
 		return
 	}
 
 	userID, err := h.jwtIssuer.GetUserIDByRefreshToken(traceCtx, refreshTokenID)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid or expired refresh token"), logger)
+		h.problemWriter.WriteError(traceCtx, w, internal.ErrInvalidRefreshToken, logger)
 		return
 	}
 
 	err = h.jwtStore.InactivateRefreshToken(traceCtx, refreshTokenID)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to invalidate current refresh token"), logger)
+		h.problemWriter.WriteError(traceCtx, w, internal.ErrInternalServerError, logger)
 		return
 	}
 
@@ -379,19 +379,19 @@ func (h *Handler) InternalAPITokenLogin(w http.ResponseWriter, r *http.Request) 
 
 	uid, err := uuid.Parse(req.Username)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid user ID format: %v", err), logger)
+		h.problemWriter.WriteError(traceCtx, w, internal.ErrInvalidAuthHeaderFormat, logger)
 		return
 	}
 
 	exists, err := h.userStore.ExistsByID(traceCtx, uid)
 	if err != nil || !exists {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("user not found: %v", err), logger)
+		h.problemWriter.WriteError(traceCtx, w, internal.ErrUserNotFound, logger)
 		return
 	}
 
 	jwtToken, refreshTokenID, err := h.generateJWT(traceCtx, uid)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to generate JWT token: %v", err), logger)
+		h.problemWriter.WriteError(traceCtx, w, internal.ErrInvalidJWTToken, logger)
 		return
 	}
 

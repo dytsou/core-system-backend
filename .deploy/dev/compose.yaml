@@ -1,0 +1,45 @@
+name: core-system-dev
+
+services:
+  backend:
+    image: nycusdc/core-system-backend:dev
+    networks:
+      - core_system_dev
+      - traefik
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      HOST: "0.0.0.0"
+      BASE_URL: "https://dev.core-system.sdc.nycu.club"
+      DATABASE_URL: postgres://postgres:password@postgres:5432/core_system?sslmode=disable
+      MIGRATION_SOURCE: file:///app/migrations
+      OTEL_COLLECTOR_URL: 10.140.0.3:4317
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET}
+    labels:
+      - "vector.enable=true"
+      - "traefik.enable=true"
+      - "traefik.http.routers.core-system-backend-dev.rule=Host(`dev.core-system.sdc.nycu.club`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.core-system-backend-dev.entrypoints=websecure"
+      - "traefik.http.routers.core-system-backend-dev.tls=true"
+      - "traefik.http.routers.core-system-backend-dev.tls.certresolver=cloudflare"
+
+  postgres:
+    image: postgres:latest
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: core_system
+    networks:
+      - core_system_dev
+
+networks:
+  core_system_dev:
+  traefik:
+    external: true
