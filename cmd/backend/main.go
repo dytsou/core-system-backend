@@ -4,7 +4,12 @@ import (
 	"NYCU-SDC/core-system-backend/internal"
 	"NYCU-SDC/core-system-backend/internal/auth"
 	"NYCU-SDC/core-system-backend/internal/config"
+	"NYCU-SDC/core-system-backend/internal/form"
+	"NYCU-SDC/core-system-backend/internal/form/question"
 	"NYCU-SDC/core-system-backend/internal/jwt"
+	"NYCU-SDC/core-system-backend/internal/tenant"
+	"NYCU-SDC/core-system-backend/internal/unit"
+
 	"NYCU-SDC/core-system-backend/internal/trace"
 	"NYCU-SDC/core-system-backend/internal/user"
 	"context"
@@ -119,18 +124,29 @@ func main() {
 	// Service
 	userService := user.NewService(logger, dbPool)
 	jwtService := jwt.NewService(logger, dbPool, cfg.Secret, cfg.AccessTokenExpiration, cfg.RefreshTokenExpiration)
+	formService := form.NewService(logger, dbPool)
+	questionService := question.NewService(logger, dbPool)
+	unitService := unit.NewService(logger, dbPool)
 
 	// Handler
 	authHandler := auth.NewHandler(logger, validator, problemWriter, userService, jwtService, jwtService, cfg.BaseURL, cfg.AccessTokenExpiration, cfg.RefreshTokenExpiration, cfg.GoogleOauth)
 	userHandler := user.NewHandler(logger, validator, problemWriter, userService)
+	formHandler := form.NewHandler(logger, validator, problemWriter, formService, questionService)
+	unitHandler := unit.NewHandler(logger, validator, problemWriter, unitService)
 
 	// Middleware
 	traceMiddleware := trace.NewMiddleware(logger, cfg.Debug)
 	jwtMiddleware := jwt.NewMiddleware(logger, validator, problemWriter, jwtService)
+	tenantMiddleware := tenant.NewMiddleware(logger, dbPool, tenant.NewService(logger, dbPool), unit.NewService(logger, dbPool))
 
 	// Basic Middleware (Tracing and Recovery)
 	basicMiddleware := middleware.NewSet(traceMiddleware.RecoverMiddleware)
 	basicMiddleware = basicMiddleware.Append(traceMiddleware.TraceMiddleWare)
+
+	// Auth Middleware
+	authMiddleware := middleware.NewSet(traceMiddleware.RecoverMiddleware)
+	authMiddleware = authMiddleware.Append(traceMiddleware.TraceMiddleWare)
+	authMiddleware = authMiddleware.Append(jwtMiddleware.AuthenticateMiddleware)
 
 	// HTTP Server
 	mux := http.NewServeMux()
@@ -158,7 +174,37 @@ func main() {
 	mux.HandleFunc("POST /api/auth/logout", basicMiddleware.HandlerFunc(authHandler.Logout))
 
 	// User authenticated routes
-	mux.Handle("GET /api/users/me", jwtMiddleware.AuthenticateMiddleware(userHandler.GetMe))
+	mux.Handle("GET /api/users/me", authMiddleware.HandlerFunc(userHandler.GetMe))
+
+	// Unit routes
+	mux.Handle("POST /api/orgs", jwtMiddleware.AuthenticateMiddleware(unitHandler.CreateOrg))
+	mux.Handle("POST /api/orgs/{slug}/units", tenantMiddleware.Middleware(unitHandler.CreateUnit))
+	mux.Handle("GET /api/orgs/{slug}", tenantMiddleware.Middleware(unitHandler.GetOrgByID))
+	mux.Handle("GET /api/orgs", basicMiddleware.HandlerFunc(unitHandler.GetAllOrganizations))
+	mux.Handle("GET /api/orgs/{slug}/units/{id}", tenantMiddleware.Middleware(unitHandler.GetUnitByID))
+	mux.Handle("POST /api/orgs/relations", basicMiddleware.HandlerFunc(unitHandler.AddParentChild))
+	mux.Handle("PUT /api/orgs/{slug}", tenantMiddleware.Middleware(unitHandler.UpdateOrg))
+	mux.Handle("PUT /api/orgs/{slug}/units/{id}", tenantMiddleware.Middleware(unitHandler.UpdateUnit))
+	mux.Handle("DELETE /api/orgs/{slug}", tenantMiddleware.Middleware(unitHandler.DeleteOrg))
+	mux.Handle("DELETE /api/orgs/{slug}/units/{id}", tenantMiddleware.Middleware(unitHandler.DeleteUnit))
+
+	// List sub-units
+	mux.Handle("GET /api/orgs/{slug}/units", tenantMiddleware.Middleware(unitHandler.ListOrgSubUnits))
+	mux.Handle("GET /api/orgs/{slug}/units/{id}/subunits", tenantMiddleware.Middleware(unitHandler.ListUnitSubUnits))
+	mux.Handle("GET /api/orgs/{slug}/unit-ids", tenantMiddleware.Middleware(unitHandler.ListOrgSubUnitIDs))
+	mux.Handle("GET /api/orgs/{slug}/units/{id}/subunit-ids", tenantMiddleware.Middleware(unitHandler.ListUnitSubUnitIDs))
+	mux.Handle("DELETE /api/orgs/relations/parent_id/{p_id}/child_id/{c_id}", tenantMiddleware.Middleware(unitHandler.RemoveParentChild))
+
+	// Form routes
+	mux.HandleFunc("POST /api/forms", jwtMiddleware.AuthenticateMiddleware(formHandler.CreateFormHandler))
+	mux.HandleFunc("GET /api/forms", jwtMiddleware.AuthenticateMiddleware(formHandler.ListFormsHandler))
+	mux.HandleFunc("POST /api/forms/{formId}/questions", jwtMiddleware.AuthenticateMiddleware(formHandler.AddQuestionHandler))
+	mux.HandleFunc("GET /api/forms/{formId}/questions", jwtMiddleware.AuthenticateMiddleware(formHandler.ListQuestionsHandler))
+	mux.HandleFunc("PUT /api/forms/{formId}/questions/{questionId}", jwtMiddleware.AuthenticateMiddleware(formHandler.UpdateQuestionHandler))
+	mux.HandleFunc("DELETE /api/forms/{formId}/questions/{questionId}", jwtMiddleware.AuthenticateMiddleware(formHandler.DeleteQuestionHandler))
+	mux.HandleFunc("PUT /api/forms/{id}", jwtMiddleware.AuthenticateMiddleware(formHandler.UpdateFormHandler))
+	mux.HandleFunc("DELETE /api/forms/{id}", jwtMiddleware.AuthenticateMiddleware(formHandler.DeleteFormHandler))
+	mux.HandleFunc("GET /api/forms/{id}", jwtMiddleware.AuthenticateMiddleware(formHandler.GetFormHandler))
 
 	// handle interrupt signal
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

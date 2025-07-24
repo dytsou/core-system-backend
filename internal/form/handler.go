@@ -86,7 +86,7 @@ func (h *Handler) CreateFormHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	currentUser, ok := user.GetUserFromContext(traceCtx)
+	currentUser, ok := user.GetFromContext(traceCtx)
 	if !ok {
 		h.problemWriter.WriteError(traceCtx, w, internal.ErrNoUserInContext, logger)
 		return
@@ -121,7 +121,7 @@ func (h *Handler) UpdateFormHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//get user
-	currentUser, ok := user.GetUserFromContext(traceCtx)
+	currentUser, ok := user.GetFromContext(traceCtx)
 	if !ok {
 		h.problemWriter.WriteError(traceCtx, w, internal.ErrNoUserInContext, logger)
 		return
