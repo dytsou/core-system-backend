@@ -147,7 +147,7 @@ func main() {
 	mux := http.NewServeMux()
 
 	// Health check route
-	mux.HandleFunc("GET /api/health", basicMiddleware.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/healthz", basicMiddleware.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, err := w.Write([]byte("OK"))
 		if err != nil {
