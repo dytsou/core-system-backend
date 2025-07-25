@@ -188,7 +188,7 @@ func main() {
 	mux.Handle("GET /api/orgs/{slug}/units/{id}/subunits", tenantMiddleware.Middleware(unitHandler.ListUnitSubUnits))
 	mux.Handle("GET /api/orgs/{slug}/unit-ids", tenantMiddleware.Middleware(unitHandler.ListOrgSubUnitIDs))
 	mux.Handle("GET /api/orgs/{slug}/units/{id}/subunit-ids", tenantMiddleware.Middleware(unitHandler.ListUnitSubUnitIDs))
-	mux.Handle("DELETE /api/orgs/relations/parent_id/{p_id}/child_id/{c_id}", tenantMiddleware.Middleware(unitHandler.RemoveParentChild))
+	mux.Handle("DELETE /api/orgs/relations/parent-id/{p-id}/child-id/{c-id}", tenantMiddleware.Middleware(unitHandler.RemoveParentChild))
 
 	// handle interrupt signal
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
