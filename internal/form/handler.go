@@ -194,7 +194,7 @@ func (h *Handler) AddQuestionHandler(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
-	formIDStr := r.FormValue("id")
+	formIDStr := r.PathValue("formId")
 	formID, err := handlerutil.ParseUUID(formIDStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
@@ -237,6 +237,13 @@ func (h *Handler) UpdateQuestionHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	formIDStr := r.PathValue("formId")
+	formID, err := handlerutil.ParseUUID(formIDStr)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, err, logger)
+		return
+	}
+
 	var req QuestionRequest
 	if err := handlerutil.ParseAndValidateRequestBody(traceCtx, h.validator, r, &req); err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
@@ -245,7 +252,7 @@ func (h *Handler) UpdateQuestionHandler(w http.ResponseWriter, r *http.Request) 
 
 	request := question.UpdateParams{
 		ID:          questionID,
-		FormID:      req.FormID,
+		FormID:      formID,
 		Required:    req.Required,
 		Type:        req.Type,
 		Label:       pgtype.Text{String: req.Label, Valid: true},
@@ -268,14 +275,14 @@ func (h *Handler) DeleteQuestionHandler(w http.ResponseWriter, r *http.Request) 
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
-	formIDStr := r.FormValue("formId")
+	formIDStr := r.PathValue("formId")
 	formID, err := handlerutil.ParseUUID(formIDStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
 
-	questionIDStr := r.FormValue("questionId")
+	questionIDStr := r.PathValue("questionId")
 	questionID, err := handlerutil.ParseUUID(questionIDStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
@@ -295,7 +302,7 @@ func (h *Handler) ListQuestionsHandler(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
-	formIDStr := r.FormValue("formId")
+	formIDStr := r.PathValue("formId")
 	formID, err := handlerutil.ParseUUID(formIDStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
