@@ -210,7 +210,7 @@ func (h *Handler) AddQuestionHandler(w http.ResponseWriter, r *http.Request) {
 	request := question.CreateParams{
 		FormID:      formID,
 		Required:    req.Required,
-		Type:        req.Type,
+		Type:        question.QuestionType(req.Type),
 		Label:       pgtype.Text{String: req.Label, Valid: true},
 		Description: pgtype.Text{String: req.Description, Valid: true},
 		Order:       req.Order,
@@ -254,7 +254,7 @@ func (h *Handler) UpdateQuestionHandler(w http.ResponseWriter, r *http.Request) 
 		ID:          questionID,
 		FormID:      formID,
 		Required:    req.Required,
-		Type:        req.Type,
+		Type:        question.QuestionType(req.Type),
 		Label:       pgtype.Text{String: req.Label, Valid: true},
 		Description: pgtype.Text{String: req.Description, Valid: true},
 		Order:       req.Order,

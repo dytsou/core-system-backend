@@ -1,8 +1,16 @@
+CREATE TYPE question_type AS ENUM(
+    'short_text',
+    'long_text',
+    'single_choice',
+    'multiple_choice',
+    'date'
+);
+
 CREATE TABLE IF NOT EXISTS questions(
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     form_id UUID NOT NULL REFERENCES forms(id) ON DELETE CASCADE,
     required BOOLEAN NOT NULL,
-    type TEXT NOT NULL,
+    type question_type NOT NULL,
     label TEXT,
     description TEXT,
     "order" INTEGER NOT NULL,

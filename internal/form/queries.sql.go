@@ -21,7 +21,7 @@ RETURNING id, title, description, last_editor, created_at, updated_at
 type CreateParams struct {
 	Title       string
 	Description pgtype.Text
-	LastEditor  pgtype.UUID
+	LastEditor  uuid.UUID
 }
 
 func (q *Queries) Create(ctx context.Context, arg CreateParams) (Form, error) {
@@ -107,7 +107,7 @@ type UpdateParams struct {
 	ID          uuid.UUID
 	Title       string
 	Description pgtype.Text
-	LastEditor  pgtype.UUID
+	LastEditor  uuid.UUID
 }
 
 func (q *Queries) Update(ctx context.Context, arg UpdateParams) (Form, error) {

@@ -21,7 +21,7 @@ VALUES ($1, $2, $3, $4, $5, $6)
 type CreateParams struct {
 	FormID      uuid.UUID
 	Required    bool
-	Type        string
+	Type        QuestionType
 	Label       pgtype.Text
 	Description pgtype.Text
 	Order       int32
@@ -110,7 +110,7 @@ type UpdateParams struct {
 	FormID      uuid.UUID
 	ID          uuid.UUID
 	Required    bool
-	Type        string
+	Type        QuestionType
 	Label       pgtype.Text
 	Description pgtype.Text
 	Order       int32
