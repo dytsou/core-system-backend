@@ -4,7 +4,7 @@ services:
   backend:
     image: nycusdc/core-system-backend:dev
     networks:
-      - core_system_dev
+      - core_system_$VERSION
       - traefik
     depends_on:
       postgres:
