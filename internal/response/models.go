@@ -57,6 +57,135 @@ func (ns NullAnswerType) Value() (driver.Value, error) {
 	return string(ns.AnswerType), nil
 }
 
+type DbStrategy string
+
+const (
+	DbStrategyShared   DbStrategy = "shared"
+	DbStrategyIsolated DbStrategy = "isolated"
+)
+
+func (e *DbStrategy) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = DbStrategy(s)
+	case string:
+		*e = DbStrategy(s)
+	default:
+		return fmt.Errorf("unsupported scan type for DbStrategy: %T", src)
+	}
+	return nil
+}
+
+type NullDbStrategy struct {
+	DbStrategy DbStrategy
+	Valid      bool // Valid is true if DbStrategy is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullDbStrategy) Scan(value interface{}) error {
+	if value == nil {
+		ns.DbStrategy, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.DbStrategy.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullDbStrategy) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.DbStrategy), nil
+}
+
+type QuestionType string
+
+const (
+	QuestionTypeShortText      QuestionType = "short_text"
+	QuestionTypeLongText       QuestionType = "long_text"
+	QuestionTypeSingleChoice   QuestionType = "single_choice"
+	QuestionTypeMultipleChoice QuestionType = "multiple_choice"
+	QuestionTypeDate           QuestionType = "date"
+)
+
+func (e *QuestionType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = QuestionType(s)
+	case string:
+		*e = QuestionType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for QuestionType: %T", src)
+	}
+	return nil
+}
+
+type NullQuestionType struct {
+	QuestionType QuestionType
+	Valid        bool // Valid is true if QuestionType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullQuestionType) Scan(value interface{}) error {
+	if value == nil {
+		ns.QuestionType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.QuestionType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullQuestionType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.QuestionType), nil
+}
+
+type UnitType string
+
+const (
+	UnitTypeUnit         UnitType = "unit"
+	UnitTypeOrganization UnitType = "organization"
+)
+
+func (e *UnitType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = UnitType(s)
+	case string:
+		*e = UnitType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for UnitType: %T", src)
+	}
+	return nil
+}
+
+type NullUnitType struct {
+	UnitType UnitType
+	Valid    bool // Valid is true if UnitType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullUnitType) Scan(value interface{}) error {
+	if value == nil {
+		ns.UnitType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.UnitType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullUnitType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.UnitType), nil
+}
+
 type Answer struct {
 	ID         uuid.UUID
 	ResponseID uuid.UUID
@@ -76,6 +205,49 @@ type Auth struct {
 	UpdatedAt  pgtype.Timestamptz
 }
 
+type Form struct {
+	ID          uuid.UUID
+	Title       string
+	Description pgtype.Text
+	LastEditor  uuid.UUID
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+}
+
+type OrgMember struct {
+	OrgID    uuid.UUID
+	MemberID uuid.UUID
+}
+
+type Organization struct {
+	ID          uuid.UUID
+	OwnerID     uuid.UUID
+	Name        pgtype.Text
+	Description pgtype.Text
+	Metadata    []byte
+	Type        UnitType
+	Slug        string
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+}
+
+type ParentChild struct {
+	ParentID uuid.UUID
+	ChildID  uuid.UUID
+}
+
+type Question struct {
+	ID          uuid.UUID
+	FormID      uuid.UUID
+	Required    bool
+	Type        QuestionType
+	Label       pgtype.Text
+	Description pgtype.Text
+	Order       int32
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+}
+
 type RefreshToken struct {
 	ID             uuid.UUID
 	UserID         uuid.UUID
@@ -89,6 +261,27 @@ type Response struct {
 	SubmittedBy uuid.UUID
 	CreatedAt   pgtype.Timestamptz
 	UpdatedAt   pgtype.Timestamptz
+}
+
+type Tenant struct {
+	ID         uuid.UUID
+	DbStrategy DbStrategy
+}
+
+type Unit struct {
+	ID          uuid.UUID
+	OrgID       uuid.UUID
+	Name        pgtype.Text
+	Description pgtype.Text
+	Metadata    []byte
+	Type        UnitType
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+}
+
+type UnitMember struct {
+	UnitID   uuid.UUID
+	MemberID uuid.UUID
 }
 
 type User struct {

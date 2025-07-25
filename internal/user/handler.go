@@ -15,19 +15,14 @@ import (
 	"go.uber.org/zap"
 )
 
-// User context key to avoid import cycle with middleware package
-type contextKey string
-
-const UserContextKey contextKey = "user"
-
-// GetUserFromContext extracts the authenticated user from request context
-func GetUserFromContext(ctx context.Context) (*User, bool) {
-	userData, ok := ctx.Value(UserContextKey).(*User)
+// GetFromContext extracts the authenticated user from request context
+func GetFromContext(ctx context.Context) (*User, bool) {
+	userData, ok := ctx.Value(internal.UserContextKey).(*User)
 	return userData, ok
 }
 
-// UserMeResponse represents the response format for /user/me endpoint
-type UserMeResponse struct {
+// MeResponse represents the response format for /user/me endpoint
+type MeResponse struct {
 	ID        string `json:"id"`
 	Username  string `json:"username"`
 	Name      string `json:"name"`
@@ -65,7 +60,7 @@ func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
 	logger := logutil.WithContext(traceCtx, h.logger)
 
 	// Get authenticated user from context
-	currentUser, ok := GetUserFromContext(traceCtx)
+	currentUser, ok := GetFromContext(traceCtx)
 	if !ok {
 		h.problemWriter.WriteError(traceCtx, w, internal.ErrNoUserInContext, logger)
 		return
@@ -77,7 +72,7 @@ func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
 		roleStr = strings.Join(currentUser.Role, ",")
 	}
 
-	response := UserMeResponse{
+	response := MeResponse{
 		ID:        currentUser.ID.String(),
 		Username:  currentUser.Username.String,
 		Name:      currentUser.Name.String,

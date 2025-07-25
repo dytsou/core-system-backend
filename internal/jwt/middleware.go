@@ -2,7 +2,6 @@ package jwt
 
 import (
 	"NYCU-SDC/core-system-backend/internal"
-	"NYCU-SDC/core-system-backend/internal/user"
 	"context"
 	"net/http"
 
@@ -20,7 +19,6 @@ type Middleware struct {
 	problemWriter *problem.HttpWriter
 	service       *Service
 	tracer        trace.Tracer
-	debug         bool
 }
 
 // NewMiddleware creates a new user middleware
@@ -29,7 +27,6 @@ func NewMiddleware(
 	validator *validator.Validate,
 	problemWriter *problem.HttpWriter,
 	service *Service,
-	debug bool,
 ) *Middleware {
 	return &Middleware{
 		logger:        logger,
@@ -37,7 +34,6 @@ func NewMiddleware(
 		problemWriter: problemWriter,
 		service:       service,
 		tracer:        otel.Tracer("jwt/middleware"),
-		debug:         debug,
 	}
 }
 
@@ -68,7 +64,7 @@ func (m *Middleware) AuthenticateMiddleware(handler http.HandlerFunc) http.Handl
 		}
 
 		// Add authenticated user to request context
-		ctxWithUser := context.WithValue(traceCtx, user.UserContextKey, &authenticatedUser)
+		ctxWithUser := context.WithValue(traceCtx, internal.UserContextKey, &authenticatedUser)
 
 		// Call the actual handler with authenticated context
 		handler(w, r.WithContext(ctxWithUser))

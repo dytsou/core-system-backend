@@ -1,7 +1,8 @@
+name: core-system-dev
+
 services:
   backend:
     image: nycusdc/core-system-backend:dev
-    container_name: core-system-backend-dev
     networks:
       - core_system_dev
       - traefik
@@ -10,18 +11,19 @@ services:
         condition: service_healthy
     environment:
       HOST: "0.0.0.0"
-      BASE_URL: "https://api.dev.core-system.sdc.nycu.club"
+      BASE_URL: "https://dev.core-system.sdc.nycu.club"
       DATABASE_URL: postgres://postgres:password@postgres:5432/core_system?sslmode=disable
       MIGRATION_SOURCE: file:///app/migrations
+      OTEL_COLLECTOR_URL: 10.140.0.3:4317
       GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID}
       GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET}
     labels:
       - "vector.enable=true"
       - "traefik.enable=true"
-      - "traefik.http.routers.core-system-backend.rule=Host(`api.dev.core-system.sdc.nycu.club`)"
-      - "traefik.http.routers.core-system-backend.entrypoints=websecure"
-      - "traefik.http.routers.core-system-backend.tls=true"
-      - "traefik.http.routers.core-system-backend.tls.certresolver=cloudflare"
+      - "traefik.http.routers.core-system-backend-dev.rule=Host(`dev.core-system.sdc.nycu.club`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.core-system-backend-dev.entrypoints=websecure"
+      - "traefik.http.routers.core-system-backend-dev.tls=true"
+      - "traefik.http.routers.core-system-backend-dev.tls.certresolver=cloudflare"
 
   postgres:
     image: postgres:latest

@@ -1,23 +1,30 @@
-networks:
-  core_system_$VERSION:
-    driver: bridge
+name: core-system-$VERSION
 
 services:
   backend:
-    image: nycusdc/core-system-backend:$VERSION
-    container_name: core-system-backend-$VERSION
-    ports:
-      - '$PORT:8080'
+    image: nycusdc/core-system-backend:dev
     networks:
       - core_system_$VERSION
+      - traefik
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       HOST: "0.0.0.0"
+      BASE_URL: "https://dev.core-system.sdc.nycu.club"
       DATABASE_URL: postgres://postgres:password@postgres:5432/core_system?sslmode=disable
       MIGRATION_SOURCE: file:///app/migrations
-    
+      OTEL_COLLECTOR_URL: 10.140.0.3:4317
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET}
+    labels:
+      - "vector.enable=true"
+      - "traefik.enable=true"
+      - "traefik.http.routers.core-system-backend-$VERSION.rule=Host(`$VERSION.core-system.sdc.nycu.club`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.core-system-backend-$VERSION.entrypoints=websecure"
+      - "traefik.http.routers.core-system-backend-$VERSION.tls=true"
+      - "traefik.http.routers.core-system-backend-$VERSION.tls.certresolver=cloudflare"
+
   postgres:
     image: postgres:latest
     healthcheck:
@@ -31,3 +38,9 @@ services:
       POSTGRES_DB: core_system
     networks:
       - core_system_$VERSION
+
+networks:
+  core_system_$VERSION:
+    driver: bridge
+  traefik:
+    external: true
