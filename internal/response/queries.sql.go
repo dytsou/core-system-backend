@@ -62,7 +62,7 @@ RETURNING id, response_id, question_id, type, value, created_at, updated_at
 type CreateAnswerParams struct {
 	ResponseID uuid.UUID
 	QuestionID uuid.UUID
-	Type       AnswerType
+	Type       QuestionType
 	Value      string
 }
 
@@ -161,7 +161,7 @@ type GetAnswersByQuestionIDRow struct {
 	ID          uuid.UUID
 	ResponseID  uuid.UUID
 	QuestionID  uuid.UUID
-	Type        AnswerType
+	Type        QuestionType
 	Value       string
 	CreatedAt   pgtype.Timestamptz
 	UpdatedAt   pgtype.Timestamptz

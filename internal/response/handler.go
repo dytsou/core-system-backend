@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"NYCU-SDC/core-system-backend/internal"
+	"NYCU-SDC/core-system-backend/internal/form/question"
 	"NYCU-SDC/core-system-backend/internal/user"
 
 	handlerutil "github.com/NYCU-SDC/summer/pkg/handler"
@@ -24,13 +25,13 @@ type AnswerRequest struct {
 }
 
 type AnswerResponse struct {
-	ID         string     `json:"id" validate:"required,uuid"`
-	ResponseID string     `json:"responseId" validate:"required,uuid"`
-	QuestionID string     `json:"questionId" validate:"required,uuid"`
-	Type       AnswerType `json:"type" validate:"required,oneof=shortText longText singleChoice multipleChoice date"`
-	Value      string     `json:"value" validate:"required"`
-	CreatedAt  time.Time  `json:"createdAt" validate:"required,datetime"`
-	UpdatedAt  time.Time  `json:"updatedAt" validate:"required,datetime"`
+	ID         string                `json:"id" validate:"required,uuid"`
+	ResponseID string                `json:"responseId" validate:"required,uuid"`
+	QuestionID string                `json:"questionId" validate:"required,uuid"`
+	Type       question.QuestionType `json:"type" validate:"required,oneof=shortText longText singleChoice multipleChoice date"`
+	Value      string                `json:"value" validate:"required"`
+	CreatedAt  time.Time             `json:"createdAt" validate:"required,datetime"`
+	UpdatedAt  time.Time             `json:"updatedAt" validate:"required,datetime"`
 }
 
 type SubmitRequest struct {
@@ -267,7 +268,7 @@ func (h *Handler) GetAnswersByQuestionIDHandler(w http.ResponseWriter, r *http.R
 			ID:         answer.ID.String(),
 			ResponseID: answer.ResponseID.String(),
 			QuestionID: answer.QuestionID.String(),
-			Type:       answer.Type,
+			Type:       question.QuestionType(answer.Type),
 			Value:      answer.Value,
 			CreatedAt:  answer.CreatedAt.Time,
 			UpdatedAt:  answer.UpdatedAt.Time,

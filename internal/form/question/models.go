@@ -12,51 +12,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type AnswerType string
-
-const (
-	AnswerTypeShortText      AnswerType = "short_text"
-	AnswerTypeLongText       AnswerType = "long_text"
-	AnswerTypeSingleChoice   AnswerType = "single_choice"
-	AnswerTypeMultipleChoice AnswerType = "multiple_choice"
-	AnswerTypeDate           AnswerType = "date"
-)
-
-func (e *AnswerType) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = AnswerType(s)
-	case string:
-		*e = AnswerType(s)
-	default:
-		return fmt.Errorf("unsupported scan type for AnswerType: %T", src)
-	}
-	return nil
-}
-
-type NullAnswerType struct {
-	AnswerType AnswerType
-	Valid      bool // Valid is true if AnswerType is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullAnswerType) Scan(value interface{}) error {
-	if value == nil {
-		ns.AnswerType, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.AnswerType.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullAnswerType) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.AnswerType), nil
-}
-
 type DbStrategy string
 
 const (
@@ -190,7 +145,7 @@ type Answer struct {
 	ID         uuid.UUID
 	ResponseID uuid.UUID
 	QuestionID uuid.UUID
-	Type       AnswerType
+	Type       QuestionType
 	Value      string
 	CreatedAt  pgtype.Timestamptz
 	UpdatedAt  pgtype.Timestamptz
