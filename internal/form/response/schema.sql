@@ -10,9 +10,9 @@ CREATE TABLE IF NOT EXISTS responses (
 CREATE TABLE IF NOT EXISTS answers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     response_id UUID NOT NULL REFERENCES responses(id) ON DELETE CASCADE,
-    question_id UUID NOT NULL, -- TODO: add foreign key constraint
-    type question_type NOT NULL,
-    value VARCHAR(255) NOT NULL,
+    question_id UUID NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+    type question_type NOT NULL REFERENCES questions(type) ON DELETE CASCADE,
+    value TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

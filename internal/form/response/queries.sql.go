@@ -256,6 +256,17 @@ func (q *Queries) GetByFormIDAndSubmittedBy(ctx context.Context, arg GetByFormID
 	return i, err
 }
 
+const getQuestionType = `-- name: GetQuestionType :one
+SELECT type FROM questions WHERE id = $1
+`
+
+func (q *Queries) GetQuestionType(ctx context.Context, id uuid.UUID) (QuestionType, error) {
+	row := q.db.QueryRow(ctx, getQuestionType, id)
+	var type_ QuestionType
+	err := row.Scan(&type_)
+	return type_, err
+}
+
 const listByFormID = `-- name: ListByFormID :many
 SELECT id, form_id, submitted_by, created_at, updated_at FROM responses 
 WHERE form_id = $1

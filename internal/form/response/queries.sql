@@ -56,3 +56,6 @@ RETURNING *;
 
 -- name: CheckAnswerContent :one
 SELECT EXISTS(SELECT 1 FROM answers WHERE response_id = $1 AND question_id = $2 AND value = $3);
+
+-- name: GetQuestionType :one
+SELECT type FROM questions WHERE id = $1;
