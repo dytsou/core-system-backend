@@ -16,6 +16,7 @@ import (
 type Querier interface {
 	Create(ctx context.Context, arg CreateParams) (Response, error)
 	Get(ctx context.Context, arg GetParams) (Response, error)
+	GetQuestionType(ctx context.Context, arg uuid.UUID) (QuestionType, error)
 	GetByFormIDAndSubmittedBy(ctx context.Context, arg GetByFormIDAndSubmittedByParams) (Response, error)
 	Exists(ctx context.Context, arg ExistsParams) (bool, error)
 	ListByFormID(ctx context.Context, formID uuid.UUID) ([]Response, error)
@@ -94,10 +95,16 @@ func Create(s *Service, ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 	}
 
 	for _, answer := range answers {
-		_, err := s.queries.CreateAnswer(traceCtx, CreateAnswerParams{
+		questionType, err := s.queries.GetQuestionType(traceCtx, answer.QuestionID)
+		if err != nil {
+			err = databaseutil.WrapDBError(err, logger, "get question type")
+			span.RecordError(err)
+			return Response{}, err
+		}
+		_, err = s.queries.CreateAnswer(traceCtx, CreateAnswerParams{
 			ResponseID: newResponse.ID,
 			QuestionID: answer.QuestionID,
-			Type:       answer.Type,
+			Type:       questionType,
 			Value:      answer.Value,
 		})
 		if err != nil {
