@@ -107,7 +107,7 @@ func (h *Handler) SubmitHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	currentUser, ok := user.GetUserFromContext(traceCtx)
+	currentUser, ok := user.GetFromContext(traceCtx)
 	if !ok {
 		h.problemWriter.WriteError(traceCtx, w, internal.ErrNoUserInContext, logger)
 		return
