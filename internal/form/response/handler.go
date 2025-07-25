@@ -35,7 +35,6 @@ type AnswerResponse struct {
 }
 
 type SubmitRequest struct {
-	FormID  string          `json:"formId" validate:"required,uuid"`
 	Answers []AnswerRequest `json:"answers" validate:"required,dive"`
 }
 
