@@ -29,6 +29,7 @@ type Querier interface {
 	UpdateAnswer(ctx context.Context, arg UpdateAnswerParams) (Answer, error)
 	AnswerExists(ctx context.Context, arg AnswerExistsParams) (bool, error)
 	CheckAnswerContent(ctx context.Context, arg CheckAnswerContentParams) (bool, error)
+	GetAnswerID(ctx context.Context, arg GetAnswerIDParams) (uuid.UUID, error)
 }
 
 type Service struct {
@@ -171,8 +172,17 @@ func Update(s *Service, ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 
 		// if answer is different, update it
 		if !sameAnswer {
-			_, err := s.queries.UpdateAnswer(traceCtx, UpdateAnswerParams{
-				ID:    answer.ID,
+			answerID, err := s.queries.GetAnswerID(traceCtx, GetAnswerIDParams{
+				ResponseID: response.ID,
+				QuestionID: answer.QuestionID,
+			})
+			if err != nil {
+				err = databaseutil.WrapDBErrorWithKeyValue(err, "answer", "response_id", response.ID.String(), logger, "get answer id")
+				span.RecordError(err)
+				return Response{}, err
+			}
+			_, err = s.queries.UpdateAnswer(traceCtx, UpdateAnswerParams{
+				ID:    answerID,
 				Value: answer.Value,
 			})
 			if err != nil {

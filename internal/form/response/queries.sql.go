@@ -161,6 +161,22 @@ func (q *Queries) Get(ctx context.Context, arg GetParams) (Response, error) {
 	return i, err
 }
 
+const getAnswerID = `-- name: GetAnswerID :one
+SELECT id FROM answers WHERE response_id = $1 AND question_id = $2
+`
+
+type GetAnswerIDParams struct {
+	ResponseID uuid.UUID
+	QuestionID uuid.UUID
+}
+
+func (q *Queries) GetAnswerID(ctx context.Context, arg GetAnswerIDParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getAnswerID, arg.ResponseID, arg.QuestionID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getAnswersByQuestionID = `-- name: GetAnswersByQuestionID :many
 SELECT a.id, a.response_id, a.question_id, a.type, a.value, a.created_at, a.updated_at, r.form_id, r.submitted_by FROM answers a
 JOIN responses r ON a.response_id = r.id
