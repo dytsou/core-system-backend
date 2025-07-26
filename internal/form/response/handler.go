@@ -294,21 +294,19 @@ func (h *Handler) GetAnswersByQuestionIDHandler(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	questionAnswerResponses := make([]AnswersForQuestionResponse, len(answers))
+	questionAnswerResponse := AnswersForQuestionResponse{
+		Question: question,
+		Answers:  make([]AnswerForQuestionResponse, len(answers)),
+	}
 	for i, answer := range answers {
-		questionAnswerResponses[i] = AnswersForQuestionResponse{
-			Question: question,
-			Answers: []AnswerForQuestionResponse{
-				{
-					ID:          answer.ID.String(),
-					ResponseID:  answer.ResponseID.String(),
-					SubmittedBy: answer.SubmittedBy.String(),
-					Value:       answer.Value,
-					CreatedAt:   answer.CreatedAt.Time,
-					UpdatedAt:   answer.UpdatedAt.Time,
-				},
-			},
+		questionAnswerResponse.Answers[i] = AnswerForQuestionResponse{
+			ID:          answer.ID.String(),
+			ResponseID:  answer.ResponseID.String(),
+			SubmittedBy: answer.SubmittedBy.String(),
+			Value:       answer.Value,
+			CreatedAt:   answer.CreatedAt.Time,
+			UpdatedAt:   answer.UpdatedAt.Time,
 		}
 	}
-	handlerutil.WriteJSONResponse(w, http.StatusOK, questionAnswerResponses)
+	handlerutil.WriteJSONResponse(w, http.StatusOK, questionAnswerResponse)
 }
