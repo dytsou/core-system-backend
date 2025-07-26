@@ -198,8 +198,12 @@ func (h *Handler) GetHandler(w http.ResponseWriter, r *http.Request) {
 	answerResponses := make([]AnswerResponse, len(answers))
 	for i, answer := range answers {
 		answerResponses[i] = AnswerResponse{
+			ID:         answer.ID.String(),
+			ResponseID: answer.ResponseID.String(),
 			QuestionID: answer.QuestionID.String(),
+			Type:       question.QuestionType(answer.Type),
 			Value:      answer.Value,
+			CreatedAt:  answer.CreatedAt.Time,
 			UpdatedAt:  answer.UpdatedAt.Time,
 		}
 	}
