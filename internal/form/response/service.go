@@ -2,12 +2,10 @@ package response
 
 import (
 	"context"
-	"time"
 
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -193,10 +191,7 @@ func Update(s *Service, ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 		}
 	}
 
-	response.UpdatedAt = pgtype.Timestamptz{
-		Time:  time.Now(),
-		Valid: true,
-	}
+	// update the value of updated_at of response
 	err = s.queries.Update(traceCtx, response.ID)
 	if err != nil {
 		err = databaseutil.WrapDBErrorWithKeyValue(err, "response", "id", response.ID.String(), logger, "update response")
