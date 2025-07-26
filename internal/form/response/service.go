@@ -60,22 +60,22 @@ func (s *Service) Submit(ctx context.Context, formID uuid.UUID, userID uuid.UUID
 	}
 
 	if exist {
-		response, err := Update(s, traceCtx, formID, userID, answers)
+		currentResponse, err := Update(s, traceCtx, formID, userID, answers)
 		if err != nil {
 			err = databaseutil.WrapDBError(err, logger, "update response")
 			span.RecordError(err)
 			return Response{}, err
 		}
-		return response, nil
+		return currentResponse, nil
 	}
 
-	response, err := Create(s, traceCtx, formID, userID, answers)
+	newResponse, err := Create(s, traceCtx, formID, userID, answers)
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "create response")
 		span.RecordError(err)
 		return Response{}, err
 	}
-	return response, nil
+	return newResponse, nil
 }
 
 // Create creates a new response and answers for a given form and user
@@ -122,7 +122,7 @@ func Update(s *Service, ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	response, err := GetByFormIDAndSubmittedBy(s, traceCtx, formID, userID)
+	currentResponse, err := GetByFormIDAndSubmittedBy(s, traceCtx, formID, userID)
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "get response by form id and submitted by")
 		span.RecordError(err)
@@ -132,7 +132,7 @@ func Update(s *Service, ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 	for _, answer := range answers {
 		// check if answer exists
 		answerExists, err := s.queries.AnswerExists(traceCtx, AnswerExistsParams{
-			ResponseID: response.ID,
+			ResponseID: currentResponse.ID,
 			QuestionID: answer.QuestionID,
 		})
 		if err != nil {
@@ -150,13 +150,13 @@ func Update(s *Service, ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 				return Response{}, err
 			}
 			_, err = s.queries.CreateAnswer(traceCtx, CreateAnswerParams{
-				ResponseID: response.ID,
+				ResponseID: currentResponse.ID,
 				QuestionID: answer.QuestionID,
 				Type:       question.Type,
 				Value:      answer.Value,
 			})
 			if err != nil {
-				err = databaseutil.WrapDBErrorWithKeyValue(err, "answer", "response_id", response.ID.String(), logger, "create answer")
+				err = databaseutil.WrapDBErrorWithKeyValue(err, "answer", "response_id", currentResponse.ID.String(), logger, "create answer")
 				span.RecordError(err)
 				return Response{}, err
 			}
@@ -164,7 +164,7 @@ func Update(s *Service, ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 
 		// if answer exists, check if it is the same as the new answer
 		sameAnswer, err := s.queries.CheckAnswerContent(traceCtx, CheckAnswerContentParams{
-			ResponseID: response.ID,
+			ResponseID: currentResponse.ID,
 			QuestionID: answer.QuestionID,
 			Value:      answer.Value,
 		})
@@ -177,11 +177,11 @@ func Update(s *Service, ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 		// if answer is different, update it
 		if !sameAnswer {
 			answerID, err := s.queries.GetAnswerID(traceCtx, GetAnswerIDParams{
-				ResponseID: response.ID,
+				ResponseID: currentResponse.ID,
 				QuestionID: answer.QuestionID,
 			})
 			if err != nil {
-				err = databaseutil.WrapDBErrorWithKeyValue(err, "answer", "response_id", response.ID.String(), logger, "get answer id")
+				err = databaseutil.WrapDBErrorWithKeyValue(err, "answer", "response_id", currentResponse.ID.String(), logger, "get answer id")
 				span.RecordError(err)
 				return Response{}, err
 			}
@@ -198,13 +198,13 @@ func Update(s *Service, ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 	}
 
 	// update the value of updated_at of response
-	err = s.queries.Update(traceCtx, response.ID)
+	err = s.queries.Update(traceCtx, currentResponse.ID)
 	if err != nil {
-		err = databaseutil.WrapDBErrorWithKeyValue(err, "response", "id", response.ID.String(), logger, "update response")
+		err = databaseutil.WrapDBErrorWithKeyValue(err, "response", "id", currentResponse.ID.String(), logger, "update response")
 		span.RecordError(err)
 		return Response{}, err
 	}
-	return response, nil
+	return currentResponse, nil
 }
 
 func GetByFormIDAndSubmittedBy(s *Service, ctx context.Context, formID uuid.UUID, userID uuid.UUID) (Response, error) {
@@ -212,7 +212,7 @@ func GetByFormIDAndSubmittedBy(s *Service, ctx context.Context, formID uuid.UUID
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	response, err := s.queries.GetByFormIDAndSubmittedBy(traceCtx, GetByFormIDAndSubmittedByParams{
+	currentResponse, err := s.queries.GetByFormIDAndSubmittedBy(traceCtx, GetByFormIDAndSubmittedByParams{
 		FormID:      formID,
 		SubmittedBy: userID,
 	})
@@ -222,7 +222,7 @@ func GetByFormIDAndSubmittedBy(s *Service, ctx context.Context, formID uuid.UUID
 		return Response{}, err
 	}
 
-	return response, nil
+	return currentResponse, nil
 }
 
 // Get retrieves a response and answers by id
@@ -231,7 +231,7 @@ func (s *Service) Get(ctx context.Context, formID uuid.UUID, id uuid.UUID) (Resp
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	response, err := s.queries.Get(traceCtx, GetParams{
+	currentResponse, err := s.queries.Get(traceCtx, GetParams{
 		ID:     id,
 		FormID: formID,
 	})
@@ -243,12 +243,12 @@ func (s *Service) Get(ctx context.Context, formID uuid.UUID, id uuid.UUID) (Resp
 
 	answers, err := s.queries.GetAnswersByResponseID(traceCtx, id)
 	if err != nil {
-		err = databaseutil.WrapDBErrorWithKeyValue(err, "answer", "response_id", response.ID.String(), logger, "get answers by response id")
+		err = databaseutil.WrapDBErrorWithKeyValue(err, "answer", "response_id", currentResponse.ID.String(), logger, "get answers by response id")
 		span.RecordError(err)
 		return Response{}, []Answer{}, err
 	}
 
-	return response, answers, nil
+	return currentResponse, answers, nil
 }
 
 // ListByFormID retrieves all responses for a given form
