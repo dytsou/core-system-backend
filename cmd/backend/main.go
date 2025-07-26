@@ -136,7 +136,7 @@ func main() {
 	userHandler := user.NewHandler(logger, validator, problemWriter, userService)
 	formHandler := form.NewHandler(logger, validator, problemWriter, formService, questionService)
 	unitHandler := unit.NewHandler(logger, validator, problemWriter, unitService)
-	responseHandler := response.NewHandler(logger, validator, problemWriter, responseService)
+	responseHandler := response.NewHandler(logger, validator, problemWriter, responseService, questionService)
 
 	// Middleware
 	traceMiddleware := trace.NewMiddleware(logger, cfg.Debug)

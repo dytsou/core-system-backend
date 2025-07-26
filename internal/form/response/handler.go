@@ -24,18 +24,28 @@ type AnswerRequest struct {
 	Value      string `json:"value" validate:"required"`
 }
 
-type AnswerResponse struct {
-	ID         string                `json:"id" validate:"required,uuid"`
-	ResponseID string                `json:"responseId" validate:"required,uuid"`
-	QuestionID string                `json:"questionId" validate:"required,uuid"`
-	Type       question.QuestionType `json:"type" validate:"required,oneof=shortText longText singleChoice multipleChoice date"`
-	Value      string                `json:"value" validate:"required"`
-	CreatedAt  time.Time             `json:"createdAt" validate:"required,datetime"`
-	UpdatedAt  time.Time             `json:"updatedAt" validate:"required,datetime"`
+type QuestionAnswerForGetResponse struct {
+	Question question.Question `json:"question" validate:"required"`
+	Answer   string            `json:"answer" validate:"required"`
+}
+
+type AnswerForQuestionResponse struct {
+	ID          string    `json:"id" validate:"required,uuid"`
+	ResponseID  string    `json:"responseId" validate:"required,uuid"`
+	SubmittedBy string    `json:"submittedBy" validate:"required,uuid"`
+	Value       string    `json:"value" validate:"required"`
+	CreatedAt   time.Time `json:"createdAt" validate:"required,datetime"` // for sorting
+	UpdatedAt   time.Time `json:"updatedAt" validate:"required,datetime"` // for marking if the answer is updated
 }
 
 type SubmitRequest struct {
 	Answers []AnswerRequest `json:"answers" validate:"required,dive"`
+}
+type ResponseJSON struct {
+	ID          string    `json:"id" validate:"required,uuid"`
+	SubmittedBy string    `json:"submittedBy" validate:"required,uuid"`
+	CreatedAt   time.Time `json:"createdAt" validate:"required,datetime"`
+	UpdatedAt   time.Time `json:"updatedAt" validate:"required,datetime"`
 }
 
 type SubmitResponse struct {
@@ -45,20 +55,23 @@ type SubmitResponse struct {
 	UpdatedAt time.Time `json:"updatedAt" validate:"required,datetime"`
 }
 
-type ResponseJSON struct {
-	ID          string    `json:"id" validate:"required,uuid"`
-	FormID      string    `json:"formId" validate:"required,uuid"`
-	SubmittedBy string    `json:"submittedBy" validate:"required,uuid"`
-	CreatedAt   time.Time `json:"createdAt" validate:"required,datetime"`
-	UpdatedAt   time.Time `json:"updatedAt" validate:"required,datetime"`
+type ListResponse struct {
+	FormID        string         `json:"formId" validate:"required,uuid"`
+	ResponseJSONs []ResponseJSON `json:"responses" validate:"required,dive"`
 }
 
 type GetResponse struct {
-	ID        string           `json:"id" validate:"required,uuid"`
-	FormID    string           `json:"formId" validate:"required,uuid"`
-	Answers   []AnswerResponse `json:"answers" validate:"required,dive"`
-	CreatedAt time.Time        `json:"createdAt" validate:"required,datetime"`
-	UpdatedAt time.Time        `json:"updatedAt" validate:"required,datetime"`
+	ID          string                         `json:"id" validate:"required,uuid"`
+	FormID      string                         `json:"formId" validate:"required,uuid"`
+	SubmittedBy string                         `json:"submittedBy" validate:"required,uuid"`
+	Questions   []QuestionAnswerForGetResponse `json:"questions" validate:"required,dive"`
+	CreatedAt   time.Time                      `json:"createdAt" validate:"required,datetime"` // for sorting
+	UpdatedAt   time.Time                      `json:"updatedAt" validate:"required,datetime"` // for marking if the response is updated
+}
+
+type AnswersForQuestionResponse struct {
+	Question question.Question           `json:"question" validate:"required"`
+	Answers  []AnswerForQuestionResponse `json:"answers" validate:"required,dive"`
 }
 
 type Store interface {
@@ -69,20 +82,26 @@ type Store interface {
 	GetAnswersByQuestionID(ctx context.Context, questionID uuid.UUID, formID uuid.UUID) ([]GetAnswersByQuestionIDRow, error)
 }
 
+type QuestionStore interface {
+	GetByID(ctx context.Context, questionID uuid.UUID) (question.Question, error)
+}
+
 type Handler struct {
 	logger        *zap.Logger
 	validator     *validator.Validate
 	problemWriter *problem.HttpWriter
 	store         Store
+	questionStore QuestionStore
 	tracer        trace.Tracer
 }
 
-func NewHandler(logger *zap.Logger, validator *validator.Validate, problemWriter *problem.HttpWriter, store Store) *Handler {
+func NewHandler(logger *zap.Logger, validator *validator.Validate, problemWriter *problem.HttpWriter, store Store, questionStore QuestionStore) *Handler {
 	return &Handler{
 		logger:        logger,
 		validator:     validator,
 		problemWriter: problemWriter,
 		store:         store,
+		questionStore: questionStore,
 		tracer:        otel.Tracer("response/handler"),
 	}
 }
@@ -156,17 +175,19 @@ func (h *Handler) ListHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	responseJsons := make([]ResponseJSON, len(responses))
+	listResponse := ListResponse{
+		FormID:        formId.String(),
+		ResponseJSONs: make([]ResponseJSON, len(responses)),
+	}
 	for i, currentResponse := range responses {
-		responseJsons[i] = ResponseJSON{
+		listResponse.ResponseJSONs[i] = ResponseJSON{
 			ID:          currentResponse.ID.String(),
-			FormID:      currentResponse.FormID.String(),
 			SubmittedBy: currentResponse.SubmittedBy.String(),
 			CreatedAt:   currentResponse.CreatedAt.Time,
 			UpdatedAt:   currentResponse.UpdatedAt.Time,
 		}
 	}
-	handlerutil.WriteJSONResponse(w, http.StatusOK, responseJsons)
+	handlerutil.WriteJSONResponse(w, http.StatusOK, listResponse)
 }
 
 // GetHandler retrieves a response by id
@@ -195,25 +216,27 @@ func (h *Handler) GetHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	answerResponses := make([]AnswerResponse, len(answers))
+	questionAnswerResponses := make([]QuestionAnswerForGetResponse, len(answers))
 	for i, answer := range answers {
-		answerResponses[i] = AnswerResponse{
-			ID:         answer.ID.String(),
-			ResponseID: answer.ResponseID.String(),
-			QuestionID: answer.QuestionID.String(),
-			Type:       question.QuestionType(answer.Type),
-			Value:      answer.Value,
-			CreatedAt:  answer.CreatedAt.Time,
-			UpdatedAt:  answer.UpdatedAt.Time,
+		question, err := h.questionStore.GetByID(traceCtx, answer.QuestionID)
+		if err != nil {
+			h.problemWriter.WriteError(traceCtx, w, err, logger)
+			return
+		}
+
+		questionAnswerResponses[i] = QuestionAnswerForGetResponse{
+			Question: question,
+			Answer:   answer.Value,
 		}
 	}
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, GetResponse{
-		ID:        currentResponse.ID.String(),
-		FormID:    currentResponse.FormID.String(),
-		CreatedAt: currentResponse.CreatedAt.Time,
-		UpdatedAt: currentResponse.UpdatedAt.Time,
-		Answers:   answerResponses,
+		ID:          currentResponse.ID.String(),
+		FormID:      currentResponse.FormID.String(),
+		SubmittedBy: currentResponse.SubmittedBy.String(),
+		Questions:   questionAnswerResponses,
+		CreatedAt:   currentResponse.CreatedAt.Time,
+		UpdatedAt:   currentResponse.UpdatedAt.Time,
 	})
 }
 
@@ -265,17 +288,27 @@ func (h *Handler) GetAnswersByQuestionIDHandler(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	answerResponses := make([]AnswerResponse, len(answers))
+	question, err := h.questionStore.GetByID(traceCtx, questionId)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, err, logger)
+		return
+	}
+
+	questionAnswerResponses := make([]AnswersForQuestionResponse, len(answers))
 	for i, answer := range answers {
-		answerResponses[i] = AnswerResponse{
-			ID:         answer.ID.String(),
-			ResponseID: answer.ResponseID.String(),
-			QuestionID: answer.QuestionID.String(),
-			Type:       question.QuestionType(answer.Type),
-			Value:      answer.Value,
-			CreatedAt:  answer.CreatedAt.Time,
-			UpdatedAt:  answer.UpdatedAt.Time,
+		questionAnswerResponses[i] = AnswersForQuestionResponse{
+			Question: question,
+			Answers: []AnswerForQuestionResponse{
+				{
+					ID:          answer.ID.String(),
+					ResponseID:  answer.ResponseID.String(),
+					SubmittedBy: answer.SubmittedBy.String(),
+					Value:       answer.Value,
+					CreatedAt:   answer.CreatedAt.Time,
+					UpdatedAt:   answer.UpdatedAt.Time,
+				},
+			},
 		}
 	}
-	handlerutil.WriteJSONResponse(w, http.StatusOK, answerResponses)
+	handlerutil.WriteJSONResponse(w, http.StatusOK, questionAnswerResponses)
 }

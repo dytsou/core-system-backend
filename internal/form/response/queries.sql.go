@@ -288,15 +288,25 @@ func (q *Queries) GetByFormIDAndSubmittedBy(ctx context.Context, arg GetByFormID
 	return i, err
 }
 
-const getQuestionType = `-- name: GetQuestionType :one
-SELECT type FROM questions WHERE id = $1
+const getQuestionByID = `-- name: GetQuestionByID :one
+SELECT id, form_id, required, type, label, description, "order", created_at, updated_at FROM questions WHERE id = $1
 `
 
-func (q *Queries) GetQuestionType(ctx context.Context, id uuid.UUID) (QuestionType, error) {
-	row := q.db.QueryRow(ctx, getQuestionType, id)
-	var type_ QuestionType
-	err := row.Scan(&type_)
-	return type_, err
+func (q *Queries) GetQuestionByID(ctx context.Context, id uuid.UUID) (Question, error) {
+	row := q.db.QueryRow(ctx, getQuestionByID, id)
+	var i Question
+	err := row.Scan(
+		&i.ID,
+		&i.FormID,
+		&i.Required,
+		&i.Type,
+		&i.Label,
+		&i.Description,
+		&i.Order,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const listByFormID = `-- name: ListByFormID :many
