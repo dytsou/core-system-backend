@@ -20,7 +20,7 @@ type Querier interface {
 	GetByFormIDAndSubmittedBy(ctx context.Context, arg GetByFormIDAndSubmittedByParams) (Response, error)
 	Exists(ctx context.Context, arg ExistsParams) (bool, error)
 	ListByFormID(ctx context.Context, formID uuid.UUID) ([]Response, error)
-	Update(ctx context.Context, formID uuid.UUID) error
+	Update(ctx context.Context, id uuid.UUID) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	CreateAnswer(ctx context.Context, arg CreateAnswerParams) (Answer, error)
 	GetAnswersByQuestionID(ctx context.Context, arg GetAnswersByQuestionIDParams) ([]GetAnswersByQuestionIDRow, error)
@@ -197,7 +197,12 @@ func Update(s *Service, ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 		Time:  time.Now(),
 		Valid: true,
 	}
-
+	err = s.queries.Update(traceCtx, response.ID)
+	if err != nil {
+		err = databaseutil.WrapDBErrorWithKeyValue(err, "response", "id", response.ID.String(), logger, "update response")
+		span.RecordError(err)
+		return Response{}, err
+	}
 	return response, nil
 }
 
