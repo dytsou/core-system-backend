@@ -12,6 +12,22 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const answerExists = `-- name: AnswerExists :one
+SELECT EXISTS(SELECT 1 FROM answers WHERE response_id = $1 AND question_id = $2)
+`
+
+type AnswerExistsParams struct {
+	ResponseID uuid.UUID
+	QuestionID uuid.UUID
+}
+
+func (q *Queries) AnswerExists(ctx context.Context, arg AnswerExistsParams) (bool, error) {
+	row := q.db.QueryRow(ctx, answerExists, arg.ResponseID, arg.QuestionID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const checkAnswerContent = `-- name: CheckAnswerContent :one
 SELECT EXISTS(SELECT 1 FROM answers WHERE response_id = $1 AND question_id = $2 AND value = $3)
 `

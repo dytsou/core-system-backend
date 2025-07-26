@@ -27,6 +27,7 @@ type Querier interface {
 	GetAnswersByResponseID(ctx context.Context, responseID uuid.UUID) ([]Answer, error)
 	DeleteAnswersByResponseID(ctx context.Context, responseID uuid.UUID) error
 	UpdateAnswer(ctx context.Context, arg UpdateAnswerParams) (Answer, error)
+	AnswerExists(ctx context.Context, arg AnswerExistsParams) (bool, error)
 	CheckAnswerContent(ctx context.Context, arg CheckAnswerContentParams) (bool, error)
 }
 
@@ -130,6 +131,33 @@ func Update(s *Service, ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 	}
 
 	for _, answer := range answers {
+		// check if answer exists
+		answerExists, err := s.queries.AnswerExists(traceCtx, AnswerExistsParams{
+			ResponseID: response.ID,
+			QuestionID: answer.QuestionID,
+		})
+		if err != nil {
+			err = databaseutil.WrapDBError(err, logger, "check if answer exists")
+			span.RecordError(err)
+			return Response{}, err
+		}
+
+		// if answer does not exist, create it
+		if !answerExists {
+			_, err := s.queries.CreateAnswer(traceCtx, CreateAnswerParams{
+				ResponseID: response.ID,
+				QuestionID: answer.QuestionID,
+				Type:       answer.Type,
+				Value:      answer.Value,
+			})
+			if err != nil {
+				err = databaseutil.WrapDBErrorWithKeyValue(err, "answer", "response_id", response.ID.String(), logger, "create answer")
+				span.RecordError(err)
+				return Response{}, err
+			}
+		}
+
+		// if answer exists, check if it is the same as the new answer
 		sameAnswer, err := s.queries.CheckAnswerContent(traceCtx, CheckAnswerContentParams{
 			ResponseID: response.ID,
 			QuestionID: answer.QuestionID,
@@ -140,6 +168,8 @@ func Update(s *Service, ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 			span.RecordError(err)
 			return Response{}, err
 		}
+
+		// if answer is different, update it
 		if !sameAnswer {
 			_, err := s.queries.UpdateAnswer(traceCtx, UpdateAnswerParams{
 				ID:    answer.ID,
