@@ -288,14 +288,14 @@ func (h *Handler) GetAnswersByQuestionIDHandler(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	question, err := h.questionStore.GetByID(traceCtx, questionId)
+	currentQuestion, err := h.questionStore.GetByID(traceCtx, questionId)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
 
 	questionAnswerResponse := AnswersForQuestionResponse{
-		Question: question,
+		Question: currentQuestion,
 		Answers:  make([]AnswerForQuestionResponse, len(answers)),
 	}
 	for i, answer := range answers {
