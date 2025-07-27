@@ -143,7 +143,7 @@ func Update(s *Service, ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 
 		// if answer does not exist, create it
 		if !answerExists {
-			question, err := s.queries.GetQuestionByID(traceCtx, answer.QuestionID)
+			currentQuestion, err := s.queries.GetQuestionByID(traceCtx, answer.QuestionID)
 			if err != nil {
 				err = databaseutil.WrapDBError(err, logger, "get question type")
 				span.RecordError(err)
@@ -152,7 +152,7 @@ func Update(s *Service, ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 			_, err = s.queries.CreateAnswer(traceCtx, CreateAnswerParams{
 				ResponseID: currentResponse.ID,
 				QuestionID: answer.QuestionID,
-				Type:       question.Type,
+				Type:       currentQuestion.Type,
 				Value:      answer.Value,
 			})
 			if err != nil {
