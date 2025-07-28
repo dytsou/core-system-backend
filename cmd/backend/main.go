@@ -121,7 +121,7 @@ func main() {
 	jwtService := jwt.NewService(logger, dbPool, cfg.Secret, cfg.AccessTokenExpiration, cfg.RefreshTokenExpiration)
 
 	// Handler
-	authHandler := auth.NewHandler(logger, validator, problemWriter, userService, jwtService, jwtService, cfg.BaseURL, cfg.AccessTokenExpiration, cfg.RefreshTokenExpiration, cfg.GoogleOauth)
+	authHandler := auth.NewHandler(logger, validator, problemWriter, userService, jwtService, jwtService, cfg.OauthProxyBaseURL, cfg.AccessTokenExpiration, cfg.RefreshTokenExpiration, cfg.GoogleOauth)
 	userHandler := user.NewHandler(logger, validator, problemWriter, userService)
 
 	// Middleware
