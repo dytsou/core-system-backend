@@ -1,12 +1,9 @@
-CREATE TYPE unit_type AS ENUM ('unit', 'organization');
-
 CREATE TABLE organizations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     owner_id UUID NOT NULL REFERENCES users(id),
     name VARCHAR(255),
     description VARCHAR(255),
     metadata JSONB,
-    type unit_type NOT NULL DEFAULT 'organization',
     slug VARCHAR(255) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -19,7 +16,6 @@ CREATE TABLE units (
     name VARCHAR(255),
     description VARCHAR(255),
     metadata JSONB,
-    type unit_type NOT NULL DEFAULT 'unit',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

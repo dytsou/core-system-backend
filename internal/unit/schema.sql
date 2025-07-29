@@ -1,5 +1,4 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
-CREATE TYPE unit_type AS ENUM ('unit', 'organization');
 
 CREATE TABLE IF NOT EXISTS units (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -7,7 +6,6 @@ CREATE TABLE IF NOT EXISTS units (
     name VARCHAR(255),
     description VARCHAR(255),
     metadata JSONB,
-    type unit_type NOT NULL DEFAULT 'unit',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -18,7 +16,6 @@ CREATE TABLE IF NOT EXISTS organizations (
     name VARCHAR(255),
     description VARCHAR(255),
     metadata JSONB,
-    type unit_type NOT NULL DEFAULT 'organization',
     slug VARCHAR(255) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),

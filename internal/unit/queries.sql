@@ -1,11 +1,11 @@
 -- name: CreateUnit :one
-INSERT INTO units (name, org_id, description, metadata, type)
-VALUES ($1, $2, $3, $4, 'unit')
+INSERT INTO units (name, org_id, description, metadata)
+VALUES ($1, $2, $3, $4)
 RETURNING *;
 
 -- name: CreateOrg :one
-INSERT INTO organizations (name, owner_id, description, metadata, type, slug)
-VALUES ($1, $2, $3, $4, 'organization', $5)
+INSERT INTO organizations (name, owner_id, description, metadata, slug)
+VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
 -- name: GetUnitByID :one
