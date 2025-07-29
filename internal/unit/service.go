@@ -17,7 +17,6 @@ import (
 type GenericUnit interface {
 	GetBase() Base
 	SetBase(Base)
-	GetType() UnitType
 }
 
 type Wrapper struct {
@@ -30,7 +29,6 @@ func (u Wrapper) GetBase() Base {
 		Name:        u.Unit.Name.String,
 		Description: u.Unit.Description.String,
 		Metadata:    u.Unit.Metadata,
-		Type:        u.Unit.Type,
 	}
 }
 func (u Wrapper) SetBase(base Base) {
@@ -38,10 +36,6 @@ func (u Wrapper) SetBase(base Base) {
 	u.Unit.Name = pgtype.Text{String: base.Name, Valid: base.Name != ""}
 	u.Unit.Description = pgtype.Text{String: base.Description, Valid: base.Description != ""}
 	u.Unit.Metadata = base.Metadata
-	u.Unit.Type = base.Type
-}
-func (u Wrapper) GetType() UnitType {
-	return u.Unit.Type
 }
 
 type OrgWrapper struct {
@@ -54,7 +48,6 @@ func (o OrgWrapper) GetBase() Base {
 		Name:        o.Organization.Name.String,
 		Description: o.Organization.Description.String,
 		Metadata:    o.Organization.Metadata,
-		Type:        o.Organization.Type,
 	}
 }
 
@@ -62,10 +55,6 @@ func (o OrgWrapper) SetBase(base Base) {
 	o.Organization.Name = pgtype.Text{String: base.Name, Valid: base.Name != ""}
 	o.Organization.Description = pgtype.Text{String: base.Description, Valid: base.Description != ""}
 	o.Organization.Metadata = base.Metadata
-}
-
-func (o OrgWrapper) GetType() UnitType {
-	return o.Organization.Type
 }
 
 type Querier interface {
@@ -99,7 +88,6 @@ type Base struct {
 	Name        string
 	Description string
 	Metadata    []byte
-	Type        UnitType
 }
 
 func NewService(logger *zap.Logger, db DBTX) *Service {
