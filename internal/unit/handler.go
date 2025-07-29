@@ -376,8 +376,8 @@ func (h *Handler) RemoveParentChild(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	h.logger = logutil.WithContext(traceCtx, h.logger)
 
-	pIDStr := r.PathValue("p_id")
-	cIDStr := r.PathValue("c_id")
+	pIDStr := r.PathValue("parent_id")
+	cIDStr := r.PathValue("child_id")
 
 	if pIDStr == "" || cIDStr == "" {
 		http.Error(w, "parent or child ID not provided", http.StatusBadRequest)
