@@ -154,6 +154,7 @@ type Form struct {
 	ID          uuid.UUID
 	Title       string
 	Description pgtype.Text
+	UnitID      pgtype.UUID
 	LastEditor  uuid.UUID
 	CreatedAt   pgtype.Timestamptz
 	UpdatedAt   pgtype.Timestamptz
@@ -186,7 +187,7 @@ type Question struct {
 	FormID      uuid.UUID
 	Required    bool
 	Type        QuestionType
-	Label       pgtype.Text
+	Title       pgtype.Text
 	Description pgtype.Text
 	Order       int32
 	CreatedAt   pgtype.Timestamptz

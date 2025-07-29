@@ -27,17 +27,18 @@ type QuestionRequest struct {
 	FormID      uuid.UUID
 	Required    bool   `json:"required" validate:"required"`
 	Type        string `json:"type" validate:"required,oneof=short_text long_text single_choice multiple_choice date"`
-	Label       string `json:"label" validate:"required"`
+	Title       string `json:"title" validate:"required"`
 	Description string `json:"description"`
 	Order       int32  `json:"order" validate:"required"`
 }
 
 type Store interface {
-	Create(ctx context.Context, request Request, userid uuid.UUID) (Form, error)
-	Update(ctx context.Context, id uuid.UUID, request Request, userid uuid.UUID) (Form, error)
+	Create(ctx context.Context, request Request, unitID uuid.UUID, userID uuid.UUID) (Form, error)
+	Update(ctx context.Context, id uuid.UUID, request Request, userID uuid.UUID) (Form, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 	GetByID(ctx context.Context, id uuid.UUID) (Form, error)
 	List(ctx context.Context) ([]Form, error)
+	ListByUnit(ctx context.Context, unitID uuid.UUID) ([]Form, error)
 }
 
 type QuestionStore interface {
@@ -75,38 +76,11 @@ func NewHandler(
 	}
 }
 
-func (h *Handler) CreateFormHandler(w http.ResponseWriter, r *http.Request) {
-	traceCtx, span := h.tracer.Start(r.Context(), "CreateFormHandler")
-	defer span.End()
-	logger := logutil.WithContext(traceCtx, h.logger)
-
-	var req Request
-	if err := handlerutil.ParseAndValidateRequestBody(traceCtx, h.validator, r, &req); err != nil {
-		h.problemWriter.WriteError(traceCtx, w, err, logger)
-		return
-	}
-
-	currentUser, ok := user.GetFromContext(traceCtx)
-	if !ok {
-		h.problemWriter.WriteError(traceCtx, w, internal.ErrNoUserInContext, logger)
-		return
-	}
-
-	newForm, err := h.store.Create(traceCtx, req, currentUser.ID)
-	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, err, logger)
-		return
-	}
-
-	handlerutil.WriteJSONResponse(w, http.StatusCreated, newForm)
-}
-
 func (h *Handler) UpdateFormHandler(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "UpdateFormHandler")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
-	//get form id
 	formIDStr := r.PathValue("id")
 	formID, err := handlerutil.ParseUUID(formIDStr)
 	if err != nil {
@@ -120,7 +94,6 @@ func (h *Handler) UpdateFormHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//get user
 	currentUser, ok := user.GetFromContext(traceCtx)
 	if !ok {
 		h.problemWriter.WriteError(traceCtx, w, internal.ErrNoUserInContext, logger)
@@ -153,6 +126,7 @@ func (h *Handler) DeleteFormHandler(w http.ResponseWriter, r *http.Request) {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
+
 	handlerutil.WriteJSONResponse(w, http.StatusNoContent, nil)
 }
 
@@ -173,6 +147,7 @@ func (h *Handler) GetFormHandler(w http.ResponseWriter, r *http.Request) {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
+
 	handlerutil.WriteJSONResponse(w, http.StatusOK, currentForm)
 }
 
@@ -186,6 +161,7 @@ func (h *Handler) ListFormsHandler(w http.ResponseWriter, r *http.Request) {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
+
 	handlerutil.WriteJSONResponse(w, http.StatusOK, forms)
 }
 
@@ -211,7 +187,7 @@ func (h *Handler) AddQuestionHandler(w http.ResponseWriter, r *http.Request) {
 		FormID:      formID,
 		Required:    req.Required,
 		Type:        question.QuestionType(req.Type),
-		Label:       pgtype.Text{String: req.Label, Valid: true},
+		Title:       pgtype.Text{String: req.Title, Valid: true},
 		Description: pgtype.Text{String: req.Description, Valid: true},
 		Order:       req.Order,
 	}
@@ -255,7 +231,7 @@ func (h *Handler) UpdateQuestionHandler(w http.ResponseWriter, r *http.Request) 
 		FormID:      formID,
 		Required:    req.Required,
 		Type:        question.QuestionType(req.Type),
-		Label:       pgtype.Text{String: req.Label, Valid: true},
+		Title:       pgtype.Text{String: req.Title, Valid: true},
 		Description: pgtype.Text{String: req.Description, Valid: true},
 		Order:       req.Order,
 	}
@@ -294,6 +270,7 @@ func (h *Handler) DeleteQuestionHandler(w http.ResponseWriter, r *http.Request) 
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
+
 	handlerutil.WriteJSONResponse(w, http.StatusNoContent, nil)
 }
 
@@ -314,5 +291,6 @@ func (h *Handler) ListQuestionsHandler(w http.ResponseWriter, r *http.Request) {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
+	
 	handlerutil.WriteJSONResponse(w, http.StatusOK, questions)
 }
