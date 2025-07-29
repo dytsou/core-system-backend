@@ -63,7 +63,6 @@ type callBackInfo struct {
 }
 
 type Handler struct {
-	config config.Config
 	logger *zap.Logger
 	tracer trace.Tracer
 
