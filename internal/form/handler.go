@@ -33,11 +33,12 @@ type QuestionRequest struct {
 }
 
 type Store interface {
-	Create(ctx context.Context, request Request, userid uuid.UUID) (Form, error)
-	Update(ctx context.Context, id uuid.UUID, request Request, userid uuid.UUID) (Form, error)
+	Create(ctx context.Context, request Request, unitID uuid.UUID, userID uuid.UUID) (Form, error)
+	Update(ctx context.Context, id uuid.UUID, request Request, userID uuid.UUID) (Form, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 	GetByID(ctx context.Context, id uuid.UUID) (Form, error)
 	List(ctx context.Context) ([]Form, error)
+	ListByUnit(ctx context.Context, unitID uuid.UUID) ([]Form, error)
 }
 
 type QuestionStore interface {
@@ -75,38 +76,44 @@ func NewHandler(
 	}
 }
 
-func (h *Handler) CreateFormHandler(w http.ResponseWriter, r *http.Request) {
-	traceCtx, span := h.tracer.Start(r.Context(), "CreateFormHandler")
-	defer span.End()
-	logger := logutil.WithContext(traceCtx, h.logger)
-
-	var req Request
-	if err := handlerutil.ParseAndValidateRequestBody(traceCtx, h.validator, r, &req); err != nil {
-		h.problemWriter.WriteError(traceCtx, w, err, logger)
-		return
-	}
-
-	currentUser, ok := user.GetFromContext(traceCtx)
-	if !ok {
-		h.problemWriter.WriteError(traceCtx, w, internal.ErrNoUserInContext, logger)
-		return
-	}
-
-	newForm, err := h.store.Create(traceCtx, req, currentUser.ID)
-	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, err, logger)
-		return
-	}
-
-	handlerutil.WriteJSONResponse(w, http.StatusCreated, newForm)
-}
+//func (h *Handler) CreateFormHandler(w http.ResponseWriter, r *http.Request) {
+//	traceCtx, span := h.tracer.Start(r.Context(), "CreateFormHandler")
+//	defer span.End()
+//	logger := logutil.WithContext(traceCtx, h.logger)
+//
+//	var req Request
+//	if err := handlerutil.ParseAndValidateRequestBody(traceCtx, h.validator, r, &req); err != nil {
+//		h.problemWriter.WriteError(traceCtx, w, err, logger)
+//		return
+//	}
+//
+//	unitIDStr := r.PathValue("unitId")
+//	currentUnitID, err := handlerutil.ParseUUID(unitIDStr)
+//	if err != nil {
+//		h.problemWriter.WriteError(traceCtx, w, err, logger)
+//		return
+//	}
+//
+//	currentUser, ok := user.GetFromContext(traceCtx)
+//	if !ok {
+//		h.problemWriter.WriteError(traceCtx, w, internal.ErrNoUserInContext, logger)
+//		return
+//	}
+//
+//	newForm, err := h.store.Create(traceCtx, req, currentUnitID, currentUser.ID)
+//	if err != nil {
+//		h.problemWriter.WriteError(traceCtx, w, err, logger)
+//		return
+//	}
+//
+//	handlerutil.WriteJSONResponse(w, http.StatusCreated, newForm)
+//}
 
 func (h *Handler) UpdateFormHandler(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "UpdateFormHandler")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
-	//get form id
 	formIDStr := r.PathValue("id")
 	formID, err := handlerutil.ParseUUID(formIDStr)
 	if err != nil {
@@ -120,7 +127,6 @@ func (h *Handler) UpdateFormHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//get user
 	currentUser, ok := user.GetFromContext(traceCtx)
 	if !ok {
 		h.problemWriter.WriteError(traceCtx, w, internal.ErrNoUserInContext, logger)
@@ -188,6 +194,26 @@ func (h *Handler) ListFormsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	handlerutil.WriteJSONResponse(w, http.StatusOK, forms)
 }
+
+//func (h *Handler) ListFormsByUnitHandler(w http.ResponseWriter, r *http.Request) {
+//	traceCtx, span := h.tracer.Start(r.Context(), "ListFormsByUnitHandler")
+//	defer span.End()
+//	logger := logutil.WithContext(traceCtx, h.logger)
+//
+//	unitIDStr := r.PathValue("unitId")
+//	unitID, err := handlerutil.ParseUUID(unitIDStr)
+//	if err != nil {
+//		h.problemWriter.WriteError(traceCtx, w, err, logger)
+//		return
+//	}
+//
+//	forms, err := h.store.ListByUnit(traceCtx, unitID)
+//	if err != nil {
+//		h.problemWriter.WriteError(traceCtx, w, err, logger)
+//		return
+//	}
+//	handlerutil.WriteJSONResponse(w, http.StatusOK, forms)
+//}
 
 func (h *Handler) AddQuestionHandler(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "AddQuestionHandler")

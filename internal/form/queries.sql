@@ -1,6 +1,6 @@
 -- name: Create :one
-INSERT INTO forms (title, description, last_editor)
-VALUES ($1, $2, $3) 
+INSERT INTO forms (title, description, unit_id, last_editor)
+VALUES ($1, $2, $3, $4)
 RETURNING *;
 
 -- name: Update :one
@@ -17,3 +17,8 @@ SELECT * FROM forms WHERE id = $1;
 
 -- name: List :many
 SELECT * FROM forms ORDER BY updated_at DESC;
+
+-- name: ListByUnit :many
+SELECT * FROM forms
+WHERE unit_id = $1
+ORDER BY updated_at DESC;

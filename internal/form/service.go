@@ -18,6 +18,7 @@ type Querier interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 	GetByID(ctx context.Context, id uuid.UUID) (Form, error)
 	List(ctx context.Context) ([]Form, error)
+	ListByUnit(ctx context.Context, unitID pgtype.UUID) ([]Form, error)
 }
 
 type Service struct {
@@ -34,7 +35,7 @@ func NewService(logger *zap.Logger, db DBTX) *Service {
 	}
 }
 
-func (s *Service) Create(ctx context.Context, req Request, userID uuid.UUID) (Form, error) {
+func (s *Service) Create(ctx context.Context, req Request, unitID uuid.UUID, userID uuid.UUID) (Form, error) {
 	ctx, span := s.tracer.Start(ctx, "Create")
 	defer span.End()
 	logger := logutil.WithContext(ctx, s.logger)
@@ -42,6 +43,7 @@ func (s *Service) Create(ctx context.Context, req Request, userID uuid.UUID) (Fo
 	form, err := s.queries.Create(ctx, CreateParams{
 		Title:       req.Title,
 		Description: pgtype.Text{String: req.Description, Valid: true},
+		UnitID:      pgtype.UUID{Bytes: unitID, Valid: true},
 		LastEditor:  userID,
 	})
 	if err != nil {
@@ -106,6 +108,20 @@ func (s *Service) List(ctx context.Context) ([]Form, error) {
 	forms, err := s.queries.List(ctx)
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "list forms")
+		span.RecordError(err)
+		return nil, err
+	}
+	return forms, nil
+}
+
+func (s *Service) ListByUnit(ctx context.Context, unitID uuid.UUID) ([]Form, error) {
+	ctx, span := s.tracer.Start(ctx, "ListByUnit")
+	defer span.End()
+	logger := logutil.WithContext(ctx, s.logger)
+
+	forms, err := s.queries.ListByUnit(ctx, pgtype.UUID{Bytes: unitID, Valid: true})
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "list forms by unit")
 		span.RecordError(err)
 		return nil, err
 	}

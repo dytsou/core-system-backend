@@ -154,6 +154,7 @@ type Form struct {
 	ID          uuid.UUID
 	Title       string
 	Description pgtype.Text
+	UnitID      pgtype.UUID
 	LastEditor  uuid.UUID
 	CreatedAt   pgtype.Timestamptz
 	UpdatedAt   pgtype.Timestamptz
