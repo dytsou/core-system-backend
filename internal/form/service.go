@@ -51,6 +51,7 @@ func (s *Service) Create(ctx context.Context, req Request, unitID uuid.UUID, use
 		span.RecordError(err)
 		return Form{}, err
 	}
+	
 	return form, nil
 }
 
@@ -70,6 +71,7 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, request Request, use
 		span.RecordError(err)
 		return Form{}, err
 	}
+
 	return form, nil
 }
 
@@ -83,6 +85,7 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
 		err = databaseutil.WrapDBError(err, logger, "delete form")
 		span.RecordError(err)
 	}
+
 	return err
 }
 
@@ -97,6 +100,7 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (Form, error) {
 		span.RecordError(err)
 		return Form{}, err
 	}
+
 	return form, nil
 }
 
@@ -111,6 +115,7 @@ func (s *Service) List(ctx context.Context) ([]Form, error) {
 		span.RecordError(err)
 		return nil, err
 	}
+
 	return forms, nil
 }
 
@@ -125,5 +130,6 @@ func (s *Service) ListByUnit(ctx context.Context, unitID uuid.UUID) ([]Form, err
 		span.RecordError(err)
 		return nil, err
 	}
+
 	return forms, nil
 }

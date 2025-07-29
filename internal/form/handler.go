@@ -76,39 +76,6 @@ func NewHandler(
 	}
 }
 
-//func (h *Handler) CreateFormHandler(w http.ResponseWriter, r *http.Request) {
-//	traceCtx, span := h.tracer.Start(r.Context(), "CreateFormHandler")
-//	defer span.End()
-//	logger := logutil.WithContext(traceCtx, h.logger)
-//
-//	var req Request
-//	if err := handlerutil.ParseAndValidateRequestBody(traceCtx, h.validator, r, &req); err != nil {
-//		h.problemWriter.WriteError(traceCtx, w, err, logger)
-//		return
-//	}
-//
-//	unitIDStr := r.PathValue("unitId")
-//	currentUnitID, err := handlerutil.ParseUUID(unitIDStr)
-//	if err != nil {
-//		h.problemWriter.WriteError(traceCtx, w, err, logger)
-//		return
-//	}
-//
-//	currentUser, ok := user.GetFromContext(traceCtx)
-//	if !ok {
-//		h.problemWriter.WriteError(traceCtx, w, internal.ErrNoUserInContext, logger)
-//		return
-//	}
-//
-//	newForm, err := h.store.Create(traceCtx, req, currentUnitID, currentUser.ID)
-//	if err != nil {
-//		h.problemWriter.WriteError(traceCtx, w, err, logger)
-//		return
-//	}
-//
-//	handlerutil.WriteJSONResponse(w, http.StatusCreated, newForm)
-//}
-
 func (h *Handler) UpdateFormHandler(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "UpdateFormHandler")
 	defer span.End()
@@ -159,6 +126,7 @@ func (h *Handler) DeleteFormHandler(w http.ResponseWriter, r *http.Request) {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
+
 	handlerutil.WriteJSONResponse(w, http.StatusNoContent, nil)
 }
 
@@ -179,6 +147,7 @@ func (h *Handler) GetFormHandler(w http.ResponseWriter, r *http.Request) {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
+
 	handlerutil.WriteJSONResponse(w, http.StatusOK, currentForm)
 }
 
@@ -192,28 +161,9 @@ func (h *Handler) ListFormsHandler(w http.ResponseWriter, r *http.Request) {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
+
 	handlerutil.WriteJSONResponse(w, http.StatusOK, forms)
 }
-
-//func (h *Handler) ListFormsByUnitHandler(w http.ResponseWriter, r *http.Request) {
-//	traceCtx, span := h.tracer.Start(r.Context(), "ListFormsByUnitHandler")
-//	defer span.End()
-//	logger := logutil.WithContext(traceCtx, h.logger)
-//
-//	unitIDStr := r.PathValue("unitId")
-//	unitID, err := handlerutil.ParseUUID(unitIDStr)
-//	if err != nil {
-//		h.problemWriter.WriteError(traceCtx, w, err, logger)
-//		return
-//	}
-//
-//	forms, err := h.store.ListByUnit(traceCtx, unitID)
-//	if err != nil {
-//		h.problemWriter.WriteError(traceCtx, w, err, logger)
-//		return
-//	}
-//	handlerutil.WriteJSONResponse(w, http.StatusOK, forms)
-//}
 
 func (h *Handler) AddQuestionHandler(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "AddQuestionHandler")
@@ -320,6 +270,7 @@ func (h *Handler) DeleteQuestionHandler(w http.ResponseWriter, r *http.Request) 
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
+
 	handlerutil.WriteJSONResponse(w, http.StatusNoContent, nil)
 }
 
@@ -340,5 +291,6 @@ func (h *Handler) ListQuestionsHandler(w http.ResponseWriter, r *http.Request) {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
+	
 	handlerutil.WriteJSONResponse(w, http.StatusOK, questions)
 }

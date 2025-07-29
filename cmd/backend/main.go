@@ -198,7 +198,6 @@ func main() {
 	mux.Handle("DELETE /api/orgs/relations/parent_id/{p_id}/child_id/{c_id}", tenantMiddleware.Middleware(unitHandler.RemoveParentChild))
 
 	// Form routes
-	//mux.HandleFunc("POST /api/forms", jwtMiddleware.AuthenticateMiddleware(formHandler.CreateFormHandler))
 	mux.HandleFunc("GET /api/forms", jwtMiddleware.AuthenticateMiddleware(formHandler.ListFormsHandler))
 	mux.HandleFunc("POST /api/forms/{formId}/questions", jwtMiddleware.AuthenticateMiddleware(formHandler.AddQuestionHandler))
 	mux.HandleFunc("PUT /api/forms/{id}", jwtMiddleware.AuthenticateMiddleware(formHandler.UpdateFormHandler))
