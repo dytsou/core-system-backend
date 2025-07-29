@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS questions(
     form_id UUID NOT NULL REFERENCES forms(id) ON DELETE CASCADE,
     required BOOLEAN NOT NULL,
     type question_type NOT NULL,
-    label TEXT,
+    title TEXT,
     description TEXT,
     "order" INTEGER NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),

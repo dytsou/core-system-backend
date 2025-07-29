@@ -27,7 +27,7 @@ type QuestionRequest struct {
 	FormID      uuid.UUID
 	Required    bool   `json:"required" validate:"required"`
 	Type        string `json:"type" validate:"required,oneof=short_text long_text single_choice multiple_choice date"`
-	Label       string `json:"label" validate:"required"`
+	Title       string `json:"title" validate:"required"`
 	Description string `json:"description"`
 	Order       int32  `json:"order" validate:"required"`
 }
@@ -237,7 +237,7 @@ func (h *Handler) AddQuestionHandler(w http.ResponseWriter, r *http.Request) {
 		FormID:      formID,
 		Required:    req.Required,
 		Type:        question.QuestionType(req.Type),
-		Label:       pgtype.Text{String: req.Label, Valid: true},
+		Title:       pgtype.Text{String: req.Title, Valid: true},
 		Description: pgtype.Text{String: req.Description, Valid: true},
 		Order:       req.Order,
 	}
@@ -281,7 +281,7 @@ func (h *Handler) UpdateQuestionHandler(w http.ResponseWriter, r *http.Request) 
 		FormID:      formID,
 		Required:    req.Required,
 		Type:        question.QuestionType(req.Type),
-		Label:       pgtype.Text{String: req.Label, Valid: true},
+		Title:       pgtype.Text{String: req.Title, Valid: true},
 		Description: pgtype.Text{String: req.Description, Valid: true},
 		Order:       req.Order,
 	}

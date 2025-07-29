@@ -187,7 +187,7 @@ type Question struct {
 	FormID      uuid.UUID
 	Required    bool
 	Type        QuestionType
-	Label       pgtype.Text
+	Title       pgtype.Text
 	Description pgtype.Text
 	Order       int32
 	CreatedAt   pgtype.Timestamptz
