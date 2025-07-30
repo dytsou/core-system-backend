@@ -25,7 +25,7 @@ type AnswerRequest struct {
 }
 
 type QuestionAnswerForGetResponse struct {
-	Question question.Question `json:"question" validate:"required"`
+	QuestionID string `json:"questionId" validate:"required,uuid"`
 	Answer   string            `json:"answer" validate:"required"`
 }
 
@@ -64,7 +64,7 @@ type GetResponse struct {
 	ID          string                         `json:"id" validate:"required,uuid"`
 	FormID      string                         `json:"formId" validate:"required,uuid"`
 	SubmittedBy string                         `json:"submittedBy" validate:"required,uuid"`
-	Questions   []QuestionAnswerForGetResponse `json:"questions" validate:"required,dive"`
+	QuestionsAnswerPairs []QuestionAnswerForGetResponse `json:"questionsAnswerPairs" validate:"required,dive"`
 	CreatedAt   time.Time                      `json:"createdAt" validate:"required,datetime"` // for sorting
 	UpdatedAt   time.Time                      `json:"updatedAt" validate:"required,datetime"` // for marking if the response is updated
 }
@@ -225,7 +225,7 @@ func (h *Handler) GetHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		questionAnswerResponses[i] = QuestionAnswerForGetResponse{
-			Question: question,
+			QuestionID: question.ID.String(),
 			Answer:   answer.Value,
 		}
 	}
@@ -234,7 +234,7 @@ func (h *Handler) GetHandler(w http.ResponseWriter, r *http.Request) {
 		ID:          currentResponse.ID.String(),
 		FormID:      currentResponse.FormID.String(),
 		SubmittedBy: currentResponse.SubmittedBy.String(),
-		Questions:   questionAnswerResponses,
+		QuestionsAnswerPairs:   questionAnswerResponses,
 		CreatedAt:   currentResponse.CreatedAt.Time,
 		UpdatedAt:   currentResponse.UpdatedAt.Time,
 	})
