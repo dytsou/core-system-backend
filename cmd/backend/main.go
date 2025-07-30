@@ -129,14 +129,15 @@ func main() {
 	unitService := unit.NewService(logger, dbPool)
 	formService := form.NewService(logger, dbPool)
 	questionService := question.NewService(logger, dbPool)
-	responseService := response.NewService(logger, dbPool, questionService)
+	responseService := response.NewService(logger, dbPool)
 
 	// Handler
 	authHandler := auth.NewHandler(logger, validator, problemWriter, userService, jwtService, jwtService, cfg.BaseURL, cfg.AccessTokenExpiration, cfg.RefreshTokenExpiration, cfg.GoogleOauth)
 	userHandler := user.NewHandler(logger, validator, problemWriter, userService)
-	formHandler := form.NewHandler(logger, validator, problemWriter, formService, questionService)
-  unitHandler := unit.NewHandler(logger, validator, problemWriter, unitService, formService)
-	responseHandler := response.NewHandler(logger, validator, problemWriter, responseService, questionService)
+	formHandler := form.NewHandler(logger, validator, problemWriter, formService)
+	questionHandler := question.NewHandler(logger, validator, problemWriter, questionService)
+	unitHandler := unit.NewHandler(logger, validator, problemWriter, unitService, formService)
+	responseHandler := response.NewHandler(logger, validator, problemWriter)
 
 	// Middleware
 	traceMiddleware := trace.NewMiddleware(logger, cfg.Debug)
@@ -203,13 +204,15 @@ func main() {
 
 	// Form routes
 	mux.HandleFunc("GET /api/forms", authMiddleware.HandlerFunc(formHandler.ListFormsHandler))
-	mux.HandleFunc("POST /api/forms/{formId}/questions", authMiddleware.HandlerFunc(formHandler.AddQuestionHandler))
-	mux.HandleFunc("GET /api/forms/{formId}/questions", authMiddleware.HandlerFunc(formHandler.ListQuestionsHandler))
-	mux.HandleFunc("PUT /api/forms/{formId}/questions/{questionId}", authMiddleware.HandlerFunc(formHandler.UpdateQuestionHandler))
-	mux.HandleFunc("DELETE /api/forms/{formId}/questions/{questionId}", authMiddleware.HandlerFunc(formHandler.DeleteQuestionHandler))
+	mux.HandleFunc("GET /api/forms/{id}", authMiddleware.HandlerFunc(formHandler.GetFormHandler))
 	mux.HandleFunc("PUT /api/forms/{id}", authMiddleware.HandlerFunc(formHandler.UpdateFormHandler))
 	mux.HandleFunc("DELETE /api/forms/{id}", authMiddleware.HandlerFunc(formHandler.DeleteFormHandler))
-	mux.HandleFunc("GET /api/forms/{id}", authMiddleware.HandlerFunc(formHandler.GetFormHandler))
+
+	// Question routes
+	mux.HandleFunc("GET /api/forms/{formId}/questions", authMiddleware.HandlerFunc(questionHandler.ListQuestionsHandler))
+	mux.HandleFunc("POST /api/forms/{formId}/questions", authMiddleware.HandlerFunc(questionHandler.AddQuestionHandler))
+	mux.HandleFunc("PUT /api/forms/{formId}/questions/{questionId}", authMiddleware.HandlerFunc(questionHandler.UpdateQuestionHandler))
+	mux.HandleFunc("DELETE /api/forms/{formId}/questions/{questionId}", authMiddleware.HandlerFunc(questionHandler.DeleteQuestionHandler))
 
 	// Response routes
 	mux.Handle("GET /api/forms/{formId}/responses", authMiddleware.HandlerFunc(responseHandler.ListHandler))
