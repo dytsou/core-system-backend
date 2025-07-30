@@ -131,6 +131,7 @@ func main() {
 	formService := form.NewService(logger, dbPool)
 	questionService := question.NewService(logger, dbPool)
 	responseService := response.NewService(logger, dbPool)
+	submitService := submit.NewService(logger, questionService, responseService)
 
 	// Handler
 	authHandler := auth.NewHandler(logger, validator, problemWriter, userService, jwtService, jwtService, cfg.BaseURL, cfg.AccessTokenExpiration, cfg.RefreshTokenExpiration, cfg.GoogleOauth)
@@ -139,7 +140,7 @@ func main() {
 	questionHandler := question.NewHandler(logger, validator, problemWriter, questionService)
 	unitHandler := unit.NewHandler(logger, validator, problemWriter, unitService, formService)
 	responseHandler := response.NewHandler(logger, validator, problemWriter, responseService, questionService)
-	submitHandler := submit.NewHandler(logger, validator, problemWriter, questionService)
+	submitHandler := submit.NewHandler(logger, validator, problemWriter, submitService, questionService)
 
 	// Middleware
 	traceMiddleware := trace.NewMiddleware(logger, cfg.Debug)
