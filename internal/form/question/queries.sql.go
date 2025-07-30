@@ -66,7 +66,7 @@ func (q *Queries) Delete(ctx context.Context, arg DeleteParams) error {
 }
 
 const getByID = `-- name: GetByID :one
-SELECT id, form_id, required, type, label, description, "order", created_at, updated_at FROM questions WHERE id = $1
+SELECT id, form_id, required, type, title, description, "order", created_at, updated_at FROM questions WHERE id = $1
 `
 
 func (q *Queries) GetByID(ctx context.Context, id uuid.UUID) (Question, error) {
@@ -77,7 +77,7 @@ func (q *Queries) GetByID(ctx context.Context, id uuid.UUID) (Question, error) {
 		&i.FormID,
 		&i.Required,
 		&i.Type,
-		&i.Label,
+		&i.Title,
 		&i.Description,
 		&i.Order,
 		&i.CreatedAt,
