@@ -3,6 +3,8 @@ package response
 import (
 	"context"
 
+	"NYCU-SDC/core-system-backend/internal"
+
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/google/uuid"
@@ -30,22 +32,22 @@ type Querier interface {
 }
 
 type Service struct {
-	logger  *zap.Logger
-	queries Querier
+	logger        *zap.Logger
+	queries       Querier
 	questionStore QuestionStore
-	tracer  trace.Tracer
+	tracer        trace.Tracer
 }
 
 func NewService(logger *zap.Logger, db DBTX, questionStore QuestionStore) *Service {
 	return &Service{
-		logger:  logger,
-		queries: New(db),
+		logger:        logger,
+		queries:       New(db),
 		questionStore: questionStore,
-		tracer:  otel.Tracer("response/service"),
+		tracer:        otel.Tracer("response/service"),
 	}
 }
 
-func (s *Service) Submit(ctx context.Context, formID uuid.UUID, userID uuid.UUID, answers []Answer) (Response, error) {
+func (s *Service) Submit(ctx context.Context, formID uuid.UUID, userID uuid.UUID, answers []AnswerRequest) (Response, error) {
 	traceCtx, span := s.tracer.Start(ctx, "Submit")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
@@ -80,7 +82,7 @@ func (s *Service) Submit(ctx context.Context, formID uuid.UUID, userID uuid.UUID
 }
 
 // Create creates a new response and answers for a given form and user
-func Create(s *Service, ctx context.Context, formID uuid.UUID, userID uuid.UUID, answers []Answer) (Response, error) {
+func Create(s *Service, ctx context.Context, formID uuid.UUID, userID uuid.UUID, answers []AnswerRequest) (Response, error) {
 	traceCtx, span := s.tracer.Start(ctx, "Create")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
@@ -96,7 +98,13 @@ func Create(s *Service, ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 	}
 
 	for _, answer := range answers {
-		question, err := s.questionStore.GetByID(traceCtx, answer.QuestionID)
+		questionID, err := internal.ParseUUID(answer.QuestionID)
+		if err != nil {
+			err = databaseutil.WrapDBError(err, logger, "parse question id")
+			span.RecordError(err)
+			return Response{}, err
+		}
+		question, err := s.questionStore.GetByID(traceCtx, questionID)
 		if err != nil {
 			err = databaseutil.WrapDBError(err, logger, "get question type")
 			span.RecordError(err)
@@ -104,7 +112,7 @@ func Create(s *Service, ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 		}
 		_, err = s.queries.CreateAnswer(traceCtx, CreateAnswerParams{
 			ResponseID: newResponse.ID,
-			QuestionID: answer.QuestionID,
+			QuestionID: questionID,
 			Type:       QuestionType(string(question.Type)),
 			Value:      answer.Value,
 		})
@@ -118,7 +126,7 @@ func Create(s *Service, ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 	return newResponse, nil
 }
 
-func Update(s *Service, ctx context.Context, formID uuid.UUID, userID uuid.UUID, answers []Answer) (Response, error) {
+func Update(s *Service, ctx context.Context, formID uuid.UUID, userID uuid.UUID, answers []AnswerRequest) (Response, error) {
 	traceCtx, span := s.tracer.Start(ctx, "Update")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
@@ -132,9 +140,15 @@ func Update(s *Service, ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 
 	for _, answer := range answers {
 		// check if answer exists
+		questionID, err := internal.ParseUUID(answer.QuestionID)
+		if err != nil {
+			err = databaseutil.WrapDBError(err, logger, "parse question id")
+			span.RecordError(err)
+			return Response{}, err
+		}
 		answerExists, err := s.queries.AnswerExists(traceCtx, AnswerExistsParams{
 			ResponseID: currentResponse.ID,
-			QuestionID: answer.QuestionID,
+			QuestionID: questionID,
 		})
 		if err != nil {
 			err = databaseutil.WrapDBError(err, logger, "check if answer exists")
@@ -144,7 +158,7 @@ func Update(s *Service, ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 
 		// if answer does not exist, create it
 		if !answerExists {
-			currentQuestion, err := s.questionStore.GetByID(traceCtx, answer.QuestionID)
+			currentQuestion, err := s.questionStore.GetByID(traceCtx, questionID)
 			if err != nil {
 				err = databaseutil.WrapDBError(err, logger, "get question type")
 				span.RecordError(err)
@@ -152,7 +166,7 @@ func Update(s *Service, ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 			}
 			_, err = s.queries.CreateAnswer(traceCtx, CreateAnswerParams{
 				ResponseID: currentResponse.ID,
-				QuestionID: answer.QuestionID,
+				QuestionID: questionID,
 				Type:       QuestionType(string(currentQuestion.Type)),
 				Value:      answer.Value,
 			})
@@ -166,11 +180,11 @@ func Update(s *Service, ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 		// if answer exists, check if it is the same as the new answer
 		sameAnswer, err := s.queries.CheckAnswerContent(traceCtx, CheckAnswerContentParams{
 			ResponseID: currentResponse.ID,
-			QuestionID: answer.QuestionID,
+			QuestionID: questionID,
 			Value:      answer.Value,
 		})
 		if err != nil {
-			err = databaseutil.WrapDBErrorWithKeyValue(err, "answer", "id", answer.ID.String(), logger, "check answer content")
+			err = databaseutil.WrapDBErrorWithKeyValue(err, "answer", "response_id", currentResponse.ID.String(), logger, "check answer content")
 			span.RecordError(err)
 			return Response{}, err
 		}
@@ -179,7 +193,7 @@ func Update(s *Service, ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 		if !sameAnswer {
 			answerID, err := s.queries.GetAnswerID(traceCtx, GetAnswerIDParams{
 				ResponseID: currentResponse.ID,
-				QuestionID: answer.QuestionID,
+				QuestionID: questionID,
 			})
 			if err != nil {
 				err = databaseutil.WrapDBErrorWithKeyValue(err, "answer", "response_id", currentResponse.ID.String(), logger, "get answer id")
@@ -191,7 +205,7 @@ func Update(s *Service, ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 				Value: answer.Value,
 			})
 			if err != nil {
-				err = databaseutil.WrapDBErrorWithKeyValue(err, "answer", "id", answer.ID.String(), logger, "update answer")
+				err = databaseutil.WrapDBErrorWithKeyValue(err, "answer", "id", answerID.String(), logger, "update answer")
 				span.RecordError(err)
 				return Response{}, err
 			}

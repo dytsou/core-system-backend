@@ -22,11 +22,11 @@ import (
 type AnswerRequest struct {
 	QuestionID string `json:"questionId" validate:"required,uuid"`
 	Value      string `json:"value" validate:"required"`
-}
+}	
 
 type QuestionAnswerForGetResponse struct {
 	QuestionID string `json:"questionId" validate:"required,uuid"`
-	Answer   string            `json:"answer" validate:"required"`
+	Answer     string `json:"answer" validate:"required"`
 }
 
 type AnswerForQuestionResponse struct {
@@ -61,12 +61,12 @@ type ListResponse struct {
 }
 
 type GetResponse struct {
-	ID          string                         `json:"id" validate:"required,uuid"`
-	FormID      string                         `json:"formId" validate:"required,uuid"`
-	SubmittedBy string                         `json:"submittedBy" validate:"required,uuid"`
+	ID                   string                         `json:"id" validate:"required,uuid"`
+	FormID               string                         `json:"formId" validate:"required,uuid"`
+	SubmittedBy          string                         `json:"submittedBy" validate:"required,uuid"`
 	QuestionsAnswerPairs []QuestionAnswerForGetResponse `json:"questionsAnswerPairs" validate:"required,dive"`
-	CreatedAt   time.Time                      `json:"createdAt" validate:"required,datetime"` // for sorting
-	UpdatedAt   time.Time                      `json:"updatedAt" validate:"required,datetime"` // for marking if the response is updated
+	CreatedAt            time.Time                      `json:"createdAt" validate:"required,datetime"` // for sorting
+	UpdatedAt            time.Time                      `json:"updatedAt" validate:"required,datetime"` // for marking if the response is updated
 }
 
 type AnswersForQuestionResponse struct {
@@ -75,7 +75,7 @@ type AnswersForQuestionResponse struct {
 }
 
 type Store interface {
-	Submit(ctx context.Context, formID uuid.UUID, userID uuid.UUID, answers []Answer) (Response, error)
+	Submit(ctx context.Context, formID uuid.UUID, userID uuid.UUID, answers []AnswerRequest) (Response, error)
 	Get(ctx context.Context, formID uuid.UUID, responseID uuid.UUID) (Response, []Answer, error)
 	ListByFormID(ctx context.Context, formID uuid.UUID) ([]Response, error)
 	Delete(ctx context.Context, responseID uuid.UUID) error
@@ -132,10 +132,10 @@ func (h *Handler) SubmitHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	answers := make([]Answer, len(request.Answers))
+	answers := make([]AnswerRequest, len(request.Answers))
 	for i, answer := range request.Answers {
-		answers[i] = Answer{
-			QuestionID: uuid.MustParse(answer.QuestionID),
+		answers[i] = AnswerRequest{
+			QuestionID: answer.QuestionID,
 			Value:      answer.Value,
 		}
 	}
@@ -226,17 +226,17 @@ func (h *Handler) GetHandler(w http.ResponseWriter, r *http.Request) {
 
 		questionAnswerResponses[i] = QuestionAnswerForGetResponse{
 			QuestionID: question.ID.String(),
-			Answer:   answer.Value,
+			Answer:     answer.Value,
 		}
 	}
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, GetResponse{
-		ID:          currentResponse.ID.String(),
-		FormID:      currentResponse.FormID.String(),
-		SubmittedBy: currentResponse.SubmittedBy.String(),
-		QuestionsAnswerPairs:   questionAnswerResponses,
-		CreatedAt:   currentResponse.CreatedAt.Time,
-		UpdatedAt:   currentResponse.UpdatedAt.Time,
+		ID:                   currentResponse.ID.String(),
+		FormID:               currentResponse.FormID.String(),
+		SubmittedBy:          currentResponse.SubmittedBy.String(),
+		QuestionsAnswerPairs: questionAnswerResponses,
+		CreatedAt:            currentResponse.CreatedAt.Time,
+		UpdatedAt:            currentResponse.UpdatedAt.Time,
 	})
 }
 
