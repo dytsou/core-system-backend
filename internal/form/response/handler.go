@@ -108,7 +108,7 @@ func NewHandler(logger *zap.Logger, validator *validator.Validate, problemWriter
 
 // SubmitHandler submits a response to a form
 func (h *Handler) SubmitHandler(w http.ResponseWriter, r *http.Request) {
-	traceCtx, span := h.tracer.Start(r.Context(), "SubmitResponse")
+	traceCtx, span := h.tracer.Start(r.Context(), "SubmitFormHandler")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
@@ -158,7 +158,7 @@ func (h *Handler) SubmitHandler(w http.ResponseWriter, r *http.Request) {
 
 // ListHandler lists all responses for a form
 func (h *Handler) ListHandler(w http.ResponseWriter, r *http.Request) {
-	traceCtx, span := h.tracer.Start(r.Context(), "ListResponses")
+	traceCtx, span := h.tracer.Start(r.Context(), "ListFormHandler")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
@@ -192,7 +192,7 @@ func (h *Handler) ListHandler(w http.ResponseWriter, r *http.Request) {
 
 // GetHandler retrieves a response by id
 func (h *Handler) GetHandler(w http.ResponseWriter, r *http.Request) {
-	traceCtx, span := h.tracer.Start(r.Context(), "GetResponse")
+	traceCtx, span := h.tracer.Start(r.Context(), "GetFormHandler")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
@@ -242,7 +242,7 @@ func (h *Handler) GetHandler(w http.ResponseWriter, r *http.Request) {
 
 // DeleteHandler deletes a response by id
 func (h *Handler) DeleteHandler(w http.ResponseWriter, r *http.Request) {
-	traceCtx, span := h.tracer.Start(r.Context(), "DeleteResponse")
+	traceCtx, span := h.tracer.Start(r.Context(), "DeleteFormHandler")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
@@ -264,7 +264,7 @@ func (h *Handler) DeleteHandler(w http.ResponseWriter, r *http.Request) {
 
 // GetAnswersByQuestionIDHandler gets answers by question id
 func (h *Handler) GetAnswersByQuestionIDHandler(w http.ResponseWriter, r *http.Request) {
-	traceCtx, span := h.tracer.Start(r.Context(), "GetAnswersByQuestionID")
+	traceCtx, span := h.tracer.Start(r.Context(), "GetAnswersByQuestionIDHandler")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
