@@ -267,22 +267,6 @@ func (s *Service) ListByFormID(ctx context.Context, formID uuid.UUID) ([]Respons
 	return responses, nil
 }
 
-func GetAnswersByResponseID(s *Service, ctx context.Context, responseID uuid.UUID) ([]Answer, error) {
-	traceCtx, span := s.tracer.Start(ctx, "Get")
-	defer span.End()
-	logger := logutil.WithContext(traceCtx, s.logger)
-
-	answers, err := s.queries.GetAnswersByResponseID(traceCtx, responseID)
-
-	if err != nil {
-		err = databaseutil.WrapDBErrorWithKeyValue(err, "answer", "response_id", responseID.String(), logger, "get answers by response id")
-		span.RecordError(err)
-		return []Answer{}, err
-	}
-
-	return answers, nil
-}
-
 // Delete deletes a response by id
 func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
 	traceCtx, span := s.tracer.Start(ctx, "Delete")
