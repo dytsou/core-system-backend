@@ -177,6 +177,26 @@ func (s *Service) CreateOrg(ctx context.Context, name string, description string
 		zap.String("org_slug", org.Slug),
 		zap.String("org_description", org.Description.String))
 
+	defaultUnit, err := s.queries.CreateUnit(traceCtx, CreateUnitParams{
+		ID:          orgID,
+		Name:        pgtype.Text{String: "Default Unit", Valid: true},
+		OrgID:       orgID,
+		Description: pgtype.Text{String: "Default unit for the organization", Valid: true},
+		Metadata:    metadata,
+	})
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "create default unit after creating organization")
+		span.RecordError(err)
+		return Organization{}, err
+	}
+
+	logger.Info("Created default unit for organization",
+		zap.String("default_unit_id", defaultUnit.ID.String()),
+		zap.String("default_unit_org_id", defaultUnit.Description.String),
+		zap.String("default_unit_name", defaultUnit.Name.String),
+		zap.String("default_unit_description", defaultUnit.Description.String),
+		zap.String("default_unit_metadata", string(defaultUnit.Metadata)))
+
 	return org, nil
 }
 
