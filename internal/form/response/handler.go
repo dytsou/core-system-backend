@@ -65,7 +65,7 @@ type Store interface {
 }
 
 type QuestionStore interface {
-	GetByID(ctx context.Context, id uuid.UUID) (question.Question, error)
+	GetByID(ctx context.Context, id uuid.UUID) (question.Answerable, error)
 }
 
 type Handler struct {
@@ -77,11 +77,12 @@ type Handler struct {
 	tracer        trace.Tracer
 }
 
-func NewHandler(logger *zap.Logger, validator *validator.Validate, problemWriter *problem.HttpWriter, questionStore QuestionStore) *Handler {
+func NewHandler(logger *zap.Logger, validator *validator.Validate, problemWriter *problem.HttpWriter, store Store, questionStore QuestionStore) *Handler {
 	return &Handler{
 		logger:        logger,
 		validator:     validator,
 		problemWriter: problemWriter,
+		store:         store,
 		questionStore: questionStore,
 		tracer:        otel.Tracer("response/handler"),
 	}
@@ -149,14 +150,14 @@ func (h *Handler) GetHandler(w http.ResponseWriter, r *http.Request) {
 
 	questionAnswerResponses := make([]QuestionAnswerForGetResponse, len(answers))
 	for i, answer := range answers {
-		question, err := h.questionStore.GetByID(traceCtx, answer.QuestionID)
+		q, err := h.questionStore.GetByID(traceCtx, answer.QuestionID)
 		if err != nil {
 			h.problemWriter.WriteError(traceCtx, w, err, logger)
 			return
 		}
 
 		questionAnswerResponses[i] = QuestionAnswerForGetResponse{
-			QuestionID: question.ID.String(),
+			QuestionID: q.Question().ID.String(),
 			Answer:     answer.Value,
 		}
 	}
@@ -226,7 +227,7 @@ func (h *Handler) GetAnswersByQuestionIDHandler(w http.ResponseWriter, r *http.R
 	}
 
 	questionAnswerResponse := AnswersForQuestionResponse{
-		Question: currentQuestion,
+		Question: currentQuestion.Question(),
 		Answers:  make([]AnswerForQuestionResponse, len(answers)),
 	}
 	for i, answer := range answers {

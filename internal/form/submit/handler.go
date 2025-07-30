@@ -101,14 +101,12 @@ func (h *Handler) SubmitHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// todo
-
-	//submitResponse := SubmitResponse{
-	//	ID:        newResponse.ID.String(),
-	//	FormID:    newResponse.FormID.String(),
-	//	CreatedAt: newResponse.CreatedAt.Time,
-	//	UpdatedAt: newResponse.UpdatedAt.Time,
-	//}
+	submitResponse := Response{
+		ID:        newResponse.ID.String(),
+		FormID:    newResponse.FormID.String(),
+		CreatedAt: newResponse.CreatedAt.Time,
+		UpdatedAt: newResponse.UpdatedAt.Time,
+	}
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, submitResponse)
 }
