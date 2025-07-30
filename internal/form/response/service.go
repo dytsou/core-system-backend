@@ -24,7 +24,6 @@ type Querier interface {
 	CreateAnswer(ctx context.Context, arg CreateAnswerParams) (Answer, error)
 	GetAnswersByQuestionID(ctx context.Context, arg GetAnswersByQuestionIDParams) ([]GetAnswersByQuestionIDRow, error)
 	GetAnswersByResponseID(ctx context.Context, responseID uuid.UUID) ([]Answer, error)
-	DeleteAnswersByResponseID(ctx context.Context, responseID uuid.UUID) error
 	UpdateAnswer(ctx context.Context, arg UpdateAnswerParams) (Answer, error)
 	AnswerExists(ctx context.Context, arg AnswerExistsParams) (bool, error)
 	CheckAnswerContent(ctx context.Context, arg CheckAnswerContentParams) (bool, error)
@@ -288,23 +287,7 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	answers, err := s.queries.GetAnswersByResponseID(traceCtx, id)
-	if err != nil {
-		err = databaseutil.WrapDBErrorWithKeyValue(err, "answer", "response_id", id.String(), logger, "get answers by response id")
-		span.RecordError(err)
-		return err
-	}
-
-	for _, answer := range answers {
-		err = s.queries.DeleteAnswersByResponseID(traceCtx, answer.ResponseID)
-		if err != nil {
-			err = databaseutil.WrapDBErrorWithKeyValue(err, "answer", "response_id", answer.ResponseID.String(), logger, "delete answer")
-			span.RecordError(err)
-			return err
-		}
-	}
-
-	err = s.queries.Delete(traceCtx, id)
+	err := s.queries.Delete(traceCtx, id)
 	if err != nil {
 		err = databaseutil.WrapDBErrorWithKeyValue(err, "response", "id", id.String(), logger, "delete response")
 		span.RecordError(err)
