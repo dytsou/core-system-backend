@@ -178,14 +178,30 @@ func (s *Service) CreateOrg(ctx context.Context, name string, description string
 		zap.String("org_description", org.Description.String))
 
 	defaultUnit, err := s.queries.CreateUnit(traceCtx, CreateUnitParams{
-		ID:          orgID,
-		Name:        pgtype.Text{String: "Default Unit", Valid: true},
-		OrgID:       orgID,
-		Description: pgtype.Text{String: "Default unit for the organization", Valid: true},
-		Metadata:    metadata,
+		ID: orgID,
+		Name: pgtype.Text{
+			String: fmt.Sprintf("%s - default unit", name),
+			Valid:  true,
+		},
+		OrgID: orgID,
+		Description: pgtype.Text{
+			String: fmt.Sprintf("Default unit for %s", name),
+			Valid:  true,
+		},
+		Metadata: metadata,
 	})
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "create default unit after creating organization")
+		span.RecordError(err)
+		return Organization{}, err
+	}
+
+	_, err = s.queries.AddParentChild(traceCtx, AddParentChildParams{
+		ParentID: org.ID,
+		ChildID:  defaultUnit.ID,
+	})
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "add parent-child relationship for default unit")
 		span.RecordError(err)
 		return Organization{}, err
 	}
