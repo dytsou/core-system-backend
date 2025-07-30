@@ -374,34 +374,34 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID, unitType string) err
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	switch unitType {
-	case "unit":
-		err := s.queries.DeleteUnit(traceCtx, id)
+	// Deletion Check: Ensure not deleting default unit
+	if unitType == "unit" {
+		unit, err := s.queries.GetUnitByID(traceCtx, id)
 		if err != nil {
-			err = databaseutil.WrapDBError(err, logger, "delete unit")
+			err = databaseutil.WrapDBError(err, logger, "get unit by id for deletion check")
 			span.RecordError(err)
 			return err
 		}
-	case "organization":
-		err := s.queries.DeleteOrg(traceCtx, id)
-		if err != nil {
-			err = databaseutil.WrapDBError(err, logger, "delete organization")
+
+		if unit.ID == unit.OrgID {
+			err := fmt.Errorf("cannot delete default unit with ID %s", id.String())
 			span.RecordError(err)
+			logger.Error("Attempted to delete default unit", zap.String("unit_id", id.String()))
 			return err
 		}
-	default:
-		err := fmt.Errorf("invalid unit type for deletion: %s", unitType)
-		span.RecordError(err)
-		logger.Error("Invalid unit type for deletion", zap.String("unit_type", string(unitType)))
 	}
 
 	err := s.queries.DeleteID(traceCtx, id)
 	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "delete id")
+		err = databaseutil.WrapDBError(err, logger, fmt.Sprintf("delete %s ID", unitType))
 		span.RecordError(err)
-		logger.Error("Failed to delete ID", zap.String("unit_id", id.String()), zap.Error(err))
+		logger.Error(fmt.Sprintf("Failed to delete %s ID", unitType),
+			zap.String(fmt.Sprintf("%s_id", unitType), id.String()),
+			zap.Error(err),
+		)
 	}
-	logger.Info("Deleted unit", zap.String("unit_id", id.String()))
+
+	logger.Info(fmt.Sprintf("Deleted %s", unitType), zap.String("ID: ", id.String()))
 
 	return nil
 }
