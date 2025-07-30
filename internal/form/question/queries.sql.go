@@ -13,16 +13,16 @@ import (
 )
 
 const create = `-- name: Create :one
-INSERT INTO questions (form_id, required, type, label, description, "order")
+INSERT INTO questions (form_id, required, type, title, description, "order")
 VALUES ($1, $2, $3, $4, $5, $6)
-    RETURNING id, form_id, required, type, label, description, "order", created_at, updated_at
+    RETURNING id, form_id, required, type, title, description, "order", created_at, updated_at
 `
 
 type CreateParams struct {
 	FormID      uuid.UUID
 	Required    bool
 	Type        QuestionType
-	Label       pgtype.Text
+	Title       pgtype.Text
 	Description pgtype.Text
 	Order       int32
 }
@@ -32,7 +32,7 @@ func (q *Queries) Create(ctx context.Context, arg CreateParams) (Question, error
 		arg.FormID,
 		arg.Required,
 		arg.Type,
-		arg.Label,
+		arg.Title,
 		arg.Description,
 		arg.Order,
 	)
@@ -42,7 +42,7 @@ func (q *Queries) Create(ctx context.Context, arg CreateParams) (Question, error
 		&i.FormID,
 		&i.Required,
 		&i.Type,
-		&i.Label,
+		&i.Title,
 		&i.Description,
 		&i.Order,
 		&i.CreatedAt,
@@ -87,7 +87,7 @@ func (q *Queries) GetByID(ctx context.Context, id uuid.UUID) (Question, error) {
 }
 
 const listByFormID = `-- name: ListByFormID :many
-SELECT id, form_id, required, type, label, description, "order", created_at, updated_at FROM questions WHERE form_id = $1 ORDER BY "order"
+SELECT id, form_id, required, type, title, description, "order", created_at, updated_at FROM questions WHERE form_id = $1 ORDER BY "order"
 `
 
 func (q *Queries) ListByFormID(ctx context.Context, formID uuid.UUID) ([]Question, error) {
@@ -104,7 +104,7 @@ func (q *Queries) ListByFormID(ctx context.Context, formID uuid.UUID) ([]Questio
 			&i.FormID,
 			&i.Required,
 			&i.Type,
-			&i.Label,
+			&i.Title,
 			&i.Description,
 			&i.Order,
 			&i.CreatedAt,
@@ -122,9 +122,9 @@ func (q *Queries) ListByFormID(ctx context.Context, formID uuid.UUID) ([]Questio
 
 const update = `-- name: Update :one
 UPDATE questions
-SET required = $3, type = $4, label = $5, description = $6, "order" = $7, updated_at = now()
+SET required = $3, type = $4, title = $5, description = $6, "order" = $7, updated_at = now()
 WHERE form_id = $1 AND id = $2
-    RETURNING id, form_id, required, type, label, description, "order", created_at, updated_at
+    RETURNING id, form_id, required, type, title, description, "order", created_at, updated_at
 `
 
 type UpdateParams struct {
@@ -132,7 +132,7 @@ type UpdateParams struct {
 	ID          uuid.UUID
 	Required    bool
 	Type        QuestionType
-	Label       pgtype.Text
+	Title       pgtype.Text
 	Description pgtype.Text
 	Order       int32
 }
@@ -143,7 +143,7 @@ func (q *Queries) Update(ctx context.Context, arg UpdateParams) (Question, error
 		arg.ID,
 		arg.Required,
 		arg.Type,
-		arg.Label,
+		arg.Title,
 		arg.Description,
 		arg.Order,
 	)
@@ -153,7 +153,7 @@ func (q *Queries) Update(ctx context.Context, arg UpdateParams) (Question, error
 		&i.FormID,
 		&i.Required,
 		&i.Type,
-		&i.Label,
+		&i.Title,
 		&i.Description,
 		&i.Order,
 		&i.CreatedAt,

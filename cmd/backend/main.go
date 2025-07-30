@@ -135,7 +135,7 @@ func main() {
 	authHandler := auth.NewHandler(logger, validator, problemWriter, userService, jwtService, jwtService, cfg.BaseURL, cfg.AccessTokenExpiration, cfg.RefreshTokenExpiration, cfg.GoogleOauth)
 	userHandler := user.NewHandler(logger, validator, problemWriter, userService)
 	formHandler := form.NewHandler(logger, validator, problemWriter, formService, questionService)
-	unitHandler := unit.NewHandler(logger, validator, problemWriter, unitService)
+  unitHandler := unit.NewHandler(logger, validator, problemWriter, unitService, formService)
 	responseHandler := response.NewHandler(logger, validator, problemWriter, responseService, questionService)
 
 	// Middleware
@@ -191,6 +191,8 @@ func main() {
 	mux.Handle("PUT /api/orgs/{slug}/units/{id}", tenantMiddleware.Middleware(unitHandler.UpdateUnit))
 	mux.Handle("DELETE /api/orgs/{slug}", tenantMiddleware.Middleware(unitHandler.DeleteOrg))
 	mux.Handle("DELETE /api/orgs/{slug}/units/{id}", tenantMiddleware.Middleware(unitHandler.DeleteUnit))
+	mux.HandleFunc("POST /api/orgs/{slug}/units/{unitId}/forms", jwtMiddleware.AuthenticateMiddleware(unitHandler.CreateFormUnderUnit))
+	mux.HandleFunc("GET /api/orgs/{slug}/units/{unitId}/forms", jwtMiddleware.AuthenticateMiddleware(unitHandler.ListFormsByUnit))
 
 	// List sub-units
 	mux.Handle("GET /api/orgs/{slug}/units", tenantMiddleware.Middleware(unitHandler.ListOrgSubUnits))
@@ -200,7 +202,6 @@ func main() {
 	mux.Handle("DELETE /api/orgs/relations/parent_id/{p_id}/child_id/{c_id}", tenantMiddleware.Middleware(unitHandler.RemoveParentChild))
 
 	// Form routes
-	mux.HandleFunc("POST /api/forms", authMiddleware.HandlerFunc(formHandler.CreateFormHandler))
 	mux.HandleFunc("GET /api/forms", authMiddleware.HandlerFunc(formHandler.ListFormsHandler))
 	mux.HandleFunc("POST /api/forms/{formId}/questions", authMiddleware.HandlerFunc(formHandler.AddQuestionHandler))
 	mux.HandleFunc("GET /api/forms/{formId}/questions", authMiddleware.HandlerFunc(formHandler.ListQuestionsHandler))
