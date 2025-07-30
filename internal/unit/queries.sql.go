@@ -31,12 +31,13 @@ func (q *Queries) AddParentChild(ctx context.Context, arg AddParentChildParams) 
 }
 
 const createOrg = `-- name: CreateOrg :one
-INSERT INTO organizations (name, owner_id, description, metadata, slug)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO organizations (id, name, owner_id, description, metadata, slug)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING id, owner_id, name, description, metadata, slug, created_at, updated_at
 `
 
 type CreateOrgParams struct {
+	ID          uuid.UUID
 	Name        pgtype.Text
 	OwnerID     uuid.UUID
 	Description pgtype.Text
@@ -46,6 +47,7 @@ type CreateOrgParams struct {
 
 func (q *Queries) CreateOrg(ctx context.Context, arg CreateOrgParams) (Organization, error) {
 	row := q.db.QueryRow(ctx, createOrg,
+		arg.ID,
 		arg.Name,
 		arg.OwnerID,
 		arg.Description,
@@ -66,13 +68,26 @@ func (q *Queries) CreateOrg(ctx context.Context, arg CreateOrgParams) (Organizat
 	return i, err
 }
 
+const createOrgUnitID = `-- name: CreateOrgUnitID :one
+INSERT INTO org_unit_ids DEFAULT VALUES
+RETURNING id
+`
+
+func (q *Queries) CreateOrgUnitID(ctx context.Context) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, createOrgUnitID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const createUnit = `-- name: CreateUnit :one
-INSERT INTO units (name, org_id, description, metadata)
-VALUES ($1, $2, $3, $4)
+INSERT INTO units (id, name, org_id, description, metadata)
+VALUES ($1, $2, $3, $4, $5)
 RETURNING id, org_id, name, description, metadata, created_at, updated_at
 `
 
 type CreateUnitParams struct {
+	ID          uuid.UUID
 	Name        pgtype.Text
 	OrgID       uuid.UUID
 	Description pgtype.Text
@@ -81,6 +96,7 @@ type CreateUnitParams struct {
 
 func (q *Queries) CreateUnit(ctx context.Context, arg CreateUnitParams) (Unit, error) {
 	row := q.db.QueryRow(ctx, createUnit,
+		arg.ID,
 		arg.Name,
 		arg.OrgID,
 		arg.Description,
@@ -97,6 +113,15 @@ func (q *Queries) CreateUnit(ctx context.Context, arg CreateUnitParams) (Unit, e
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const deleteID = `-- name: DeleteID :exec
+DELETE FROM org_unit_ids WHERE id = $1
+`
+
+func (q *Queries) DeleteID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteID, id)
+	return err
 }
 
 const deleteOrg = `-- name: DeleteOrg :exec

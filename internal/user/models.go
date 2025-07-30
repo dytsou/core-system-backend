@@ -68,6 +68,10 @@ type OrgMember struct {
 	MemberID uuid.UUID
 }
 
+type OrgUnitID struct {
+	ID uuid.UUID
+}
+
 type Organization struct {
 	ID          uuid.UUID
 	OwnerID     uuid.UUID

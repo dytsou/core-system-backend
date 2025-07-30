@@ -58,6 +58,7 @@ func (o OrgWrapper) SetBase(base Base) {
 }
 
 type Querier interface {
+	CreateOrgUnitID(ctx context.Context) (uuid.UUID, error)
 	CreateUnit(ctx context.Context, arg CreateUnitParams) (Unit, error)
 	CreateOrg(ctx context.Context, arg CreateOrgParams) (Organization, error)
 	GetOrgByID(ctx context.Context, id uuid.UUID) (Organization, error)
@@ -70,6 +71,7 @@ type Querier interface {
 	UpdateOrg(ctx context.Context, arg UpdateOrgParams) (Organization, error)
 	DeleteOrg(ctx context.Context, id uuid.UUID) error
 	DeleteUnit(ctx context.Context, id uuid.UUID) error
+	DeleteID(ctx context.Context, id uuid.UUID) error
 
 	AddParentChild(ctx context.Context, arg AddParentChildParams) (ParentChild, error)
 	RemoveParentChild(ctx context.Context, arg RemoveParentChildParams) error
@@ -105,7 +107,15 @@ func (s *Service) CreateUnit(ctx context.Context, name string, orgID uuid.UUID, 
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
+	unitID, err := s.queries.CreateOrgUnitID(traceCtx)
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "create unit ID")
+		span.RecordError(err)
+		return Unit{}, err
+	}
+
 	unit, err := s.queries.CreateUnit(traceCtx, CreateUnitParams{
+		ID:          unitID,
 		Name:        pgtype.Text{String: name, Valid: true},
 		OrgID:       orgID,
 		Description: pgtype.Text{String: description, Valid: description != ""},
@@ -132,7 +142,15 @@ func (s *Service) CreateOrg(ctx context.Context, name string, description string
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
+	orgID, err := s.queries.CreateOrgUnitID(traceCtx)
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "create organization ID")
+		span.RecordError(err)
+		return Organization{}, err
+	}
+
 	org, err := s.queries.CreateOrg(traceCtx, CreateOrgParams{
+		ID:          orgID,
 		Name:        pgtype.Text{String: name, Valid: true},
 		OwnerID:     ownerID,
 		Description: pgtype.Text{String: description, Valid: description != ""},
@@ -341,6 +359,12 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID, unitType string) err
 		logger.Error("Invalid unit type for deletion", zap.String("unit_type", string(unitType)))
 	}
 
+	err := s.queries.DeleteID(traceCtx, id)
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "delete id")
+		span.RecordError(err)
+		logger.Error("Failed to delete ID", zap.String("unit_id", id.String()), zap.Error(err))
+	}
 	logger.Info("Deleted unit", zap.String("unit_id", id.String()))
 
 	return nil

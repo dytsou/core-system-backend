@@ -1,10 +1,14 @@
--- name: CreateUnit :one
-INSERT INTO units (name, org_id, description, metadata)
-VALUES ($1, $2, $3, $4)
+-- name: CreateOrgUnitID :one
+INSERT INTO org_unit_ids DEFAULT VALUES
 RETURNING *;
 
 -- name: CreateOrg :one
-INSERT INTO organizations (name, owner_id, description, metadata, slug)
+INSERT INTO organizations (id, name, owner_id, description, metadata, slug)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING *;
+
+-- name: CreateUnit :one
+INSERT INTO units (id, name, org_id, description, metadata)
 VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
@@ -31,6 +35,9 @@ UPDATE units
 SET name = $2, description = $3, metadata = $4, updated_at = now()
 WHERE id = $1
 RETURNING *;
+
+-- name: DeleteID :exec
+DELETE FROM org_unit_ids WHERE id = $1;
 
 -- name: DeleteUnit :exec
 DELETE FROM units WHERE id = $1;
