@@ -83,7 +83,7 @@ type Store interface {
 }
 
 type QuestionStore interface {
-	GetByID(ctx context.Context, questionID uuid.UUID) (question.Question, error)
+	GetByID(ctx context.Context, id uuid.UUID) (question.Question, error)
 }
 
 type Handler struct {

@@ -27,19 +27,20 @@ type Querier interface {
 	AnswerExists(ctx context.Context, arg AnswerExistsParams) (bool, error)
 	CheckAnswerContent(ctx context.Context, arg CheckAnswerContentParams) (bool, error)
 	GetAnswerID(ctx context.Context, arg GetAnswerIDParams) (uuid.UUID, error)
-	GetQuestionByID(ctx context.Context, arg uuid.UUID) (Question, error)
 }
 
 type Service struct {
 	logger  *zap.Logger
 	queries Querier
+	questionStore QuestionStore
 	tracer  trace.Tracer
 }
 
-func NewService(logger *zap.Logger, db DBTX) *Service {
+func NewService(logger *zap.Logger, db DBTX, questionStore QuestionStore) *Service {
 	return &Service{
 		logger:  logger,
 		queries: New(db),
+		questionStore: questionStore,
 		tracer:  otel.Tracer("response/service"),
 	}
 }
@@ -95,7 +96,7 @@ func Create(s *Service, ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 	}
 
 	for _, answer := range answers {
-		question, err := s.queries.GetQuestionByID(traceCtx, answer.QuestionID)
+		question, err := s.questionStore.GetByID(traceCtx, answer.QuestionID)
 		if err != nil {
 			err = databaseutil.WrapDBError(err, logger, "get question type")
 			span.RecordError(err)
@@ -104,7 +105,7 @@ func Create(s *Service, ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 		_, err = s.queries.CreateAnswer(traceCtx, CreateAnswerParams{
 			ResponseID: newResponse.ID,
 			QuestionID: answer.QuestionID,
-			Type:       question.Type,
+			Type:       QuestionType(string(question.Type)),
 			Value:      answer.Value,
 		})
 		if err != nil {
@@ -143,7 +144,7 @@ func Update(s *Service, ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 
 		// if answer does not exist, create it
 		if !answerExists {
-			currentQuestion, err := s.queries.GetQuestionByID(traceCtx, answer.QuestionID)
+			currentQuestion, err := s.questionStore.GetByID(traceCtx, answer.QuestionID)
 			if err != nil {
 				err = databaseutil.WrapDBError(err, logger, "get question type")
 				span.RecordError(err)
@@ -152,7 +153,7 @@ func Update(s *Service, ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 			_, err = s.queries.CreateAnswer(traceCtx, CreateAnswerParams{
 				ResponseID: currentResponse.ID,
 				QuestionID: answer.QuestionID,
-				Type:       currentQuestion.Type,
+				Type:       QuestionType(string(currentQuestion.Type)),
 				Value:      answer.Value,
 			})
 			if err != nil {

@@ -129,7 +129,7 @@ func main() {
 	unitService := unit.NewService(logger, dbPool)
 	formService := form.NewService(logger, dbPool)
 	questionService := question.NewService(logger, dbPool)
-	responseService := response.NewService(logger, dbPool)
+	responseService := response.NewService(logger, dbPool, questionService)
 
 	// Handler
 	authHandler := auth.NewHandler(logger, validator, problemWriter, userService, jwtService, jwtService, cfg.BaseURL, cfg.AccessTokenExpiration, cfg.RefreshTokenExpiration, cfg.GoogleOauth)

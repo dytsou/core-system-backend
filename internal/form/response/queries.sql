@@ -62,6 +62,3 @@ SELECT EXISTS(SELECT 1 FROM answers WHERE response_id = $1 AND question_id = $2)
 
 -- name: GetAnswerID :one
 SELECT id FROM answers WHERE response_id = $1 AND question_id = $2;
-
--- name: GetQuestionByID :one
-SELECT * FROM questions WHERE id = $1;
