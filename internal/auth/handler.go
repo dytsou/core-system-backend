@@ -226,6 +226,8 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 
 	redirectURL := redirectTo
 	if redirectURL == "" {
+		// If environment is "snapshot" or "no-env", meaning it should have no frontend
+		// redirect to the API endpoint, otherwise redirect to the home page
 		if h.environment == "snapshot" || h.environment == "no-env" {
 			redirectURL = "/api/users/me"
 		} else {
