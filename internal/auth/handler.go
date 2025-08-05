@@ -98,8 +98,10 @@ func NewHandler(
 ) *Handler {
 	var oauthCallbackURL string
 	if oauthProxyBaseURL != "" {
+		logger.Info("Using OAuth proxy base URL", zap.String("oauthProxyBaseURL", oauthProxyBaseURL))
 		oauthCallbackURL = fmt.Sprintf("%s/api/auth/google/callback", oauthProxyBaseURL)
 	} else {
+		logger.Info("Using base URL for OAuth callback", zap.String("baseURL", baseURL))
 		oauthCallbackURL = fmt.Sprintf("%s/api/auth/login/oauth/google/callback", baseURL)
 	}
 
