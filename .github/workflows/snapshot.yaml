@@ -72,7 +72,7 @@ jobs:
         run: |
           go mod download
           make gen
-          env GOOS=linux go build -o bin/backend cmd/backend/main.go
+          env GOOS=linux go build -ldflags="-X 'main.BuildTime=$(date --utc '+%FT%TZ')' -X 'main.Version=pr-${{ github.event.pull_request.number }}' -X 'main.CommitHash=${{ github.sha }}'" -o bin/backend cmd/backend/main.go
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
