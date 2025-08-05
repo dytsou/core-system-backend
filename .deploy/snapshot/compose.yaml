@@ -2,7 +2,7 @@ name: core-system-$VERSION
 
 services:
   backend:
-    image: nycusdc/core-system-backend:dev
+    image: "nycusdc/core-system-backend:$VERSION"
     networks:
       - core_system_$VERSION
       - traefik
