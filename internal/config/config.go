@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	configutil "github.com/NYCU-SDC/summer/pkg/config"
+	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
@@ -23,6 +24,7 @@ type Config struct {
 	Port                      string                  `yaml:"port"               envconfig:"PORT"`
 	BaseURL                   string                  `yaml:"base_url"          envconfig:"BASE_URL"`
 	OauthProxyBaseURL         string                  `yaml:"oauth_proxy_base_url" envconfig:"OAUTH_PROXY_BASE_URL"`
+	OauthProxySecret          string                  `yaml:"oauth_proxy_secret" envconfig:"OAUTH_PROXY_SECRET"`
 	Secret                    string                  `yaml:"secret"             envconfig:"SECRET"`
 	DatabaseURL               string                  `yaml:"database_url"       envconfig:"DATABASE_URL"`
 	MigrationSource           string                  `yaml:"migration_source"   envconfig:"MIGRATION_SOURCE"`
@@ -94,6 +96,12 @@ func (c *Config) Validate() error {
 		if c.RefreshTokenExpiration <= 0 {
 			return fmt.Errorf("refresh_token_expiration must be greater than zero")
 		}
+	}
+
+	if c.OauthProxyBaseURL != "" && c.OauthProxySecret == "" {
+		return fmt.Errorf("oauth_proxy_secret must be set when oauth_proxy_base_url is provided")
+	} else if c.OauthProxyBaseURL == "" && c.OauthProxySecret == "" {
+		c.OauthProxySecret = uuid.New().String()
 	}
 
 	// Optional: Warn if duration is too long to be practical for cookie MaxAge
@@ -171,15 +179,16 @@ func FromEnv(config *Config, logger *LogBuffer) (*Config, error) {
 	}
 
 	envConfig := &Config{
-		Debug:                os.Getenv("DEBUG") == "true",
-		Host:                 os.Getenv("HOST"),
-		Port:                 os.Getenv("PORT"),
-		BaseURL:              os.Getenv("BASE_URL"),
-		OauthProxyBaseURL:    os.Getenv("OAUTH_PROXY_BASE_URL"),
-		Secret:               os.Getenv("SECRET"),
-		DatabaseURL:          os.Getenv("DATABASE_URL"),
-		MigrationSource:      os.Getenv("MIGRATION_SOURCE"),
-		OtelCollectorUrl:     os.Getenv("OTEL_COLLECTOR_URL"),
+		Debug:             os.Getenv("DEBUG") == "true",
+		Host:              os.Getenv("HOST"),
+		Port:              os.Getenv("PORT"),
+		BaseURL:           os.Getenv("BASE_URL"),
+		OauthProxyBaseURL: os.Getenv("OAUTH_PROXY_BASE_URL"),
+		OauthProxySecret:  os.Getenv("OAUTH_PROXY_SECRET"),
+		Secret:            os.Getenv("SECRET"),
+		DatabaseURL:       os.Getenv("DATABASE_URL"),
+		MigrationSource:   os.Getenv("MIGRATION_SOURCE"),
+		OtelCollectorUrl:  os.Getenv("OTEL_COLLECTOR_URL"),
 		GoogleOauth: googleOauth.GoogleOauth{
 			ClientID:     os.Getenv("GOOGLE_OAUTH_CLIENT_ID"),
 			ClientSecret: os.Getenv("GOOGLE_OAUTH_CLIENT_SECRET"),

@@ -6,8 +6,6 @@ import (
 	"NYCU-SDC/core-system-backend/internal/jwt"
 	"NYCU-SDC/core-system-backend/internal/user"
 	"context"
-	"encoding/base64"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -31,7 +29,9 @@ const (
 
 type JWTIssuer interface {
 	New(ctx context.Context, user user.User) (string, error)
+	NewState(ctx context.Context, service, environment, callbackURL, redirectURL string) (string, error)
 	Parse(ctx context.Context, tokenString string) (user.User, error)
+	ParseState(ctx context.Context, tokenString string) (string, error)
 	GenerateRefreshToken(ctx context.Context, userID uuid.UUID) (jwt.RefreshToken, error)
 	GetUserIDByRefreshToken(ctx context.Context, refreshTokenID uuid.UUID) (uuid.UUID, error)
 }
@@ -57,13 +57,16 @@ type OAuthProvider interface {
 type callBackInfo struct {
 	code       string
 	oauthError string
-	callback   url.URL
 	redirectTo string
 }
 
 type Handler struct {
 	logger *zap.Logger
 	tracer trace.Tracer
+
+	baseURL           string
+	oauthProxyBaseURL string
+	environment       string
 
 	validator     *validator.Validate
 	problemWriter *problem.HttpWriter
@@ -85,15 +88,27 @@ func NewHandler(
 	jwtIssuer JWTIssuer,
 	jwtStore JWTStore,
 
+	baseURL string,
 	oauthProxyBaseURL string,
+	environment string,
+
 	accessTokenExpiration time.Duration,
 	refreshTokenExpiration time.Duration,
 	googleOauthConfig oauthprovider.GoogleOauth,
 ) *Handler {
+	var oauthCallbackURL string
+	if oauthProxyBaseURL != "" {
+		oauthCallbackURL = fmt.Sprintf("%s/api/auth/google/callback", oauthProxyBaseURL)
+	} else {
+		oauthCallbackURL = fmt.Sprintf("%s/api/auth/login/oauth/google/callback", baseURL)
+	}
 
 	return &Handler{
 		logger: logger,
 		tracer: otel.Tracer("auth/handler"),
+
+		baseURL:     baseURL,
+		environment: environment,
 
 		validator:     validator,
 		problemWriter: problemWriter,
@@ -105,7 +120,7 @@ func NewHandler(
 			"google": oauthprovider.NewGoogleConfig(
 				googleOauthConfig.ClientID,
 				googleOauthConfig.ClientSecret,
-				fmt.Sprintf("%s/auth/google/callback", oauthProxyBaseURL),
+				oauthCallbackURL,
 			),
 		},
 
@@ -127,32 +142,33 @@ func (h *Handler) Oauth2Start(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The final destination for the user, after authentication is complete.
-	callbackURL := r.URL.Query().Get("c")
-	finalRedirectURL := r.URL.Query().Get("r")
+	redirectURL := r.URL.Query().Get("r")
 
-	// The URL for the oauth-proxy to call back to. This is our own backend's callback endpoint.
-	// We construct it dynamically based on the current request.
-	if callbackURL == ""{
-		// set the callback URL to the current URL with the path /callback
-		callbackURL = r.URL.String() + "/callback"
-	}
-	if finalRedirectURL != ""{
-		callbackURL = fmt.Sprintf("%s?r=%s", callbackURL, finalRedirectURL)
-	}
-	// The state payload contains the backend callback URL and the final redirect URL.
-	// This will be consumed by the oauth-proxy.
-	state := base64.StdEncoding.EncodeToString([]byte(callbackURL))
-	
-	authURL := provider.Config().AuthCodeURL(state, oauth2.AccessTypeOffline)
-	http.Redirect(w, r, authURL, http.StatusFound)
+	if h.oauthProxyBaseURL != "" {
+		callbackURL := fmt.Sprintf("%s/api/auth/login/oauth/%s/callback", h.baseURL, providerName)
 
-	logger.Info("Redirecting to Google OAuth2", zap.String("url", authURL))
+		state, err := h.jwtIssuer.NewState(traceCtx, "core-system", h.environment, callbackURL, redirectURL)
+		if err != nil {
+			h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("%w: %v", internal.ErrNewStateFailed, err), logger)
+			return
+		}
+
+		authURL := provider.Config().AuthCodeURL(state, oauth2.AccessTypeOffline)
+		http.Redirect(w, r, authURL, http.StatusFound)
+		logger.Info("Redirecting to Google OAuth2 with OAuth proxy", zap.String("url", authURL))
+	} else {
+		state, err := h.jwtIssuer.NewState(traceCtx, "core-system", h.environment, "", redirectURL)
+		if err != nil {
+			h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("%w: %v", internal.ErrNewStateFailed, err), logger)
+			return
+		}
+
+		authURL := provider.Config().AuthCodeURL(state, oauth2.AccessTypeOffline)
+		http.Redirect(w, r, authURL, http.StatusFound)
+	}
 }
 
-// Callback handles the OAuth2 callback from oauth-proxy
 func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
-
 	traceCtx, span := h.tracer.Start(r.Context(), "Callback")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
@@ -165,21 +181,18 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get the OAuth2 code and state from the request
-	callbackInfo, err := h.getCallBackInfo(r.URL)
+	callbackInfo, err := h.getCallBackInfo(traceCtx, r.URL)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("%w: %v", internal.ErrInvalidCallbackInfo, err), logger)
 		return
 	}
 
-	h.logger.Info("Get Callback from oauth-proxy", zap.Any("callback", callbackInfo.callback))
-
-	callback := callbackInfo.callback.String()
 	code := callbackInfo.code
 	redirectTo := callbackInfo.redirectTo
 	oauthError := callbackInfo.oauthError
 
 	if oauthError != "" {
-		http.Redirect(w, r, fmt.Sprintf("%s?error=%s", callback, oauthError), http.StatusFound)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("%w: %s", internal.ErrOAuthError, oauthError), logger)
 		return
 	}
 
@@ -211,41 +224,14 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 
 	redirectURL := redirectTo
 	if redirectURL == "" {
-		redirectURL = "/"
+		if h.environment == "snapshot" || h.environment == "no-env" {
+			redirectURL = "/api/users/me"
+		} else {
+			redirectURL = "/"
+		}
 	}
+
 	http.Redirect(w, r, redirectURL, http.StatusFound)
-}
-
-func (h *Handler) DebugToken(w http.ResponseWriter, r *http.Request) {
-	traceCtx, span := h.tracer.Start(r.Context(), "DebugToken")
-	defer span.End()
-	logger := logutil.WithContext(traceCtx, h.logger)
-
-	e := r.URL.Query().Get("error")
-	if e != "" {
-		h.problemWriter.WriteError(traceCtx, w, handlerutil.ErrForbidden, logger)
-		return
-	}
-
-	accessTokenCookie, err := r.Cookie(AccessTokenCookieName)
-	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, errors.New("missing access token cookie"), logger)
-		return
-	}
-
-	token := accessTokenCookie.Value
-	if token == "" {
-		h.problemWriter.WriteError(traceCtx, w, errors.New("empty access token cookie"), logger)
-		return
-	}
-
-	jwtUser, err := h.jwtIssuer.Parse(traceCtx, token)
-	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, err, logger)
-		return
-	}
-
-	handlerutil.WriteJSONResponse(w, http.StatusOK, jwtUser)
 }
 
 func (h *Handler) generateJWT(ctx context.Context, userID uuid.UUID) (string, string, error) {
@@ -270,31 +256,20 @@ func (h *Handler) generateJWT(ctx context.Context, userID uuid.UUID) (string, st
 	return jwtToken, refreshToken.ID.String(), nil
 }
 
-func (h *Handler) getCallBackInfo(url *url.URL) (callBackInfo, error) {
-
+func (h *Handler) getCallBackInfo(ctx context.Context, url *url.URL) (callBackInfo, error) {
 	code := url.Query().Get("code")
 	state := url.Query().Get("state")
 	oauthError := url.Query().Get("error")
 
-	callbackURL, err := base64.StdEncoding.DecodeString(state)
+	redirectURL, err := h.jwtIssuer.ParseState(ctx, state)
 	if err != nil {
 		return callBackInfo{}, err
 	}
-
-	callback, err := url.Parse(string(callbackURL))
-	if err != nil {
-		return callBackInfo{}, err
-	}
-
-	// Clear the query parameters from the callback URL, due to "?" symbol in original URL
-	redirectTo := callback.Query().Get("r")
-	callback.RawQuery = ""
 
 	return callBackInfo{
 		code:       code,
 		oauthError: oauthError,
-		callback:   *callback,
-		redirectTo: redirectTo,
+		redirectTo: redirectURL,
 	}, nil
 }
 
