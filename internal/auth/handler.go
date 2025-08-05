@@ -107,8 +107,9 @@ func NewHandler(
 		logger: logger,
 		tracer: otel.Tracer("auth/handler"),
 
-		baseURL:     baseURL,
-		environment: environment,
+		baseURL:           baseURL,
+		oauthProxyBaseURL: oauthProxyBaseURL,
+		environment:       environment,
 
 		validator:     validator,
 		problemWriter: problemWriter,
@@ -155,7 +156,6 @@ func (h *Handler) Oauth2Start(w http.ResponseWriter, r *http.Request) {
 
 		authURL := provider.Config().AuthCodeURL(state, oauth2.AccessTypeOffline)
 		http.Redirect(w, r, authURL, http.StatusFound)
-		logger.Info("Redirecting to Google OAuth2 with OAuth proxy", zap.String("url", authURL))
 	} else {
 		state, err := h.jwtIssuer.NewState(traceCtx, "core-system", h.environment, "", redirectURL)
 		if err != nil {
