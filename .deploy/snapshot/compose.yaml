@@ -10,6 +10,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      ENV: "snapshot"
       HOST: "0.0.0.0"
       BASE_URL: "https://$VERSION.core-system.sdc.nycu.club"
       OAUTH_PROXY_BASE_URL: "https://proxy.core-system.sdc.nycu.club"

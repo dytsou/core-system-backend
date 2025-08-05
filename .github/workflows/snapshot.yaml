@@ -164,7 +164,7 @@ jobs:
                 "setup_domain": {
                   "enable": true,
                   "title": "Endpoint",
-                  "name": "api.snapshot-${{ github.event.pull_request.number }}.core-system.sdc.nycu.club",
+                  "name": "api.pr-${{ github.event.pull_request.number }}.core-system.sdc.nycu.club",
                   "value": "gcp-eng-deploy:internal"
                 }
               }
