@@ -59,9 +59,11 @@ func NewService(
 }
 
 type claims struct {
-	ID       uuid.UUID
-	Username string
-	Role     []string
+	ID        uuid.UUID
+	Username  string
+	Name      string
+	AvatarUrl string
+	Role      []string
 	jwt.RegisteredClaims
 }
 
@@ -96,9 +98,11 @@ func (s Service) New(ctx context.Context, user user.User) (string, error) {
 	username := user.Username.String
 
 	claims := &claims{
-		ID:       jwtID,
-		Username: username,
-		Role:     user.Role,
+		ID:        jwtID,
+		Username:  username,
+		Name:      user.Name.String,
+		AvatarUrl: user.AvatarUrl.String,
+		Role:      user.Role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    Issuer,
 			Subject:   id.String(), // user id
@@ -205,9 +209,11 @@ func (s Service) Parse(ctx context.Context, tokenString string) (user.User, erro
 	}
 
 	return user.User{
-		ID:       userID,
-		Username: pgtype.Text{String: tokenClaims.Username, Valid: true},
-		Role:     tokenClaims.Role,
+		ID:        userID,
+		Username:  pgtype.Text{String: tokenClaims.Username, Valid: true},
+		Name:      pgtype.Text{String: tokenClaims.Name, Valid: true},
+		AvatarUrl: pgtype.Text{String: tokenClaims.AvatarUrl, Valid: true},
+		Role:      tokenClaims.Role,
 	}, nil
 }
 
