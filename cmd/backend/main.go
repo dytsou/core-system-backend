@@ -98,8 +98,6 @@ func main() {
 		cfg.Secret = uuid.New().String()
 	}
 
-	logger.Info("Application initialization", zap.Bool("debug", cfg.Debug), zap.String("host", cfg.Host), zap.String("port", cfg.Port))
-
 	logger.Info("Starting database migration...")
 
 	err = databaseutil.MigrationUp(cfg.MigrationSource, cfg.DatabaseURL, logger)
