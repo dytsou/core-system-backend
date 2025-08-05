@@ -31,6 +31,10 @@ jobs:
                 "notify_discord": {
                   "enable": true,
                   "channel": "core-system-activity"
+                },
+                "cleanup_domain": {
+                  "enable": true,
+                  "name": "pr-${{ github.event.pull_request.number }}.core-system.sdc.nycu.club",
                 }
               }
             }'
