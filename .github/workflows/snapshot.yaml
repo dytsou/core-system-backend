@@ -72,7 +72,7 @@ jobs:
         run: |
           go mod download
           make gen
-          env GOOS=linux go build -o bin/backend cmd/backend/main.go
+          env GOOS=linux go build -ldflags="-X 'main.BuildTime=$(date --utc '+%FT%TZ')' -X 'main.Version=pr-${{ github.event.pull_request.number }}' -X 'main.CommitHash=${{ github.sha }}'" -o bin/backend cmd/backend/main.go
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -111,7 +111,6 @@ jobs:
           echo "PR_TYPE=$PR_TYPE" >> $GITHUB_ENV
           echo "PR_PURPOSE=$PR_PURPOSE" >> $GITHUB_ENV
 
-
       - name: Trigger n8n Snapshot Webhook
         run: |
           curl --location --fail-with-body -X POST https://webhook.eng.sdc.nycu.club/webhook/deploy \
@@ -133,6 +132,30 @@ jobs:
                 "environment": "snapshot",
                 "component": "backend"
               },
+              "setup": {
+                "inject_secret": {
+                  "enable": true,
+                  "project": "core-system",
+                  "environment": "snapshot",
+                  "secrets": [
+                    {
+                      "path": "/",
+                      "secret_name": "OAUTH_PROXY_TOKEN",
+                      "env_name": "OAUTH_PROXY_TOKEN"
+                    },
+                    {
+                      "path": "/google-oauth",
+                      "secret_name": "CLIENT_ID",
+                      "env_name": "GOOGLE_OAUTH_CLIENT_ID"
+                    },
+                    {
+                      "path": "/google-oauth",
+                      "secret_name": "CLIENT_SECRET",
+                      "env_name": "GOOGLE_OAUTH_CLIENT_SECRET"
+                    }
+                  ]
+                }
+              },
               "post": {
                 "notify_discord": {
                   "enable": true,
@@ -141,7 +164,7 @@ jobs:
                 "setup_domain": {
                   "enable": true,
                   "title": "Endpoint",
-                  "name": "api.snapshot-${{ github.event.pull_request.number }}.core-system.sdc.nycu.club",
+                  "name": "pr-${{ github.event.pull_request.number }}.core-system.sdc.nycu.club",
                   "value": "gcp-eng-deploy:internal"
                 }
               }

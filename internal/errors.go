@@ -10,6 +10,8 @@ var (
 	// Auth Errors
 	ErrInvalidRefreshToken  = errors.New("invalid refresh token")
 	ErrProviderNotFound     = errors.New("provider not found")
+	ErrNewStateFailed       = errors.New("failed to create new jwt state")
+	ErrOAuthError           = errors.New("failed to finish OAuth flow, OAuth error received")
 	ErrInvalidExchangeToken = errors.New("invalid exchange token")
 	ErrInvalidCallbackInfo  = errors.New("invalid callback info")
 	ErrPermissionDenied     = errors.New("permission denied")
