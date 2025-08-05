@@ -59,7 +59,7 @@ func (s *Service) Submit(ctx context.Context, formID uuid.UUID, userID uuid.UUID
 	}
 
 	// Validate answers against questions
-	questionTypes := make([]response.QuestionType, len(questions))
+	questionTypes := make([]response.QuestionType, 0, len(questions))
 	validationErrors := make([]error, 0)
 	for _, ans := range answers {
 		var found bool
