@@ -23,7 +23,7 @@ services:
     labels:
       - "vector.enable=true"
       - "traefik.enable=true"
-      - "traefik.http.routers.core-system-backend-$VERSION.rule=Host(`$VERSION.core-system.sdc.nycu.club`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.core-system-backend-$VERSION.rule=Host(`pr-$VERSION.core-system.sdc.nycu.club`) && PathPrefix(`/api`)"
       - "traefik.http.routers.core-system-backend-$VERSION.entrypoints=websecure"
       - "traefik.http.routers.core-system-backend-$VERSION.tls=true"
       - "traefik.http.routers.core-system-backend-$VERSION.tls.certresolver=cloudflare"
