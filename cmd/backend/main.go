@@ -100,6 +100,8 @@ func main() {
 		cfg.Secret = uuid.New().String()
 	}
 
+	logger.Info("Starting application...")
+
 	logger.Info("Starting database migration...")
 
 	err = databaseutil.MigrationUp(cfg.MigrationSource, cfg.DatabaseURL, logger)
