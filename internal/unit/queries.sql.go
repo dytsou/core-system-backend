@@ -13,31 +13,66 @@ import (
 )
 
 const addParentChild = `-- name: AddParentChild :one
-INSERT INTO parent_child (parent_id, child_id)
-VALUES ($1, $2)
-RETURNING parent_id, child_id
+INSERT INTO parent_child (parent_id, child_id, org_id)
+VALUES ($1, $2, $3)
+RETURNING parent_id, child_id, org_id
 `
 
 type AddParentChildParams struct {
-	ParentID uuid.UUID
+	ParentID pgtype.UUID
 	ChildID  uuid.UUID
+	OrgID    uuid.UUID
 }
 
 func (q *Queries) AddParentChild(ctx context.Context, arg AddParentChildParams) (ParentChild, error) {
-	row := q.db.QueryRow(ctx, addParentChild, arg.ParentID, arg.ChildID)
+	row := q.db.QueryRow(ctx, addParentChild, arg.ParentID, arg.ChildID, arg.OrgID)
 	var i ParentChild
-	err := row.Scan(&i.ParentID, &i.ChildID)
+	err := row.Scan(&i.ParentID, &i.ChildID, &i.OrgID)
+	return i, err
+}
+
+const createDefaultUnit = `-- name: CreateDefaultUnit :one
+INSERT INTO units (id, name, org_id, description, metadata)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, org_id, name, description, metadata, created_at, updated_at
+`
+
+type CreateDefaultUnitParams struct {
+	ID          uuid.UUID
+	Name        pgtype.Text
+	OrgID       uuid.UUID
+	Description pgtype.Text
+	Metadata    []byte
+}
+
+func (q *Queries) CreateDefaultUnit(ctx context.Context, arg CreateDefaultUnitParams) (Unit, error) {
+	row := q.db.QueryRow(ctx, createDefaultUnit,
+		arg.ID,
+		arg.Name,
+		arg.OrgID,
+		arg.Description,
+		arg.Metadata,
+	)
+	var i Unit
+	err := row.Scan(
+		&i.ID,
+		&i.OrgID,
+		&i.Name,
+		&i.Description,
+		&i.Metadata,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
 	return i, err
 }
 
 const createOrg = `-- name: CreateOrg :one
-INSERT INTO organizations (id, name, owner_id, description, metadata, slug)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO organizations (name, owner_id, description, metadata, slug)
+VALUES ($1, $2, $3, $4, $5)
 RETURNING id, owner_id, name, description, metadata, slug, created_at, updated_at
 `
 
 type CreateOrgParams struct {
-	ID          uuid.UUID
 	Name        pgtype.Text
 	OwnerID     uuid.UUID
 	Description pgtype.Text
@@ -47,7 +82,6 @@ type CreateOrgParams struct {
 
 func (q *Queries) CreateOrg(ctx context.Context, arg CreateOrgParams) (Organization, error) {
 	row := q.db.QueryRow(ctx, createOrg,
-		arg.ID,
 		arg.Name,
 		arg.OwnerID,
 		arg.Description,
@@ -68,26 +102,13 @@ func (q *Queries) CreateOrg(ctx context.Context, arg CreateOrgParams) (Organizat
 	return i, err
 }
 
-const createOrgUnitID = `-- name: CreateOrgUnitID :one
-INSERT INTO org_unit_ids DEFAULT VALUES
-RETURNING id
-`
-
-func (q *Queries) CreateOrgUnitID(ctx context.Context) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, createOrgUnitID)
-	var id uuid.UUID
-	err := row.Scan(&id)
-	return id, err
-}
-
 const createUnit = `-- name: CreateUnit :one
-INSERT INTO units (id, name, org_id, description, metadata)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO units (name, org_id, description, metadata)
+VALUES ($1, $2, $3, $4)
 RETURNING id, org_id, name, description, metadata, created_at, updated_at
 `
 
 type CreateUnitParams struct {
-	ID          uuid.UUID
 	Name        pgtype.Text
 	OrgID       uuid.UUID
 	Description pgtype.Text
@@ -96,7 +117,6 @@ type CreateUnitParams struct {
 
 func (q *Queries) CreateUnit(ctx context.Context, arg CreateUnitParams) (Unit, error) {
 	row := q.db.QueryRow(ctx, createUnit,
-		arg.ID,
 		arg.Name,
 		arg.OrgID,
 		arg.Description,
@@ -113,15 +133,6 @@ func (q *Queries) CreateUnit(ctx context.Context, arg CreateUnitParams) (Unit, e
 		&i.UpdatedAt,
 	)
 	return i, err
-}
-
-const deleteID = `-- name: DeleteID :exec
-DELETE FROM org_unit_ids WHERE id = $1
-`
-
-func (q *Queries) DeleteID(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, deleteID, id)
-	return err
 }
 
 const deleteOrg = `-- name: DeleteOrg :exec
@@ -229,7 +240,7 @@ const listSubUnitIDs = `-- name: ListSubUnitIDs :many
 SELECT child_id FROM parent_child WHERE parent_id = $1
 `
 
-func (q *Queries) ListSubUnitIDs(ctx context.Context, parentID uuid.UUID) ([]uuid.UUID, error) {
+func (q *Queries) ListSubUnitIDs(ctx context.Context, parentID pgtype.UUID) ([]uuid.UUID, error) {
 	rows, err := q.db.Query(ctx, listSubUnitIDs, parentID)
 	if err != nil {
 		return nil, err
@@ -255,7 +266,7 @@ JOIN parent_child pc ON u.id = pc.child_id
 WHERE pc.parent_id = $1
 `
 
-func (q *Queries) ListSubUnits(ctx context.Context, parentID uuid.UUID) ([]Unit, error) {
+func (q *Queries) ListSubUnits(ctx context.Context, parentID pgtype.UUID) ([]Unit, error) {
 	rows, err := q.db.Query(ctx, listSubUnits, parentID)
 	if err != nil {
 		return nil, err
@@ -288,21 +299,12 @@ DELETE FROM parent_child WHERE parent_id = $1 AND child_id = $2
 `
 
 type RemoveParentChildParams struct {
-	ParentID uuid.UUID
+	ParentID pgtype.UUID
 	ChildID  uuid.UUID
 }
 
 func (q *Queries) RemoveParentChild(ctx context.Context, arg RemoveParentChildParams) error {
 	_, err := q.db.Exec(ctx, removeParentChild, arg.ParentID, arg.ChildID)
-	return err
-}
-
-const removeParentChildByID = `-- name: RemoveParentChildByID :exec
-DELETE FROM parent_child WHERE parent_id = $1 OR child_id = $1
-`
-
-func (q *Queries) RemoveParentChildByID(ctx context.Context, parentID uuid.UUID) error {
-	_, err := q.db.Exec(ctx, removeParentChildByID, parentID)
 	return err
 }
 

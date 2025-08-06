@@ -1,13 +1,14 @@
--- name: CreateOrgUnitID :one
-INSERT INTO org_unit_ids DEFAULT VALUES
-RETURNING *;
-
 -- name: CreateOrg :one
-INSERT INTO organizations (id, name, owner_id, description, metadata, slug)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO organizations (name, owner_id, description, metadata, slug)
+VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
 -- name: CreateUnit :one
+INSERT INTO units (name, org_id, description, metadata)
+VALUES ($1, $2, $3, $4)
+RETURNING *;
+
+-- name: CreateDefaultUnit :one
 INSERT INTO units (id, name, org_id, description, metadata)
 VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
@@ -36,9 +37,6 @@ SET name = $2, description = $3, metadata = $4, updated_at = now()
 WHERE id = $1
 RETURNING *;
 
--- name: DeleteID :exec
-DELETE FROM org_unit_ids WHERE id = $1;
-
 -- name: DeleteUnit :exec
 DELETE FROM units WHERE id = $1;
 
@@ -46,8 +44,8 @@ DELETE FROM units WHERE id = $1;
 DELETE FROM organizations WHERE id = $1;
 
 -- name: AddParentChild :one
-INSERT INTO parent_child (parent_id, child_id)
-VALUES ($1, $2)
+INSERT INTO parent_child (parent_id, child_id, org_id)
+VALUES ($1, $2, $3)
 RETURNING *;
 
 -- name: ListSubUnits :many
@@ -60,6 +58,3 @@ SELECT child_id FROM parent_child WHERE parent_id = $1;
 
 -- name: RemoveParentChild :exec
 DELETE FROM parent_child WHERE parent_id = $1 AND child_id = $2;
-
--- name: RemoveParentChildByID :exec
-DELETE FROM parent_child WHERE parent_id = $1 OR child_id = $1;

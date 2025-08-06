@@ -68,10 +68,6 @@ type OrgMember struct {
 	MemberID uuid.UUID
 }
 
-type OrgUnitID struct {
-	ID uuid.UUID
-}
-
 type Organization struct {
 	ID          uuid.UUID
 	OwnerID     uuid.UUID
@@ -84,8 +80,9 @@ type Organization struct {
 }
 
 type ParentChild struct {
-	ParentID uuid.UUID
+	ParentID pgtype.UUID
 	ChildID  uuid.UUID
+	OrgID    uuid.UUID
 }
 
 type RefreshToken struct {

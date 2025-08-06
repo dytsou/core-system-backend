@@ -58,24 +58,22 @@ func (o OrgWrapper) SetBase(base Base) {
 }
 
 type Querier interface {
-	CreateOrgUnitID(ctx context.Context) (uuid.UUID, error)
 	CreateUnit(ctx context.Context, arg CreateUnitParams) (Unit, error)
+	CreateDefaultUnit(ctx context.Context, arg CreateDefaultUnitParams) (Unit, error)
 	CreateOrg(ctx context.Context, arg CreateOrgParams) (Organization, error)
 	GetOrgByID(ctx context.Context, id uuid.UUID) (Organization, error)
 	GetAllOrganizations(ctx context.Context) ([]Organization, error)
 	GetUnitByID(ctx context.Context, id uuid.UUID) (Unit, error)
 	GetOrgIDBySlug(ctx context.Context, slug string) (uuid.UUID, error)
-	ListSubUnits(ctx context.Context, parentID uuid.UUID) ([]Unit, error)
-	ListSubUnitIDs(ctx context.Context, parentID uuid.UUID) ([]uuid.UUID, error)
+	ListSubUnits(ctx context.Context, parentID pgtype.UUID) ([]Unit, error)
+	ListSubUnitIDs(ctx context.Context, parentID pgtype.UUID) ([]uuid.UUID, error)
 	UpdateUnit(ctx context.Context, arg UpdateUnitParams) (Unit, error)
 	UpdateOrg(ctx context.Context, arg UpdateOrgParams) (Organization, error)
 	DeleteOrg(ctx context.Context, id uuid.UUID) error
 	DeleteUnit(ctx context.Context, id uuid.UUID) error
-	DeleteID(ctx context.Context, id uuid.UUID) error
 
 	AddParentChild(ctx context.Context, arg AddParentChildParams) (ParentChild, error)
 	RemoveParentChild(ctx context.Context, arg RemoveParentChildParams) error
-	RemoveParentChildByID(ctx context.Context, id uuid.UUID) error
 }
 
 type Service struct {
@@ -107,15 +105,7 @@ func (s *Service) CreateUnit(ctx context.Context, name string, orgID uuid.UUID, 
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	unitID, err := s.queries.CreateOrgUnitID(traceCtx)
-	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "create unit ID")
-		span.RecordError(err)
-		return Unit{}, err
-	}
-
 	unit, err := s.queries.CreateUnit(traceCtx, CreateUnitParams{
-		ID:          unitID,
 		Name:        pgtype.Text{String: name, Valid: true},
 		OrgID:       orgID,
 		Description: pgtype.Text{String: description, Valid: description != ""},
@@ -142,15 +132,7 @@ func (s *Service) CreateOrg(ctx context.Context, name string, description string
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	orgID, err := s.queries.CreateOrgUnitID(traceCtx)
-	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "create organization ID")
-		span.RecordError(err)
-		return Organization{}, err
-	}
-
 	org, err := s.queries.CreateOrg(traceCtx, CreateOrgParams{
-		ID:          orgID,
 		Name:        pgtype.Text{String: name, Valid: true},
 		OwnerID:     ownerID,
 		Description: pgtype.Text{String: description, Valid: description != ""},
@@ -177,13 +159,13 @@ func (s *Service) CreateOrg(ctx context.Context, name string, description string
 		zap.String("org_slug", org.Slug),
 		zap.String("org_description", org.Description.String))
 
-	defaultUnit, err := s.queries.CreateUnit(traceCtx, CreateUnitParams{
-		ID: orgID,
+	defaultUnit, err := s.queries.CreateDefaultUnit(traceCtx, CreateDefaultUnitParams{
+		ID: org.ID,
 		Name: pgtype.Text{
 			String: fmt.Sprintf("%s - default unit", name),
 			Valid:  true,
 		},
-		OrgID: orgID,
+		OrgID: org.ID,
 		Description: pgtype.Text{
 			String: fmt.Sprintf("Default unit for %s", name),
 			Valid:  true,
@@ -197,8 +179,11 @@ func (s *Service) CreateOrg(ctx context.Context, name string, description string
 	}
 
 	_, err = s.queries.AddParentChild(traceCtx, AddParentChildParams{
-		ParentID: org.ID,
-		ChildID:  defaultUnit.ID,
+		ParentID: pgtype.UUID{
+			Valid: false,
+		},
+		ChildID: defaultUnit.ID,
+		OrgID:   org.ID,
 	})
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "add parent-child relationship for default unit")
@@ -276,7 +261,7 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID, orgID uuid.UUID, un
 }
 
 // ListSubUnits retrieves all subunits of a parent unit
-func (s *Service) ListSubUnits(ctx context.Context, parentID uuid.UUID) ([]Unit, error) {
+func (s *Service) ListSubUnits(ctx context.Context, parentID pgtype.UUID) ([]Unit, error) {
 	traceCtx, span := s.tracer.Start(ctx, "ListSubUnits")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
@@ -294,7 +279,7 @@ func (s *Service) ListSubUnits(ctx context.Context, parentID uuid.UUID) ([]Unit,
 }
 
 // ListSubUnitIDs retrieves all child unit IDs of a parent unit
-func (s *Service) ListSubUnitIDs(ctx context.Context, parentID uuid.UUID) ([]uuid.UUID, error) {
+func (s *Service) ListSubUnitIDs(ctx context.Context, parentID pgtype.UUID) ([]uuid.UUID, error) {
 	traceCtx, span := s.tracer.Start(ctx, "ListSubUnitIDs")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
@@ -374,8 +359,9 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID, unitType string) err
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	// Deletion Check: Ensure not deleting default unit
-	if unitType == "unit" {
+	switch unitType {
+	case "unit":
+		// Deletion Check: Ensure not deleting default unit
 		unit, err := s.queries.GetUnitByID(traceCtx, id)
 		if err != nil {
 			err = databaseutil.WrapDBError(err, logger, "get unit by id for deletion check")
@@ -388,17 +374,32 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID, unitType string) err
 			span.RecordError(err)
 			logger.Error("Attempted to delete default unit", zap.String("unit_id", id.String()))
 			return err
+		} else {
+			err := s.queries.DeleteUnit(traceCtx, id)
+			if err != nil {
+				err = databaseutil.WrapDBError(err, logger, "Delete Unit")
+				span.RecordError(err)
+				logger.Error("Failed to delete unit",
+					zap.String("unit_id", id.String()),
+					zap.Error(err),
+				)
+			}
 		}
-	}
 
-	err := s.queries.DeleteID(traceCtx, id)
-	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, fmt.Sprintf("delete %s ID", unitType))
+	case "organization":
+		err := s.queries.DeleteOrg(traceCtx, id)
+		if err != nil {
+			err = databaseutil.WrapDBError(err, logger, "Delete Organization")
+			span.RecordError(err)
+			logger.Error("Failed to delete organization",
+				zap.String("org_id", id.String()),
+				zap.Error(err),
+			)
+		}
+	default:
+		err := fmt.Errorf("invalid unit type for deletion: %s", unitType)
 		span.RecordError(err)
-		logger.Error(fmt.Sprintf("Failed to delete %s ID", unitType),
-			zap.String(fmt.Sprintf("%s_id", unitType), id.String()),
-			zap.Error(err),
-		)
+		logger.Error("Invalid unit type for deletion", zap.String("unit_type", string(unitType)))
 	}
 
 	logger.Info(fmt.Sprintf("Deleted %s", unitType), zap.String("ID: ", id.String()))
@@ -438,23 +439,6 @@ func (s *Service) RemoveParentChild(ctx context.Context, arg RemoveParentChildPa
 	}
 
 	logger.Info("Removed parent-child relationship", zap.String("parentID", arg.ParentID.String()), zap.String("childID", arg.ChildID.String()))
-
-	return nil
-}
-
-func (s *Service) RemoveParentChildByID(ctx context.Context, id uuid.UUID) error {
-	traceCtx, span := s.tracer.Start(ctx, "RemoveParentChildByID")
-	defer span.End()
-	logger := logutil.WithContext(traceCtx, s.logger)
-
-	err := s.queries.RemoveParentChildByID(traceCtx, id)
-	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "remove parent-child relationship by ID")
-		span.RecordError(err)
-		return err
-	}
-
-	logger.Info("Removed parent-child relationship by ID", zap.String("id", id.String()))
 
 	return nil
 }
