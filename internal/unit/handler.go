@@ -412,13 +412,13 @@ func (h *Handler) ListOrgSubUnits(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgId, err := h.service.GetOrgIDBySlug(traceCtx, slug)
+	orgID, err := h.service.GetOrgIDBySlug(traceCtx, slug)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
 		return
 	}
 
-	subUnits, err := h.service.ListSubUnits(traceCtx, pgtype.UUID{Bytes: orgId, Valid: true})
+	subUnits, err := h.service.ListSubUnits(traceCtx, orgID, "organization")
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list sub-units: %w", err), h.logger)
 		return
@@ -438,7 +438,7 @@ func (h *Handler) ListUnitSubUnits(w http.ResponseWriter, r *http.Request) {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid unit ID: %w", err), h.logger)
 		return
 	}
-	subUnits, err := h.service.ListSubUnits(traceCtx, pgtype.UUID{Bytes: id, Valid: true})
+	subUnits, err := h.service.ListSubUnits(traceCtx, id, "unit")
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list sub-units: %w", err), h.logger)
 		return
@@ -464,7 +464,7 @@ func (h *Handler) ListOrgSubUnitIDs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	subUnits, err := h.service.ListSubUnitIDs(traceCtx, pgtype.UUID{Bytes: orgID, Valid: true})
+	subUnits, err := h.service.ListSubUnitIDs(traceCtx, orgID, "organization")
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list sub-units: %w", err), h.logger)
 		return
@@ -485,7 +485,7 @@ func (h *Handler) ListUnitSubUnitIDs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	subUnits, err := h.service.ListSubUnitIDs(traceCtx, pgtype.UUID{Bytes: id, Valid: true})
+	subUnits, err := h.service.ListSubUnitIDs(traceCtx, id, "unit")
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list sub-units: %w", err), h.logger)
 		return

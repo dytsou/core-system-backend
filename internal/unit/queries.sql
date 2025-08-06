@@ -53,8 +53,16 @@ SELECT u.* FROM units u
 JOIN parent_child pc ON u.id = pc.child_id
 WHERE pc.parent_id = $1;
 
+-- name: ListOrgSubUnits :many
+SELECT u.* FROM units u
+JOIN parent_child pc ON u.id = pc.child_id
+WHERE pc.parent_id IS NULL AND pc.org_id = $1;
+
 -- name: ListSubUnitIDs :many
 SELECT child_id FROM parent_child WHERE parent_id = $1;
+
+-- name: ListOrgSubUnitIDs :many
+SELECT child_id FROM parent_child WHERE parent_id IS NULL AND org_id = $1;
 
 -- name: RemoveParentChild :exec
 DELETE FROM parent_child WHERE parent_id = $1 AND child_id = $2;

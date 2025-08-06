@@ -66,7 +66,9 @@ type Querier interface {
 	GetUnitByID(ctx context.Context, id uuid.UUID) (Unit, error)
 	GetOrgIDBySlug(ctx context.Context, slug string) (uuid.UUID, error)
 	ListSubUnits(ctx context.Context, parentID pgtype.UUID) ([]Unit, error)
+	ListOrgSubUnits(ctx context.Context, orgID uuid.UUID) ([]Unit, error)
 	ListSubUnitIDs(ctx context.Context, parentID pgtype.UUID) ([]uuid.UUID, error)
+	ListOrgSubUnitIDs(ctx context.Context, orgID uuid.UUID) ([]uuid.UUID, error)
 	UpdateUnit(ctx context.Context, arg UpdateUnitParams) (Unit, error)
 	UpdateOrg(ctx context.Context, arg UpdateOrgParams) (Organization, error)
 	DeleteOrg(ctx context.Context, id uuid.UUID) error
@@ -261,39 +263,71 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID, orgID uuid.UUID, un
 }
 
 // ListSubUnits retrieves all subunits of a parent unit
-func (s *Service) ListSubUnits(ctx context.Context, parentID pgtype.UUID) ([]Unit, error) {
+func (s *Service) ListSubUnits(ctx context.Context, ID uuid.UUID, unitType string) ([]Unit, error) {
 	traceCtx, span := s.tracer.Start(ctx, "ListSubUnits")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	subUnits, err := s.queries.ListSubUnits(traceCtx, parentID)
-	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "list sub units")
-		span.RecordError(err)
-		return nil, err
+	switch unitType {
+	case "organization":
+		subUnits, err := s.queries.ListOrgSubUnits(traceCtx, ID)
+		if err != nil {
+			err = databaseutil.WrapDBError(err, logger, "list sub units of an organization")
+			span.RecordError(err)
+			return nil, err
+		}
+
+		logger.Info("Listed sub units of an organization", zap.String("parent_id", ID.String()), zap.Int("count", len(subUnits)))
+		return subUnits, nil
+
+	case "unit":
+		subUnits, err := s.queries.ListSubUnits(traceCtx, pgtype.UUID{Bytes: ID, Valid: true})
+		if err != nil {
+			err = databaseutil.WrapDBError(err, logger, "list sub units of an unit")
+			span.RecordError(err)
+			return nil, err
+		}
+
+		logger.Info("Listed sub units of an unit", zap.String("parent_id", ID.String()), zap.Int("count", len(subUnits)))
+		return subUnits, nil
 	}
 
-	logger.Info("Listed sub units", zap.String("parent_id", parentID.String()), zap.Int("count", len(subUnits)))
-
-	return subUnits, nil
+	logger.Error("invalid unit type: ", zap.String("unitType", unitType))
+	return nil, fmt.Errorf("invalid unit type: %s", unitType)
 }
 
 // ListSubUnitIDs retrieves all child unit IDs of a parent unit
-func (s *Service) ListSubUnitIDs(ctx context.Context, parentID pgtype.UUID) ([]uuid.UUID, error) {
+func (s *Service) ListSubUnitIDs(ctx context.Context, ID uuid.UUID, unitType string) ([]uuid.UUID, error) {
 	traceCtx, span := s.tracer.Start(ctx, "ListSubUnitIDs")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	unitIDs, err := s.queries.ListSubUnitIDs(traceCtx, parentID)
-	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "list sub unit IDs")
-		span.RecordError(err)
-		return nil, err
+	switch unitType {
+	case "organization":
+		subUnitIDs, err := s.queries.ListOrgSubUnitIDs(traceCtx, ID)
+		if err != nil {
+			err = databaseutil.WrapDBError(err, logger, "list sub unit IDs of an organization")
+			span.RecordError(err)
+			return nil, err
+		}
+
+		logger.Info("Listed sub unit IDs of an organization", zap.String("parent_id", ID.String()), zap.Int("count", len(subUnitIDs)))
+		return subUnitIDs, nil
+
+	case "unit":
+		subUnitIDs, err := s.queries.ListSubUnitIDs(traceCtx, pgtype.UUID{Bytes: ID, Valid: true})
+		if err != nil {
+			err = databaseutil.WrapDBError(err, logger, "list sub unit IDs of an unit")
+			span.RecordError(err)
+			return nil, err
+		}
+
+		logger.Info("Listed sub unit IDs of an unit", zap.String("parent_id", ID.String()), zap.Int("count", len(subUnitIDs)))
+		return subUnitIDs, nil
 	}
 
-	logger.Info("Listed sub unit IDs", zap.String("parent_id", parentID.String()), zap.Int("count", len(unitIDs)))
-
-	return unitIDs, nil
+	logger.Error("invalid unit type: ", zap.String("unitType", unitType))
+	return nil, fmt.Errorf("invalid unit type: %s", unitType)
 }
 
 // UpdateUnit updates the base fields of a unit
