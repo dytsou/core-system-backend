@@ -10,6 +10,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      ENV: "dev"
       HOST: "0.0.0.0"
       BASE_URL: "https://dev.core-system.sdc.nycu.club"
       DATABASE_URL: postgres://postgres:password@postgres:5432/core_system?sslmode=disable

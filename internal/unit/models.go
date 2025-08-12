@@ -54,6 +54,51 @@ func (ns NullDbStrategy) Value() (driver.Value, error) {
 	return string(ns.DbStrategy), nil
 }
 
+type QuestionType string
+
+const (
+	QuestionTypeShortText      QuestionType = "short_text"
+	QuestionTypeLongText       QuestionType = "long_text"
+	QuestionTypeSingleChoice   QuestionType = "single_choice"
+	QuestionTypeMultipleChoice QuestionType = "multiple_choice"
+	QuestionTypeDate           QuestionType = "date"
+)
+
+func (e *QuestionType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = QuestionType(s)
+	case string:
+		*e = QuestionType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for QuestionType: %T", src)
+	}
+	return nil
+}
+
+type NullQuestionType struct {
+	QuestionType QuestionType
+	Valid        bool // Valid is true if QuestionType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullQuestionType) Scan(value interface{}) error {
+	if value == nil {
+		ns.QuestionType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.QuestionType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullQuestionType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.QuestionType), nil
+}
+
 type Auth struct {
 	ID         uuid.UUID
 	UserID     uuid.UUID
@@ -61,6 +106,16 @@ type Auth struct {
 	ProviderID string
 	CreatedAt  pgtype.Timestamptz
 	UpdatedAt  pgtype.Timestamptz
+}
+
+type Form struct {
+	ID          uuid.UUID
+	Title       string
+	Description pgtype.Text
+	UnitID      pgtype.UUID
+	LastEditor  uuid.UUID
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
 }
 
 type OrgMember struct {
@@ -83,6 +138,18 @@ type ParentChild struct {
 	ParentID pgtype.UUID
 	ChildID  uuid.UUID
 	OrgID    uuid.UUID
+}
+
+type Question struct {
+	ID          uuid.UUID
+	FormID      uuid.UUID
+	Required    bool
+	Type        QuestionType
+	Title       pgtype.Text
+	Description pgtype.Text
+	Order       int32
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
 }
 
 type RefreshToken struct {

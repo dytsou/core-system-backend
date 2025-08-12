@@ -2,6 +2,7 @@ package unit
 
 import (
 	"NYCU-SDC/core-system-backend/internal"
+	"NYCU-SDC/core-system-backend/internal/form"
 	"NYCU-SDC/core-system-backend/internal/user"
 	"encoding/json"
 	"fmt"
@@ -24,6 +25,7 @@ type Handler struct {
 	validator     *validator.Validate
 	problemWriter *problem.HttpWriter
 	service       *Service
+	formService   *form.Service
 	tracer        trace.Tracer
 }
 
@@ -32,12 +34,14 @@ func NewHandler(
 	validator *validator.Validate,
 	problemWriter *problem.HttpWriter,
 	service *Service,
+	formService *form.Service,
 ) *Handler {
 	return &Handler{
 		logger:        logger,
 		validator:     validator,
 		problemWriter: problemWriter,
 		service:       service,
+		formService:   formService,
 		tracer:        otel.Tracer("unit"),
 	}
 }
@@ -492,4 +496,58 @@ func (h *Handler) ListUnitSubUnitIDs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, subUnits)
+}
+
+func (h *Handler) CreateFormUnderUnit(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "CreateFormHandler")
+	defer span.End()
+	logger := logutil.WithContext(traceCtx, h.logger)
+
+	var req form.Request
+	if err := handlerutil.ParseAndValidateRequestBody(traceCtx, h.validator, r, &req); err != nil {
+		h.problemWriter.WriteError(traceCtx, w, err, logger)
+		return
+	}
+
+	unitIDStr := r.PathValue("unitId")
+	currentUnitID, err := handlerutil.ParseUUID(unitIDStr)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, err, logger)
+		return
+	}
+
+	currentUser, ok := user.GetFromContext(traceCtx)
+	if !ok {
+		h.problemWriter.WriteError(traceCtx, w, internal.ErrNoUserInContext, logger)
+		return
+	}
+
+	newForm, err := h.formService.Create(traceCtx, req, currentUnitID, currentUser.ID)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, err, logger)
+		return
+	}
+
+	handlerutil.WriteJSONResponse(w, http.StatusCreated, newForm)
+}
+
+func (h *Handler) ListFormsByUnit(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "ListFormsByUnitHandler")
+	defer span.End()
+	logger := logutil.WithContext(traceCtx, h.logger)
+
+	unitIDStr := r.PathValue("unitId")
+	unitID, err := handlerutil.ParseUUID(unitIDStr)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, err, logger)
+		return
+	}
+
+	forms, err := h.formService.ListByUnit(traceCtx, unitID)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, err, logger)
+		return
+	}
+
+	handlerutil.WriteJSONResponse(w, http.StatusOK, forms)
 }

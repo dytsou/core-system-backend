@@ -15,7 +15,6 @@ error_handling() {
 }
 
 export VERSION="pr-$PR_NUMBER"
-export PORT=$((4000 + $PR_NUMBER))
 
 enable_error_handling="false"
 [ ! -d "$VERSION" ] && enable_error_handling="true"
