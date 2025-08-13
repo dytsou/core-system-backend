@@ -65,7 +65,7 @@ SELECT child_id FROM parent_child WHERE parent_id = $1;
 SELECT child_id FROM parent_child WHERE parent_id IS NULL AND org_id = $1;
 
 -- name: RemoveParentChild :exec
-DELETE FROM parent_child WHERE parent_id = $1 AND child_id = $2;
+DELETE FROM parent_child WHERE child_id = $1;
 
 -- name: AddOrgMember :one
 INSERT INTO org_members (org_id, member_id)

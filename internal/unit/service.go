@@ -75,7 +75,7 @@ type Querier interface {
 	DeleteUnit(ctx context.Context, id uuid.UUID) error
 
 	AddParentChild(ctx context.Context, arg AddParentChildParams) (ParentChild, error)
-	RemoveParentChild(ctx context.Context, arg RemoveParentChildParams) error
+	RemoveParentChild(ctx context.Context, childID uuid.UUID) error
 
 	AddOrgMember(ctx context.Context, arg AddOrgMemberParams) (OrgMember, error)
 	ListOrgMembers(ctx context.Context, orgID uuid.UUID) ([]uuid.UUID, error)
@@ -500,19 +500,19 @@ func (s *Service) AddParentChild(ctx context.Context, arg AddParentChildParams) 
 }
 
 // RemoveParentChild removes a parent-child relationship between two units
-func (s *Service) RemoveParentChild(ctx context.Context, arg RemoveParentChildParams) error {
+func (s *Service) RemoveParentChild(ctx context.Context, childID uuid.UUID) error {
 	traceCtx, span := s.tracer.Start(ctx, "RemoveParentChild")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	err := s.queries.RemoveParentChild(traceCtx, arg)
+	err := s.queries.RemoveParentChild(traceCtx, childID)
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "remove parent-child relationship")
 		span.RecordError(err)
 		return err
 	}
 
-	logger.Info("Removed parent-child relationship", zap.String("parentID", arg.ParentID.String()), zap.String("childID", arg.ChildID.String()))
+	logger.Info("Removed parent-child relationship", zap.String("childID", childID.String()))
 
 	return nil
 }
