@@ -126,6 +126,19 @@ func (s *Service) CreateUnit(ctx context.Context, name string, orgID uuid.UUID, 
 		return Unit{}, err
 	}
 
+	_, err = s.queries.AddParentChild(traceCtx, AddParentChildParams{
+		ParentID: pgtype.UUID{
+			Valid: false,
+		},
+		ChildID: unit.ID,
+		OrgID:   orgID,
+	})
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "add parent-child relationship for created unit")
+		span.RecordError(err)
+		return Unit{}, err
+	}
+
 	logger.Info("Created unit",
 		zap.String("unit_id", unit.ID.String()),
 		zap.String("org_id", orgID.String()),
