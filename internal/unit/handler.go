@@ -568,6 +568,42 @@ func (h *Handler) ListUnitMembers(w http.ResponseWriter, r *http.Request) {
 	handlerutil.WriteJSONResponse(w, http.StatusOK, members)
 }
 
+func (h *Handler) RemoveUnitMember(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "RemoveUnitMember")
+	defer span.End()
+	h.logger = logutil.WithContext(traceCtx, h.logger)
+
+	idStr := r.PathValue("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid unit ID: %w", err), h.logger)
+		return
+	}
+
+	mIDStr := r.PathValue("member_id")
+	if mIDStr == "" {
+		http.Error(w, "member ID not provided", http.StatusBadRequest)
+		return
+	}
+
+	mID, err := uuid.Parse(mIDStr)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid member ID: %w", err), h.logger)
+		return
+	}
+
+	err = h.service.RemoveUnitMember(traceCtx, RemoveUnitMemberParams{
+		UnitID:   id,
+		MemberID: mID,
+	})
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to remove unit member: %w", err), h.logger)
+		return
+	}
+
+	handlerutil.WriteJSONResponse(w, http.StatusNoContent, nil)
+}
+
 func (h *Handler) ListOrgSubUnits(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "ListOrgSubUnits")
 	defer span.End()

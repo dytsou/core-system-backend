@@ -85,3 +85,6 @@ RETURNING *;
 
 -- name: ListUnitMembers :many
 SELECT member_id FROM unit_members WHERE unit_id = $1;
+
+-- name: RemoveUnitMember :exec
+DELETE FROM unit_members WHERE unit_id = $1 AND member_id = $2;

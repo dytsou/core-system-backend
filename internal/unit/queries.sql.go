@@ -464,6 +464,20 @@ func (q *Queries) RemoveParentChild(ctx context.Context, arg RemoveParentChildPa
 	return err
 }
 
+const removeUnitMember = `-- name: RemoveUnitMember :exec
+DELETE FROM unit_members WHERE unit_id = $1 AND member_id = $2
+`
+
+type RemoveUnitMemberParams struct {
+	UnitID   uuid.UUID
+	MemberID uuid.UUID
+}
+
+func (q *Queries) RemoveUnitMember(ctx context.Context, arg RemoveUnitMemberParams) error {
+	_, err := q.db.Exec(ctx, removeUnitMember, arg.UnitID, arg.MemberID)
+	return err
+}
+
 const updateOrg = `-- name: UpdateOrg :one
 UPDATE organizations
 SET slug = $2, name = $3, description = $4, metadata = $5, updated_at = now()

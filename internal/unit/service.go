@@ -82,6 +82,7 @@ type Querier interface {
 	RemoveOrgMember(ctx context.Context, arg RemoveOrgMemberParams) error
 	AddUnitMember(ctx context.Context, arg AddUnitMemberParams) (UnitMember, error)
 	ListUnitMembers(ctx context.Context, unitID uuid.UUID) ([]uuid.UUID, error)
+	RemoveUnitMember(ctx context.Context, arg RemoveUnitMemberParams) error
 }
 
 type Service struct {
@@ -583,4 +584,24 @@ func (s *Service) ListUnitMembers(ctx context.Context, unitID uuid.UUID) ([]uuid
 		zap.String("members", fmt.Sprintf("%v", unitMembers)))
 
 	return unitMembers, nil
+}
+
+// RemoveUnitMember removes a member from a unit
+func (s *Service) RemoveUnitMember(ctx context.Context, arg RemoveUnitMemberParams) error {
+	traceCtx, span := s.tracer.Start(ctx, "RemoveUnitMember")
+	defer span.End()
+	logger := logutil.WithContext(traceCtx, s.logger)
+
+	err := s.queries.RemoveUnitMember(traceCtx, arg)
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "remove unit member")
+		span.RecordError(err)
+		return err
+	}
+
+	logger.Info("Removed unit member",
+		zap.String("unit_id", arg.UnitID.String()),
+		zap.String("member_id", arg.MemberID.String()))
+
+	return nil
 }
