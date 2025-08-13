@@ -419,7 +419,7 @@ func (h *Handler) AddOrgMember(w http.ResponseWriter, r *http.Request) {
 
 	// Get MemberID from request body
 	var params struct {
-		MemberID uuid.UUID `json:"MemberID"`
+		MemberID uuid.UUID `json:"member_id"`
 	}
 	if err := handlerutil.ParseAndValidateRequestBody(traceCtx, h.validator, r, &params); err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid request body: %w", err), h.logger)
@@ -508,6 +508,64 @@ func (h *Handler) RemoveOrgMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	handlerutil.WriteJSONResponse(w, http.StatusNoContent, nil)
+}
+
+func (h *Handler) AddUnitMember(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "AddUnitMember")
+	defer span.End()
+	h.logger = logutil.WithContext(traceCtx, h.logger)
+
+	idStr := r.PathValue("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid unit ID: %w", err), h.logger)
+		return
+	}
+
+	var params struct {
+		MemberID uuid.UUID `json:"member_id"`
+	}
+	if err := handlerutil.ParseAndValidateRequestBody(traceCtx, h.validator, r, &params); err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid request body: %w", err), h.logger)
+		return
+	}
+
+	if params.MemberID == uuid.Nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("member ID cannot be empty"), h.logger)
+		return
+	}
+
+	member, err := h.service.AddUnitMember(traceCtx, AddUnitMemberParams{
+		UnitID:   id,
+		MemberID: params.MemberID,
+	})
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to add unit member: %w", err), h.logger)
+		return
+	}
+
+	handlerutil.WriteJSONResponse(w, http.StatusNoContent, member)
+}
+
+func (h *Handler) ListUnitMembers(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "ListUnitMembers")
+	defer span.End()
+	h.logger = logutil.WithContext(traceCtx, h.logger)
+
+	idStr := r.PathValue("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid unit ID: %w", err), h.logger)
+		return
+	}
+
+	members, err := h.service.ListUnitMembers(traceCtx, id)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list unit members: %w", err), h.logger)
+		return
+	}
+
+	handlerutil.WriteJSONResponse(w, http.StatusOK, members)
 }
 
 func (h *Handler) ListOrgSubUnits(w http.ResponseWriter, r *http.Request) {

@@ -49,6 +49,24 @@ func (q *Queries) AddParentChild(ctx context.Context, arg AddParentChildParams) 
 	return i, err
 }
 
+const addUnitMember = `-- name: AddUnitMember :one
+INSERT INTO unit_members (unit_id, member_id)
+VALUES ($1, $2)
+RETURNING unit_id, member_id
+`
+
+type AddUnitMemberParams struct {
+	UnitID   uuid.UUID
+	MemberID uuid.UUID
+}
+
+func (q *Queries) AddUnitMember(ctx context.Context, arg AddUnitMemberParams) (UnitMember, error) {
+	row := q.db.QueryRow(ctx, addUnitMember, arg.UnitID, arg.MemberID)
+	var i UnitMember
+	err := row.Scan(&i.UnitID, &i.MemberID)
+	return i, err
+}
+
 const createDefaultUnit = `-- name: CreateDefaultUnit :one
 INSERT INTO units (id, name, org_id, description, metadata)
 VALUES ($1, $2, $3, $4, $5)
@@ -387,6 +405,30 @@ func (q *Queries) ListSubUnits(ctx context.Context, parentID pgtype.UUID) ([]Uni
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUnitMembers = `-- name: ListUnitMembers :many
+SELECT member_id FROM unit_members WHERE unit_id = $1
+`
+
+func (q *Queries) ListUnitMembers(ctx context.Context, unitID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listUnitMembers, unitID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var member_id uuid.UUID
+		if err := rows.Scan(&member_id); err != nil {
+			return nil, err
+		}
+		items = append(items, member_id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

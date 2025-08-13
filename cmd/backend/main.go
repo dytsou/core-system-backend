@@ -190,6 +190,8 @@ func main() {
 	mux.HandleFunc("POST /api/orgs/{slug}/members", tenantMiddleware.Middleware(unitHandler.AddOrgMember))
 	mux.HandleFunc("GET /api/orgs/{slug}/members", tenantMiddleware.Middleware(unitHandler.ListOrgMembers))
 	mux.HandleFunc("DELETE /api/orgs/{slug}/members/{member_id}", tenantMiddleware.Middleware(unitHandler.RemoveOrgMember))
+	mux.HandleFunc("POST /api/orgs/{slug}/units/{id}/members", tenantMiddleware.Middleware(unitHandler.AddUnitMember))
+	mux.HandleFunc("GET /api/orgs/{slug}/units/{id}/members", tenantMiddleware.Middleware(unitHandler.ListUnitMembers))
 
 	// List sub-units
 	mux.Handle("GET /api/orgs/{slug}/units", tenantMiddleware.Middleware(unitHandler.ListOrgSubUnits))

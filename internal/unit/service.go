@@ -80,6 +80,8 @@ type Querier interface {
 	AddOrgMember(ctx context.Context, arg AddOrgMemberParams) (OrgMember, error)
 	ListOrgMembers(ctx context.Context, orgID uuid.UUID) ([]uuid.UUID, error)
 	RemoveOrgMember(ctx context.Context, arg RemoveOrgMemberParams) error
+	AddUnitMember(ctx context.Context, arg AddUnitMemberParams) (UnitMember, error)
+	ListUnitMembers(ctx context.Context, unitID uuid.UUID) ([]uuid.UUID, error)
 }
 
 type Service struct {
@@ -540,4 +542,45 @@ func (s *Service) RemoveOrgMember(ctx context.Context, arg RemoveOrgMemberParams
 		zap.String("member_id", arg.MemberID.String()))
 
 	return nil
+}
+
+// AddUnitMember adds a member to a unit
+func (s *Service) AddUnitMember(ctx context.Context, arg AddUnitMemberParams) (UnitMember, error) {
+	traceCtx, span := s.tracer.Start(ctx, "AddUnitMember")
+	defer span.End()
+	logger := logutil.WithContext(traceCtx, s.logger)
+
+	unitMember, err := s.queries.AddUnitMember(traceCtx, arg)
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "add unit member")
+		span.RecordError(err)
+		return UnitMember{}, err
+	}
+
+	logger.Info("Added unit member",
+		zap.String("unit_id", unitMember.UnitID.String()),
+		zap.String("member_id", unitMember.MemberID.String()))
+
+	return unitMember, nil
+}
+
+// ListUnitMembers lists all members of a unit
+func (s *Service) ListUnitMembers(ctx context.Context, unitID uuid.UUID) ([]uuid.UUID, error) {
+	traceCtx, span := s.tracer.Start(ctx, "ListUnitMembers")
+	defer span.End()
+	logger := logutil.WithContext(traceCtx, s.logger)
+
+	unitMembers, err := s.queries.ListUnitMembers(traceCtx, unitID)
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "list unit members")
+		span.RecordError(err)
+		return nil, err
+	}
+
+	logger.Info("Listed unit members",
+		zap.String("unit_id", unitID.String()),
+		zap.Int("count", len(unitMembers)),
+		zap.String("members", fmt.Sprintf("%v", unitMembers)))
+
+	return unitMembers, nil
 }
