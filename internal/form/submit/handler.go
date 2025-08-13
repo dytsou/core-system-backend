@@ -50,17 +50,15 @@ type Handler struct {
 	validator     *validator.Validate
 	problemWriter *problem.HttpWriter
 	operator      Operator
-	questionStore QuestionStore
 	tracer        trace.Tracer
 }
 
-func NewHandler(logger *zap.Logger, validator *validator.Validate, problemWriter *problem.HttpWriter, operator Operator, questionStore QuestionStore) *Handler {
+func NewHandler(logger *zap.Logger, validator *validator.Validate, problemWriter *problem.HttpWriter, operator Operator) *Handler {
 	return &Handler{
 		logger:        logger,
 		validator:     validator,
 		problemWriter: problemWriter,
 		operator:      operator,
-		questionStore: questionStore,
 		tracer:        otel.Tracer("response/handler"),
 	}
 }

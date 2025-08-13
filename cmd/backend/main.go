@@ -140,7 +140,7 @@ func main() {
 	questionHandler := question.NewHandler(logger, validator, problemWriter, questionService)
 	unitHandler := unit.NewHandler(logger, validator, problemWriter, unitService, formService)
 	responseHandler := response.NewHandler(logger, validator, problemWriter, responseService, questionService)
-	submitHandler := submit.NewHandler(logger, validator, problemWriter, submitService, questionService)
+	submitHandler := submit.NewHandler(logger, validator, problemWriter, submitService)
 
 	// Middleware
 	traceMiddleware := trace.NewMiddleware(logger, cfg.Debug)

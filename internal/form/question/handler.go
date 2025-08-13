@@ -16,7 +16,6 @@ import (
 )
 
 type Request struct {
-	FormID      uuid.UUID
 	Required    bool   `json:"required" validate:"required"`
 	Type        string `json:"type" validate:"required,oneof=short_text long_text single_choice multiple_choice date"`
 	Title       string `json:"title" validate:"required"`
