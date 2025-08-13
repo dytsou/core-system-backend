@@ -76,6 +76,9 @@ type Querier interface {
 
 	AddParentChild(ctx context.Context, arg AddParentChildParams) (ParentChild, error)
 	RemoveParentChild(ctx context.Context, arg RemoveParentChildParams) error
+
+	AddOrgMember(ctx context.Context, arg AddOrgMemberParams) (OrgMember, error)
+	ListOrgMembers(ctx context.Context, orgID uuid.UUID) ([]uuid.UUID, error)
 }
 
 type Service struct {
@@ -475,4 +478,48 @@ func (s *Service) RemoveParentChild(ctx context.Context, arg RemoveParentChildPa
 	logger.Info("Removed parent-child relationship", zap.String("parentID", arg.ParentID.String()), zap.String("childID", arg.ChildID.String()))
 
 	return nil
+}
+
+// AddOrgMember adds a member to an organization
+func (s *Service) AddOrgMember(ctx context.Context, arg AddOrgMemberParams) (OrgMember, error) {
+	traceCtx, span := s.tracer.Start(ctx, "AddOrgMember")
+	defer span.End()
+	logger := logutil.WithContext(traceCtx, s.logger)
+
+	orgMember, err := s.queries.AddOrgMember(traceCtx, AddOrgMemberParams{
+		OrgID:    arg.OrgID,
+		MemberID: arg.MemberID,
+	})
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "add organization member")
+		span.RecordError(err)
+		return OrgMember{}, err
+	}
+
+	logger.Info("Added organization member",
+		zap.String("org_id", orgMember.OrgID.String()),
+		zap.String("member_id", orgMember.MemberID.String()))
+
+	return orgMember, nil
+}
+
+// ListOrgMembers lists all members of an organization
+func (s *Service) ListOrgMembers(ctx context.Context, orgID uuid.UUID) ([]uuid.UUID, error) {
+	traceCtx, span := s.tracer.Start(ctx, "ListOrgMembers")
+	defer span.End()
+	logger := logutil.WithContext(traceCtx, s.logger)
+
+	orgMembers, err := s.queries.ListOrgMembers(traceCtx, orgID)
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "list organization members")
+		span.RecordError(err)
+		return nil, err
+	}
+
+	logger.Info("Listed organization members",
+		zap.String("org_id", orgID.String()),
+		zap.Int("count", len(orgMembers)),
+		zap.String("members", fmt.Sprintf("%v", orgMembers)))
+
+	return orgMembers, nil
 }

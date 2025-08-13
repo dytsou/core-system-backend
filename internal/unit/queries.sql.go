@@ -12,6 +12,24 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const addOrgMember = `-- name: AddOrgMember :one
+INSERT INTO org_members (org_id, member_id)
+VALUES ($1, $2)
+RETURNING org_id, member_id
+`
+
+type AddOrgMemberParams struct {
+	OrgID    uuid.UUID
+	MemberID uuid.UUID
+}
+
+func (q *Queries) AddOrgMember(ctx context.Context, arg AddOrgMemberParams) (OrgMember, error) {
+	row := q.db.QueryRow(ctx, addOrgMember, arg.OrgID, arg.MemberID)
+	var i OrgMember
+	err := row.Scan(&i.OrgID, &i.MemberID)
+	return i, err
+}
+
 const addParentChild = `-- name: AddParentChild :one
 INSERT INTO parent_child (parent_id, child_id, org_id)
 VALUES ($1, $2, $3)
@@ -234,6 +252,30 @@ func (q *Queries) GetUnitByID(ctx context.Context, id uuid.UUID) (Unit, error) {
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const listOrgMembers = `-- name: ListOrgMembers :many
+SELECT member_id FROM org_members WHERE org_id = $1
+`
+
+func (q *Queries) ListOrgMembers(ctx context.Context, orgID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listOrgMembers, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var member_id uuid.UUID
+		if err := rows.Scan(&member_id); err != nil {
+			return nil, err
+		}
+		items = append(items, member_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listOrgSubUnitIDs = `-- name: ListOrgSubUnitIDs :many

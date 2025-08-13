@@ -400,6 +400,80 @@ func (h *Handler) RemoveParentChild(w http.ResponseWriter, r *http.Request) {
 	handlerutil.WriteJSONResponse(w, http.StatusNoContent, nil)
 }
 
+func (h *Handler) AddOrgMember(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "AddOrgMember")
+	defer span.End()
+	h.logger = logutil.WithContext(traceCtx, h.logger)
+
+	slug, err := internal.GetSlugFromContext(traceCtx)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org slug from context: %w", err), h.logger)
+		return
+	}
+
+	orgID, err := h.service.GetOrgIDBySlug(traceCtx, slug)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
+		return
+	}
+
+	// Get MemberID from request body
+	var params struct {
+		MemberID uuid.UUID `json:"MemberID"`
+	}
+	if err := handlerutil.ParseAndValidateRequestBody(traceCtx, h.validator, r, &params); err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid request body: %w", err), h.logger)
+		return
+	}
+
+	// Log the MemberID and OrgID for debugging
+	h.logger.Debug("Adding org member", zap.String("orgID", orgID.String()), zap.String("memberID", params.MemberID.String()))
+
+	if orgID == uuid.Nil || params.MemberID == uuid.Nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("org ID or member ID cannot be empty"), h.logger)
+		return
+	}
+
+	var addMemberParams = AddOrgMemberParams{
+		OrgID:    orgID,
+		MemberID: params.MemberID,
+	}
+
+	members, err := h.service.AddOrgMember(traceCtx, addMemberParams)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to add org member: %w", err), h.logger)
+		return
+	}
+
+	handlerutil.WriteJSONResponse(w, http.StatusNoContent, members)
+}
+
+func (h *Handler) ListOrgMembers(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "ListOrgMembers")
+	defer span.End()
+	h.logger = logutil.WithContext(traceCtx, h.logger)
+
+	slug, err := internal.GetSlugFromContext(traceCtx)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org slug from context: %w", err), h.logger)
+		return
+	}
+
+	orgID, err := h.service.GetOrgIDBySlug(traceCtx, slug)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
+		return
+	}
+
+	members, err := h.service.ListOrgMembers(traceCtx, orgID)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list org members: %w", err), h.logger)
+		return
+	}
+
+	handlerutil.WriteJSONResponse(w, http.StatusOK, members)
+}
+
 func (h *Handler) ListOrgSubUnits(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "ListOrgSubUnits")
 	defer span.End()

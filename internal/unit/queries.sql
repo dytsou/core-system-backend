@@ -66,3 +66,11 @@ SELECT child_id FROM parent_child WHERE parent_id IS NULL AND org_id = $1;
 
 -- name: RemoveParentChild :exec
 DELETE FROM parent_child WHERE parent_id = $1 AND child_id = $2;
+
+-- name: AddOrgMember :one
+INSERT INTO org_members (org_id, member_id)
+VALUES ($1, $2)
+RETURNING *;
+
+-- name: ListOrgMembers :many
+SELECT member_id FROM org_members WHERE org_id = $1;
