@@ -74,3 +74,6 @@ RETURNING *;
 
 -- name: ListOrgMembers :many
 SELECT member_id FROM org_members WHERE org_id = $1;
+
+-- name: RemoveOrgMember :exec
+DELETE FROM org_members WHERE org_id = $1 AND member_id = $2;

@@ -426,20 +426,15 @@ func (h *Handler) AddOrgMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Log the MemberID and OrgID for debugging
-	h.logger.Debug("Adding org member", zap.String("orgID", orgID.String()), zap.String("memberID", params.MemberID.String()))
-
 	if orgID == uuid.Nil || params.MemberID == uuid.Nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("org ID or member ID cannot be empty"), h.logger)
 		return
 	}
 
-	var addMemberParams = AddOrgMemberParams{
+	members, err := h.service.AddOrgMember(traceCtx, AddOrgMemberParams{
 		OrgID:    orgID,
 		MemberID: params.MemberID,
-	}
-
-	members, err := h.service.AddOrgMember(traceCtx, addMemberParams)
+	})
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to add org member: %w", err), h.logger)
 		return
@@ -472,6 +467,47 @@ func (h *Handler) ListOrgMembers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, members)
+}
+
+func (h *Handler) RemoveOrgMember(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "RemoveOrgMember")
+	defer span.End()
+	h.logger = logutil.WithContext(traceCtx, h.logger)
+
+	slug, err := internal.GetSlugFromContext(traceCtx)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org slug from context: %w", err), h.logger)
+		return
+	}
+
+	orgID, err := h.service.GetOrgIDBySlug(traceCtx, slug)
+	if err != nil || orgID == uuid.Nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
+		return
+	}
+
+	mIDStr := r.PathValue("member_id")
+
+	if mIDStr == "" {
+		http.Error(w, "member ID not provided", http.StatusBadRequest)
+		return
+	}
+	mID, err := uuid.Parse(mIDStr)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid member ID: %w", err), h.logger)
+		return
+	}
+
+	err = h.service.RemoveOrgMember(traceCtx, RemoveOrgMemberParams{
+		OrgID:    orgID,
+		MemberID: mID,
+	})
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to remove org member: %w", err), h.logger)
+		return
+	}
+
+	handlerutil.WriteJSONResponse(w, http.StatusNoContent, nil)
 }
 
 func (h *Handler) ListOrgSubUnits(w http.ResponseWriter, r *http.Request) {

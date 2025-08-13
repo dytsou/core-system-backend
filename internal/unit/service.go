@@ -79,6 +79,7 @@ type Querier interface {
 
 	AddOrgMember(ctx context.Context, arg AddOrgMemberParams) (OrgMember, error)
 	ListOrgMembers(ctx context.Context, orgID uuid.UUID) ([]uuid.UUID, error)
+	RemoveOrgMember(ctx context.Context, arg RemoveOrgMemberParams) error
 }
 
 type Service struct {
@@ -486,10 +487,7 @@ func (s *Service) AddOrgMember(ctx context.Context, arg AddOrgMemberParams) (Org
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	orgMember, err := s.queries.AddOrgMember(traceCtx, AddOrgMemberParams{
-		OrgID:    arg.OrgID,
-		MemberID: arg.MemberID,
-	})
+	orgMember, err := s.queries.AddOrgMember(traceCtx, arg)
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "add organization member")
 		span.RecordError(err)
@@ -522,4 +520,24 @@ func (s *Service) ListOrgMembers(ctx context.Context, orgID uuid.UUID) ([]uuid.U
 		zap.String("members", fmt.Sprintf("%v", orgMembers)))
 
 	return orgMembers, nil
+}
+
+// RemoveOrgMember removes a member from an organization
+func (s *Service) RemoveOrgMember(ctx context.Context, arg RemoveOrgMemberParams) error {
+	traceCtx, span := s.tracer.Start(ctx, "RemoveOrgMember")
+	defer span.End()
+	logger := logutil.WithContext(traceCtx, s.logger)
+
+	err := s.queries.RemoveOrgMember(traceCtx, arg)
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "remove organization member")
+		span.RecordError(err)
+		return err
+	}
+
+	logger.Info("Removed organization member",
+		zap.String("org_id", arg.OrgID.String()),
+		zap.String("member_id", arg.MemberID.String()))
+
+	return nil
 }

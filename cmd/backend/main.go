@@ -189,6 +189,7 @@ func main() {
 	mux.HandleFunc("GET /api/orgs/{slug}/units/{unitId}/forms", jwtMiddleware.AuthenticateMiddleware(unitHandler.ListFormsByUnit))
 	mux.HandleFunc("POST /api/orgs/{slug}/members", tenantMiddleware.Middleware(unitHandler.AddOrgMember))
 	mux.HandleFunc("GET /api/orgs/{slug}/members", tenantMiddleware.Middleware(unitHandler.ListOrgMembers))
+	mux.HandleFunc("DELETE /api/orgs/{slug}/members/{member_id}", tenantMiddleware.Middleware(unitHandler.RemoveOrgMember))
 
 	// List sub-units
 	mux.Handle("GET /api/orgs/{slug}/units", tenantMiddleware.Middleware(unitHandler.ListOrgSubUnits))
