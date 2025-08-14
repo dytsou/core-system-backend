@@ -583,29 +583,38 @@ func (s *Service) AddMember(ctx context.Context, unitType string, arg AddMemberP
 	return MemberWrapper{}, fmt.Errorf("invalid unit type: %s", unitType)
 }
 
-// ListOrgMembers lists all members of an organization
-func (s *Service) ListOrgMembers(ctx context.Context, orgID uuid.UUID) ([]uuid.UUID, error) {
+// ListMembers lists all members of an organization
+func (s *Service) ListMembers(ctx context.Context, unitType string, ID uuid.UUID) ([]uuid.UUID, error) {
 	traceCtx, span := s.tracer.Start(ctx, "ListOrgMembers")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	orgMembers, err := s.queries.ListOrgMembers(traceCtx, orgID)
+	var members []uuid.UUID
+	var err error
+
+	switch unitType {
+	case "organization":
+		members, err = s.queries.ListOrgMembers(traceCtx, ID)
+	case "unit":
+		members, err = s.queries.ListUnitMembers(traceCtx, ID)
+	}
+
 	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "list organization members")
+		err = databaseutil.WrapDBError(err, logger, fmt.Sprintf("list %s members", unitType))
 		span.RecordError(err)
 		return nil, err
 	}
 
-	if orgMembers == nil {
-		orgMembers = []uuid.UUID{}
+	if members == nil {
+		members = []uuid.UUID{}
 	}
 
-	logger.Info("Listed organization members",
-		zap.String("org_id", orgID.String()),
-		zap.Int("count", len(orgMembers)),
-		zap.String("members", fmt.Sprintf("%v", orgMembers)))
+	logger.Info(fmt.Sprintf("Listed %s members", unitType),
+		zap.String("org_id", ID.String()),
+		zap.Int("count", len(members)),
+		zap.String("members", fmt.Sprintf("%v", members)))
 
-	return orgMembers, nil
+	return members, nil
 }
 
 // RemoveOrgMember removes a member from an organization
@@ -626,31 +635,6 @@ func (s *Service) RemoveOrgMember(ctx context.Context, arg RemoveOrgMemberParams
 		zap.String("member_id", arg.MemberID.String()))
 
 	return nil
-}
-
-// ListUnitMembers lists all members of a unit
-func (s *Service) ListUnitMembers(ctx context.Context, unitID uuid.UUID) ([]uuid.UUID, error) {
-	traceCtx, span := s.tracer.Start(ctx, "ListUnitMembers")
-	defer span.End()
-	logger := logutil.WithContext(traceCtx, s.logger)
-
-	unitMembers, err := s.queries.ListUnitMembers(traceCtx, unitID)
-	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "list unit members")
-		span.RecordError(err)
-		return nil, err
-	}
-
-	if unitMembers == nil {
-		unitMembers = []uuid.UUID{}
-	}
-
-	logger.Info("Listed unit members",
-		zap.String("unit_id", unitID.String()),
-		zap.Int("count", len(unitMembers)),
-		zap.String("members", fmt.Sprintf("%v", unitMembers)))
-
-	return unitMembers, nil
 }
 
 // RemoveUnitMember removes a member from a unit
