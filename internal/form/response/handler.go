@@ -191,7 +191,7 @@ func (h *Handler) DeleteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusOK, nil)
+	handlerutil.WriteJSONResponse(w, http.StatusNoContent, nil)
 }
 
 // GetAnswersByQuestionIDHandler gets answers by question id
