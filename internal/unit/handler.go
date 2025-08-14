@@ -53,6 +53,11 @@ type OrgRequest struct {
 	Slug        string            `json:"slug" validate:"required"`
 }
 
+type AddMemberParams struct {
+	ID       uuid.UUID `json:"id" validate:"required"`
+	MemberID uuid.UUID `json:"member_id" validate:"required"`
+}
+
 type Request struct {
 	Name        string            `json:"name" validate:"required"`
 	Description string            `json:"description"`
@@ -420,8 +425,8 @@ func (h *Handler) AddOrgMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	members, err := h.service.AddOrgMember(traceCtx, AddOrgMemberParams{
-		OrgID:    orgID,
+	members, err := h.service.AddMember(traceCtx, "organization", AddMemberParams{
+		ID:       orgID,
 		MemberID: params.MemberID,
 	})
 	if err != nil {
@@ -524,8 +529,8 @@ func (h *Handler) AddUnitMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	member, err := h.service.AddUnitMember(traceCtx, AddUnitMemberParams{
-		UnitID:   id,
+	member, err := h.service.AddMember(traceCtx, "unit", AddMemberParams{
+		ID:       id,
 		MemberID: params.MemberID,
 	})
 	if err != nil {

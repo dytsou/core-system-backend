@@ -57,6 +57,26 @@ func (o OrgWrapper) SetBase(base Base) {
 	o.Organization.Metadata = base.Metadata
 }
 
+type GenericMember interface {
+	GetMember() uuid.UUID
+}
+
+type MemberWrapper struct {
+	UnitMember UnitMember
+}
+
+func (m MemberWrapper) GetMember() uuid.UUID {
+	return m.UnitMember.MemberID
+}
+
+type OrgMemberWrapper struct {
+	OrgMember OrgMember
+}
+
+func (o OrgMemberWrapper) GetMember() uuid.UUID {
+	return o.OrgMember.MemberID
+}
+
 type Querier interface {
 	CreateUnit(ctx context.Context, arg CreateUnitParams) (Unit, error)
 	CreateDefaultUnit(ctx context.Context, arg CreateDefaultUnitParams) (Unit, error)
@@ -517,24 +537,50 @@ func (s *Service) RemoveParentChild(ctx context.Context, childID uuid.UUID) erro
 	return nil
 }
 
-// AddOrgMember adds a member to an organization
-func (s *Service) AddOrgMember(ctx context.Context, arg AddOrgMemberParams) (OrgMember, error) {
+// AddMember adds a member to an organization
+func (s *Service) AddMember(ctx context.Context, unitType string, arg AddMemberParams) (GenericMember, error) {
 	traceCtx, span := s.tracer.Start(ctx, "AddOrgMember")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	orgMember, err := s.queries.AddOrgMember(traceCtx, arg)
-	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "add organization member")
-		span.RecordError(err)
-		return OrgMember{}, err
+	switch unitType {
+	case "organization":
+		orgMember, err := s.queries.AddOrgMember(traceCtx, AddOrgMemberParams{
+			OrgID:    arg.ID,
+			MemberID: arg.MemberID,
+		})
+		if err != nil {
+			err = databaseutil.WrapDBError(err, logger, "add org member relationship")
+			span.RecordError(err)
+			return OrgMemberWrapper{}, err
+		}
+
+		logger.Info("Added organization member",
+			zap.String("org_id", orgMember.OrgID.String()),
+			zap.String("member_id", orgMember.MemberID.String()))
+
+		return OrgMemberWrapper{orgMember}, nil
+
+	case "unit":
+		unitMember, err := s.queries.AddUnitMember(traceCtx, AddUnitMemberParams{
+			UnitID:   arg.ID,
+			MemberID: arg.MemberID,
+		})
+		if err != nil {
+			err = databaseutil.WrapDBError(err, logger, "add unit member relationship")
+			span.RecordError(err)
+			return MemberWrapper{}, err
+		}
+
+		logger.Info("Added unit member",
+			zap.String("unit_id", unitMember.UnitID.String()),
+			zap.String("member_id", unitMember.MemberID.String()))
+
+		return MemberWrapper{unitMember}, nil
 	}
 
-	logger.Info("Added organization member",
-		zap.String("org_id", orgMember.OrgID.String()),
-		zap.String("member_id", orgMember.MemberID.String()))
-
-	return orgMember, nil
+	logger.Error("invalid unit type: ", zap.String("unitType", unitType))
+	return MemberWrapper{}, fmt.Errorf("invalid unit type: %s", unitType)
 }
 
 // ListOrgMembers lists all members of an organization
@@ -580,26 +626,6 @@ func (s *Service) RemoveOrgMember(ctx context.Context, arg RemoveOrgMemberParams
 		zap.String("member_id", arg.MemberID.String()))
 
 	return nil
-}
-
-// AddUnitMember adds a member to a unit
-func (s *Service) AddUnitMember(ctx context.Context, arg AddUnitMemberParams) (UnitMember, error) {
-	traceCtx, span := s.tracer.Start(ctx, "AddUnitMember")
-	defer span.End()
-	logger := logutil.WithContext(traceCtx, s.logger)
-
-	unitMember, err := s.queries.AddUnitMember(traceCtx, arg)
-	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "add unit member")
-		span.RecordError(err)
-		return UnitMember{}, err
-	}
-
-	logger.Info("Added unit member",
-		zap.String("unit_id", unitMember.UnitID.String()),
-		zap.String("member_id", unitMember.MemberID.String()))
-
-	return unitMember, nil
 }
 
 // ListUnitMembers lists all members of a unit
