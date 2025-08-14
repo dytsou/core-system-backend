@@ -58,6 +58,11 @@ type AddMemberParams struct {
 	MemberID uuid.UUID `json:"member_id" validate:"required"`
 }
 
+type RemoveMemberParams struct {
+	ID       uuid.UUID `json:"id" validate:"required"`
+	MemberID uuid.UUID `json:"member_id" validate:"required"`
+}
+
 type Request struct {
 	Name        string            `json:"name" validate:"required"`
 	Description string            `json:"description"`
@@ -550,8 +555,8 @@ func (h *Handler) RemoveOrgMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.service.RemoveOrgMember(traceCtx, RemoveOrgMemberParams{
-		OrgID:    orgID,
+	err = h.service.RemoveMember(traceCtx, "organization", RemoveMemberParams{
+		ID:       orgID,
 		MemberID: mID,
 	})
 	if err != nil {
@@ -586,8 +591,8 @@ func (h *Handler) RemoveUnitMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.service.RemoveUnitMember(traceCtx, RemoveUnitMemberParams{
-		UnitID:   id,
+	err = h.service.RemoveMember(traceCtx, "unit", RemoveMemberParams{
+		ID:       id,
 		MemberID: mID,
 	})
 	if err != nil {

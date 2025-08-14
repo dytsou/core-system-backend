@@ -537,7 +537,7 @@ func (s *Service) RemoveParentChild(ctx context.Context, childID uuid.UUID) erro
 	return nil
 }
 
-// AddMember adds a member to an organization
+// AddMember adds a member to an organization or an unit
 func (s *Service) AddMember(ctx context.Context, unitType string, arg AddMemberParams) (GenericMember, error) {
 	traceCtx, span := s.tracer.Start(ctx, "AddOrgMember")
 	defer span.End()
@@ -583,7 +583,7 @@ func (s *Service) AddMember(ctx context.Context, unitType string, arg AddMemberP
 	return MemberWrapper{}, fmt.Errorf("invalid unit type: %s", unitType)
 }
 
-// ListMembers lists all members of an organization
+// ListMembers lists all members of an organization or an unit
 func (s *Service) ListMembers(ctx context.Context, unitType string, ID uuid.UUID) ([]uuid.UUID, error) {
 	traceCtx, span := s.tracer.Start(ctx, "ListOrgMembers")
 	defer span.End()
@@ -591,7 +591,6 @@ func (s *Service) ListMembers(ctx context.Context, unitType string, ID uuid.UUID
 
 	var members []uuid.UUID
 	var err error
-
 	switch unitType {
 	case "organization":
 		members, err = s.queries.ListOrgMembers(traceCtx, ID)
@@ -617,41 +616,34 @@ func (s *Service) ListMembers(ctx context.Context, unitType string, ID uuid.UUID
 	return members, nil
 }
 
-// RemoveOrgMember removes a member from an organization
-func (s *Service) RemoveOrgMember(ctx context.Context, arg RemoveOrgMemberParams) error {
+// RemoveMember removes a member from an organization or an unit
+func (s *Service) RemoveMember(ctx context.Context, unitType string, arg RemoveMemberParams) error {
 	traceCtx, span := s.tracer.Start(ctx, "RemoveOrgMember")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	err := s.queries.RemoveOrgMember(traceCtx, arg)
+	var err error
+	switch unitType {
+	case "organization":
+		err = s.queries.RemoveOrgMember(traceCtx, RemoveOrgMemberParams{
+			OrgID:    arg.ID,
+			MemberID: arg.MemberID,
+		})
+	case "unit":
+		err = s.queries.RemoveUnitMember(traceCtx, RemoveUnitMemberParams{
+			UnitID:   arg.ID,
+			MemberID: arg.MemberID,
+		})
+	}
+
 	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "remove organization member")
+		err = databaseutil.WrapDBError(err, logger, fmt.Sprintf("remove %s member", unitType))
 		span.RecordError(err)
 		return err
 	}
 
-	logger.Info("Removed organization member",
-		zap.String("org_id", arg.OrgID.String()),
-		zap.String("member_id", arg.MemberID.String()))
-
-	return nil
-}
-
-// RemoveUnitMember removes a member from a unit
-func (s *Service) RemoveUnitMember(ctx context.Context, arg RemoveUnitMemberParams) error {
-	traceCtx, span := s.tracer.Start(ctx, "RemoveUnitMember")
-	defer span.End()
-	logger := logutil.WithContext(traceCtx, s.logger)
-
-	err := s.queries.RemoveUnitMember(traceCtx, arg)
-	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "remove unit member")
-		span.RecordError(err)
-		return err
-	}
-
-	logger.Info("Removed unit member",
-		zap.String("unit_id", arg.UnitID.String()),
+	logger.Info(fmt.Sprintf("Removed %s member", unitType),
+		zap.String("org_id", arg.ID.String()),
 		zap.String("member_id", arg.MemberID.String()))
 
 	return nil
