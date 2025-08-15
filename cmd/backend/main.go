@@ -6,6 +6,7 @@ import (
 	"NYCU-SDC/core-system-backend/internal/config"
 	"NYCU-SDC/core-system-backend/internal/form"
 	"NYCU-SDC/core-system-backend/internal/form/question"
+	"NYCU-SDC/core-system-backend/internal/inbox"
 	"NYCU-SDC/core-system-backend/internal/jwt"
 	"NYCU-SDC/core-system-backend/internal/tenant"
 	"NYCU-SDC/core-system-backend/internal/unit"
@@ -15,6 +16,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
 	"log"
 	"net/http"
 	"os"
@@ -22,7 +24,6 @@ import (
 	"syscall"
 	"time"
 
-	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/NYCU-SDC/summer/pkg/middleware"
 	"github.com/google/uuid"
@@ -125,12 +126,14 @@ func main() {
 	formService := form.NewService(logger, dbPool)
 	questionService := question.NewService(logger, dbPool)
 	unitService := unit.NewService(logger, dbPool)
+	inboxService := inbox.NewService(logger, dbPool)
 
 	// Handler
 	authHandler := auth.NewHandler(logger, validator, problemWriter, userService, jwtService, jwtService, cfg.BaseURL, cfg.OauthProxyBaseURL, Environment, cfg.AccessTokenExpiration, cfg.RefreshTokenExpiration, cfg.GoogleOauth)
 	userHandler := user.NewHandler(logger, validator, problemWriter, userService)
 	formHandler := form.NewHandler(logger, validator, problemWriter, formService, questionService)
 	unitHandler := unit.NewHandler(logger, validator, problemWriter, unitService, formService)
+	inboxHandler := inbox.NewHandler(logger, validator, problemWriter, inboxService)
 
 	// Middleware
 	traceMiddleware := trace.NewMiddleware(logger, cfg.Debug)
@@ -204,6 +207,11 @@ func main() {
 	mux.HandleFunc("GET /api/forms/{formId}/questions", jwtMiddleware.AuthenticateMiddleware(formHandler.ListQuestionsHandler))
 	mux.HandleFunc("PUT /api/forms/{formId}/questions/{questionId}", jwtMiddleware.AuthenticateMiddleware(formHandler.UpdateQuestionHandler))
 	mux.HandleFunc("DELETE /api/forms/{formId}/questions/{questionId}", jwtMiddleware.AuthenticateMiddleware(formHandler.DeleteQuestionHandler))
+
+	// User Inbox message route
+	mux.Handle("GET /api/inbox", jwtMiddleware.AuthenticateMiddleware(inboxHandler.GetAll))
+	mux.Handle("GET /api/inbox/{id}", jwtMiddleware.AuthenticateMiddleware(inboxHandler.GetById))
+	mux.Handle("PUT /api/inbox/{id}", jwtMiddleware.AuthenticateMiddleware(inboxHandler.UpdateById))
 
 	// handle interrupt signal
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
