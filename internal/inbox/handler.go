@@ -20,7 +20,7 @@ import (
 //go:generate mockery --name Store
 type Store interface {
 	GetAll(ctx context.Context, userId uuid.UUID) ([]GetAllRow, error)
-	GetById(ctx context.Context, id uuid.UUID, userId uuid.UUID) (GetByIdRow, error)
+	GetById(ctx context.Context, id uuid.UUID, userId uuid.UUID) (GetByIdRow, any, error)
 	UpdateById(ctx context.Context, id uuid.UUID, userId uuid.UUID, arg UserInboxMessageFilter) (UpdateByIdRow, error)
 }
 
@@ -42,6 +42,7 @@ type InboxMessageResponse struct {
 type Response struct {
 	ID      string               `json:"id"`
 	Message InboxMessageResponse `json:"message"`
+	Content any                  `json:"content"`
 	UserInboxMessageFilter
 }
 
@@ -117,7 +118,7 @@ func (h *Handler) GetById(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	message, err := h.inboxStore.GetById(traceCtx, id, currentUser.ID)
+	message, messageContent, err := h.inboxStore.GetById(traceCtx, id, currentUser.ID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
@@ -135,6 +136,7 @@ func (h *Handler) GetById(w http.ResponseWriter, r *http.Request) {
 			CreatedAt: message.CreatedAt.Time.Format(time.RFC3339),
 			UpdatedAt: message.UpdatedAt.Time.Format(time.RFC3339),
 		},
+		Content: messageContent,
 		UserInboxMessageFilter: UserInboxMessageFilter{
 			IsRead:     message.IsRead.Bool,
 			IsStarred:  message.IsStarred.Bool,

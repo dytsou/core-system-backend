@@ -1,7 +1,10 @@
 package inbox
 
 import (
+	"NYCU-SDC/core-system-backend/internal"
+	"NYCU-SDC/core-system-backend/internal/form"
 	"context"
+	"fmt"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
@@ -12,16 +15,21 @@ import (
 	"go.uber.org/zap"
 )
 
+type ContentQuerier struct {
+	Form form.Querier
+}
+
 type Querier interface {
 	GetAll(ctx context.Context, userID pgtype.UUID) ([]GetAllRow, error)
 	GetById(ctx context.Context, arg GetByIdParams) (GetByIdRow, error)
 	UpdateById(ctx context.Context, arg UpdateByIdParams) (UpdateByIdRow, error)
 }
-
 type Service struct {
 	logger  *zap.Logger
 	queries Querier
 	tracer  trace.Tracer
+
+	contentQuerier ContentQuerier
 }
 
 func NewService(logger *zap.Logger, db DBTX) *Service {
@@ -29,7 +37,31 @@ func NewService(logger *zap.Logger, db DBTX) *Service {
 		logger:  logger,
 		queries: New(db),
 		tracer:  otel.Tracer("inbox/service"),
+		contentQuerier: ContentQuerier{
+			Form: form.New(db),
+		},
 	}
+}
+
+func (s *Service) GetMessageContent(ctx context.Context, contentType ContentType, contentId uuid.UUID) (any, error) {
+	traceCtx, span := s.tracer.Start(ctx, "GetMessageContent")
+	defer span.End()
+	logger := logutil.WithContext(traceCtx, s.logger)
+
+	switch contentType {
+	case ContentTypeForm:
+		currentForm, err := s.contentQuerier.Form.GetByID(traceCtx, contentId)
+		if err != nil {
+			err = databaseutil.WrapDBError(err, logger, "get form by id")
+			span.RecordError(err)
+			return Form{}, err
+		}
+		return currentForm, nil
+	case ContentTypeText:
+		return nil, nil
+	}
+
+	return nil, fmt.Errorf("content type %s not supported", contentType)
 }
 
 func (s *Service) GetAll(ctx context.Context, userId uuid.UUID) ([]GetAllRow, error) {
@@ -51,7 +83,7 @@ func (s *Service) GetAll(ctx context.Context, userId uuid.UUID) ([]GetAllRow, er
 	return messages, err
 }
 
-func (s *Service) GetById(ctx context.Context, id uuid.UUID, userId uuid.UUID) (GetByIdRow, error) {
+func (s *Service) GetById(ctx context.Context, id uuid.UUID, userId uuid.UUID) (GetByIdRow, any, error) {
 	traceCtx, span := s.tracer.Start(ctx, "GetById")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
@@ -63,10 +95,22 @@ func (s *Service) GetById(ctx context.Context, id uuid.UUID, userId uuid.UUID) (
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "get the full message by id")
 		span.RecordError(err)
-		return GetByIdRow{}, err
+		return GetByIdRow{}, nil, err
 	}
 
-	return message, err
+	contentId, err := internal.ParseUUID(message.ContentID.String())
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "parse the messageId string into uuid")
+		span.RecordError(err)
+		return message, nil, err
+	}
+
+	content, err := s.GetMessageContent(traceCtx, message.Type, contentId)
+	if err != nil {
+		return message, nil, err
+	}
+
+	return message, content, err
 }
 
 func (s *Service) UpdateById(ctx context.Context, id uuid.UUID, userId uuid.UUID, arg UserInboxMessageFilter) (UpdateByIdRow, error) {
