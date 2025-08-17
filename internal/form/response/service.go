@@ -120,7 +120,10 @@ func (s Service) Update(ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	currentResponse, err := s.GetByFormIDAndSubmittedBy(traceCtx, formID, userID)
+	currentResponse, err := s.queries.GetByFormIDAndSubmittedBy(traceCtx, GetByFormIDAndSubmittedByParams{
+		FormID:      formID,
+		SubmittedBy: userID,
+	})
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "get response by form id and submitted by")
 		span.RecordError(err)
@@ -202,24 +205,6 @@ func (s Service) Update(ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 		span.RecordError(err)
 		return FormResponse{}, err
 	}
-	return currentResponse, nil
-}
-
-func (s Service) GetByFormIDAndSubmittedBy(ctx context.Context, formID uuid.UUID, userID uuid.UUID) (FormResponse, error) {
-	traceCtx, span := s.tracer.Start(ctx, "GetByFormIDAndSubmittedBy")
-	defer span.End()
-	logger := logutil.WithContext(traceCtx, s.logger)
-
-	currentResponse, err := s.queries.GetByFormIDAndSubmittedBy(traceCtx, GetByFormIDAndSubmittedByParams{
-		FormID:      formID,
-		SubmittedBy: userID,
-	})
-	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "get response by form id and submitted by")
-		span.RecordError(err)
-		return FormResponse{}, err
-	}
-
 	return currentResponse, nil
 }
 
