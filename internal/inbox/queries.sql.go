@@ -13,7 +13,8 @@ import (
 )
 
 const getAll = `-- name: GetAll :many
-SELECT uim.id, user_id, message_id, is_read, is_starred, is_archived, im.id, posted_by, title, subtitle, type, content_id, created_at, updated_at FROM user_inbox_messages uim
+SELECT uim.id, user_id, message_id, is_read, is_starred, is_archived, im.id, posted_by, title, subtitle, type, content_id, created_at, updated_at
+FROM user_inbox_messages uim
 JOIN inbox_message im ON uim.message_id = im.id
 WHERE uim.user_id = $1
 `
@@ -71,7 +72,8 @@ func (q *Queries) GetAll(ctx context.Context, userID pgtype.UUID) ([]GetAllRow, 
 }
 
 const getById = `-- name: GetById :one
-SELECT uim.id, user_id, message_id, is_read, is_starred, is_archived, im.id, posted_by, title, subtitle, type, content_id, created_at, updated_at FROM user_inbox_messages uim
+SELECT uim.id, user_id, message_id, is_read, is_starred, is_archived, im.id, posted_by, title, subtitle, type, content_id, created_at, updated_at
+FROM user_inbox_messages uim
 JOIN inbox_message im ON uim.message_id = im.id
 WHERE uim.id = $1 AND uim.user_id = $2
 `

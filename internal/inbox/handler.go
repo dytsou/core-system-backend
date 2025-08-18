@@ -2,8 +2,11 @@ package inbox
 
 import (
 	"NYCU-SDC/core-system-backend/internal"
+	"NYCU-SDC/core-system-backend/internal/form"
 	"NYCU-SDC/core-system-backend/internal/user"
 	"context"
+	"fmt"
+	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
 	handlerutil "github.com/NYCU-SDC/summer/pkg/handler"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	pagutil "github.com/NYCU-SDC/summer/pkg/pagination"
@@ -20,7 +23,7 @@ import (
 //go:generate mockery --name Store
 type Store interface {
 	GetAll(ctx context.Context, userId uuid.UUID) ([]GetAllRow, error)
-	GetById(ctx context.Context, id uuid.UUID, userId uuid.UUID) (GetByIdRow, any, error)
+	GetById(ctx context.Context, id uuid.UUID, userId uuid.UUID) (GetByIdRow, error)
 	UpdateById(ctx context.Context, id uuid.UUID, userId uuid.UUID, arg UserInboxMessageFilter) (UpdateByIdRow, error)
 }
 
@@ -48,27 +51,72 @@ type Response struct {
 
 type Handler struct {
 	logger        *zap.Logger
+	tracer        trace.Tracer
 	validator     *validator.Validate
 	problemWriter *problem.HttpWriter
-	service       *Service
-	tracer        trace.Tracer
 
-	inboxStore Store
+	store     Store
+	formStore form.Store
 }
 
 func NewHandler(
 	logger *zap.Logger,
 	validator *validator.Validate,
 	problemWriter *problem.HttpWriter,
-	inboxStore Store,
+	store Store,
+	formStore form.Store,
 ) *Handler {
 	return &Handler{
 		logger:        logger,
 		validator:     validator,
 		problemWriter: problemWriter,
 		tracer:        otel.Tracer("inbox/handler"),
-		inboxStore:    inboxStore,
+		store:         store,
+		formStore:     formStore,
 	}
+}
+
+func mapToResponse(message GetAllRow) Response {
+	return Response{
+		ID: message.ID.String(),
+		Message: InboxMessageResponse{
+			ID:        message.MessageID.String(),
+			PostedBy:  message.PostedBy.String(),
+			Title:     message.Title,
+			Subtitle:  message.Subtitle.String,
+			Type:      message.Type,
+			ContentId: message.ContentID.String(),
+			CreatedAt: message.CreatedAt.Time.Format(time.RFC3339),
+			UpdatedAt: message.UpdatedAt.Time.Format(time.RFC3339),
+		},
+		Content: nil,
+		UserInboxMessageFilter: UserInboxMessageFilter{
+			IsRead:     message.IsRead.Bool,
+			IsStarred:  message.IsStarred.Bool,
+			IsArchived: message.IsArchived.Bool,
+		},
+	}
+}
+
+func (h *Handler) GetMessageContent(ctx context.Context, contentType ContentType, contentId uuid.UUID) (any, error) {
+	traceCtx, span := h.tracer.Start(ctx, "GetMessageContent")
+	defer span.End()
+	logger := logutil.WithContext(traceCtx, h.logger)
+
+	switch contentType {
+	case ContentTypeForm:
+		currentForm, err := h.formStore.GetByID(traceCtx, contentId)
+		if err != nil {
+			err = databaseutil.WrapDBError(err, logger, "get form by id")
+			span.RecordError(err)
+			return Form{}, err
+		}
+		return currentForm, nil
+	case ContentTypeText:
+		return nil, nil
+	}
+
+	return nil, fmt.Errorf("content type %s not supported", contentType)
 }
 
 func (h *Handler) GetAll(w http.ResponseWriter, r *http.Request) {
@@ -76,7 +124,7 @@ func (h *Handler) GetAll(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
-	factory := pagutil.NewFactory[GetAllRow](200, []string{"CreatedAt"})
+	factory := pagutil.NewFactory[Response](200, []string{"CreatedAt"})
 	request, err := factory.GetRequest(r)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
@@ -89,13 +137,18 @@ func (h *Handler) GetAll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	messages, err := h.inboxStore.GetAll(traceCtx, currentUser.ID)
+	messages, err := h.store.GetAll(traceCtx, currentUser.ID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
 
-	response := factory.NewResponse(messages, len(messages), request.Page, request.Size)
+	mappedMessage := make([]Response, len(messages))
+	for i, message := range messages {
+		mappedMessage[i] = mapToResponse(message)
+	}
+
+	response := factory.NewResponse(mappedMessage, len(mappedMessage), request.Page, request.Size)
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
 }
@@ -118,9 +171,19 @@ func (h *Handler) GetById(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	message, messageContent, err := h.inboxStore.GetById(traceCtx, id, currentUser.ID)
+	message, err := h.store.GetById(traceCtx, id, currentUser.ID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
+		return
+	}
+
+	contentId, err := internal.ParseUUID(message.ContentID.String())
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, err, logger)
+		return
+	}
+	messageContent, err := h.GetMessageContent(traceCtx, message.Type, contentId)
+	if err != nil {
 		return
 	}
 
@@ -171,7 +234,7 @@ func (h *Handler) UpdateById(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	message, err := h.inboxStore.UpdateById(traceCtx, id, currentUser.ID, UserInboxMessageFilter{
+	message, err := h.store.UpdateById(traceCtx, id, currentUser.ID, UserInboxMessageFilter{
 		IsRead:     req.IsRead,
 		IsStarred:  req.IsStarred,
 		IsArchived: req.IsArchived,
