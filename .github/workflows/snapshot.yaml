@@ -4,6 +4,7 @@ on:
   pull_request:
     branches:
       - main
+      - feat/CORE-36-implement-response-CRUD
 
 jobs:
   Lint:

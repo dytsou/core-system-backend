@@ -141,6 +141,16 @@ func (ns NullUnitType) Value() (driver.Value, error) {
 	return string(ns.UnitType), nil
 }
 
+type Answer struct {
+	ID         uuid.UUID
+	ResponseID uuid.UUID
+	QuestionID uuid.UUID
+	Type       QuestionType
+	Value      string
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
+}
+
 type Auth struct {
 	ID         uuid.UUID
 	UserID     uuid.UUID
@@ -156,6 +166,14 @@ type Form struct {
 	Description pgtype.Text
 	UnitID      pgtype.UUID
 	LastEditor  uuid.UUID
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+}
+
+type FormResponse struct {
+	ID          uuid.UUID
+	FormID      uuid.UUID
+	SubmittedBy uuid.UUID
 	CreatedAt   pgtype.Timestamptz
 	UpdatedAt   pgtype.Timestamptz
 }
@@ -189,6 +207,7 @@ type Question struct {
 	Type        QuestionType
 	Title       pgtype.Text
 	Description pgtype.Text
+	Metadata    []byte
 	Order       int32
 	CreatedAt   pgtype.Timestamptz
 	UpdatedAt   pgtype.Timestamptz
