@@ -2,6 +2,7 @@ package inbox
 
 import (
 	"context"
+
 	"github.com/jackc/pgx/v5/pgtype"
 
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"

@@ -6,6 +6,9 @@ import (
 	"NYCU-SDC/core-system-backend/internal/user"
 	"context"
 	"fmt"
+	"net/http"
+	"time"
+
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
 	handlerutil "github.com/NYCU-SDC/summer/pkg/handler"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
@@ -16,8 +19,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
-	"net/http"
-	"time"
 )
 
 //go:generate mockery --name Store
