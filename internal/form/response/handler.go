@@ -7,6 +7,7 @@ import (
 
 	"NYCU-SDC/core-system-backend/internal"
 	"NYCU-SDC/core-system-backend/internal/form/question"
+
 	handlerutil "github.com/NYCU-SDC/summer/pkg/handler"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/NYCU-SDC/summer/pkg/problem"
@@ -90,7 +91,7 @@ func NewHandler(logger *zap.Logger, validator *validator.Validate, problemWriter
 
 // ListHandler lists all responses for a form
 func (h *Handler) ListHandler(w http.ResponseWriter, r *http.Request) {
-	traceCtx, span := h.tracer.Start(r.Context(), "ListFormHandler")
+	traceCtx, span := h.tracer.Start(r.Context(), "ListHandler")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
@@ -124,7 +125,7 @@ func (h *Handler) ListHandler(w http.ResponseWriter, r *http.Request) {
 
 // GetHandler retrieves a response by id
 func (h *Handler) GetHandler(w http.ResponseWriter, r *http.Request) {
-	traceCtx, span := h.tracer.Start(r.Context(), "GetFormHandler")
+	traceCtx, span := h.tracer.Start(r.Context(), "GetHandler")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
@@ -174,7 +175,7 @@ func (h *Handler) GetHandler(w http.ResponseWriter, r *http.Request) {
 
 // DeleteHandler deletes a response by id
 func (h *Handler) DeleteHandler(w http.ResponseWriter, r *http.Request) {
-	traceCtx, span := h.tracer.Start(r.Context(), "DeleteFormHandler")
+	traceCtx, span := h.tracer.Start(r.Context(), "DeleteHandler")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
