@@ -210,8 +210,8 @@ func main() {
 
 	// User Inbox message route
 	mux.Handle("GET /api/inbox", jwtMiddleware.AuthenticateMiddleware(inboxHandler.GetAll))
-	mux.Handle("GET /api/inbox/{id}", jwtMiddleware.AuthenticateMiddleware(inboxHandler.GetById))
-	mux.Handle("PUT /api/inbox/{id}", jwtMiddleware.AuthenticateMiddleware(inboxHandler.UpdateById))
+	mux.Handle("GET /api/inbox/{id}", jwtMiddleware.AuthenticateMiddleware(inboxHandler.GetByID))
+	mux.Handle("PUT /api/inbox/{id}", jwtMiddleware.AuthenticateMiddleware(inboxHandler.UpdateByID))
 
 	// handle interrupt signal
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
