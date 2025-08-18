@@ -206,16 +206,16 @@ func main() {
 	mux.Handle("DELETE /api/orgs/relations/parent_id/{p_id}/child_id/{c_id}", tenantMiddleware.Middleware(unitHandler.RemoveParentChild))
 
 	// Form routes
-	mux.HandleFunc("GET /api/forms", authMiddleware.HandlerFunc(formHandler.ListFormsHandler))
-	mux.HandleFunc("GET /api/forms/{id}", authMiddleware.HandlerFunc(formHandler.GetFormHandler))
-	mux.HandleFunc("PUT /api/forms/{id}", authMiddleware.HandlerFunc(formHandler.UpdateFormHandler))
-	mux.HandleFunc("DELETE /api/forms/{id}", authMiddleware.HandlerFunc(formHandler.DeleteFormHandler))
+	mux.HandleFunc("GET /api/forms", authMiddleware.HandlerFunc(formHandler.ListHandler))
+	mux.HandleFunc("GET /api/forms/{id}", authMiddleware.HandlerFunc(formHandler.GetHandler))
+	mux.HandleFunc("PUT /api/forms/{id}", authMiddleware.HandlerFunc(formHandler.UpdateHandler))
+	mux.HandleFunc("DELETE /api/forms/{id}", authMiddleware.HandlerFunc(formHandler.DeleteHandler))
 
 	// Question routes
-	mux.HandleFunc("GET /api/forms/{formId}/questions", authMiddleware.HandlerFunc(questionHandler.ListQuestionsHandler))
-	mux.HandleFunc("POST /api/forms/{formId}/questions", authMiddleware.HandlerFunc(questionHandler.AddQuestionHandler))
-	mux.HandleFunc("PUT /api/forms/{formId}/questions/{questionId}", authMiddleware.HandlerFunc(questionHandler.UpdateQuestionHandler))
-	mux.HandleFunc("DELETE /api/forms/{formId}/questions/{questionId}", authMiddleware.HandlerFunc(questionHandler.DeleteQuestionHandler))
+	mux.HandleFunc("GET /api/forms/{formId}/questions", authMiddleware.HandlerFunc(questionHandler.ListHandler))
+	mux.HandleFunc("POST /api/forms/{formId}/questions", authMiddleware.HandlerFunc(questionHandler.AddHandler))
+	mux.HandleFunc("PUT /api/forms/{formId}/questions/{questionId}", authMiddleware.HandlerFunc(questionHandler.UpdateHandler))
+	mux.HandleFunc("DELETE /api/forms/{formId}/questions/{questionId}", authMiddleware.HandlerFunc(questionHandler.DeleteHandler))
 
 	// Response routes
 	mux.Handle("GET /api/forms/{formId}/responses", authMiddleware.HandlerFunc(responseHandler.ListHandler))
