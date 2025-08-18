@@ -50,7 +50,7 @@ func (s *Service) GetAll(ctx context.Context, userId uuid.UUID) ([]GetAllRow, er
 	return messages, err
 }
 
-func (s *Service) GetById(ctx context.Context, id uuid.UUID, userId uuid.UUID) (GetByIdRow, error) {
+func (s *Service) GetByID(ctx context.Context, id uuid.UUID, userId uuid.UUID) (GetByIdRow, error) {
 	traceCtx, span := s.tracer.Start(ctx, "GetById")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
@@ -68,7 +68,7 @@ func (s *Service) GetById(ctx context.Context, id uuid.UUID, userId uuid.UUID) (
 	return message, err
 }
 
-func (s *Service) UpdateById(ctx context.Context, id uuid.UUID, userId uuid.UUID, arg UserInboxMessageFilter) (UpdateByIdRow, error) {
+func (s *Service) UpdateByID(ctx context.Context, id uuid.UUID, userId uuid.UUID, arg UserInboxMessageFilter) (UpdateByIdRow, error) {
 	traceCtx, span := s.tracer.Start(ctx, "UpdateById")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)

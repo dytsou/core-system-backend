@@ -23,8 +23,8 @@ import (
 //go:generate mockery --name Store
 type Store interface {
 	GetAll(ctx context.Context, userId uuid.UUID) ([]GetAllRow, error)
-	GetById(ctx context.Context, id uuid.UUID, userId uuid.UUID) (GetByIdRow, error)
-	UpdateById(ctx context.Context, id uuid.UUID, userId uuid.UUID, arg UserInboxMessageFilter) (UpdateByIdRow, error)
+	GetByID(ctx context.Context, id uuid.UUID, userId uuid.UUID) (GetByIdRow, error)
+	UpdateByID(ctx context.Context, id uuid.UUID, userId uuid.UUID, arg UserInboxMessageFilter) (UpdateByIdRow, error)
 }
 
 type UserInboxMessageFilter struct {
@@ -153,7 +153,7 @@ func (h *Handler) GetAll(w http.ResponseWriter, r *http.Request) {
 	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
 }
 
-func (h *Handler) GetById(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "GetById")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
@@ -171,7 +171,7 @@ func (h *Handler) GetById(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	message, err := h.store.GetById(traceCtx, id, currentUser.ID)
+	message, err := h.store.GetByID(traceCtx, id, currentUser.ID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
@@ -210,7 +210,7 @@ func (h *Handler) GetById(w http.ResponseWriter, r *http.Request) {
 	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
 }
 
-func (h *Handler) UpdateById(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) UpdateByID(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "UpdateById")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
@@ -234,7 +234,7 @@ func (h *Handler) UpdateById(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	message, err := h.store.UpdateById(traceCtx, id, currentUser.ID, UserInboxMessageFilter{
+	message, err := h.store.UpdateByID(traceCtx, id, currentUser.ID, UserInboxMessageFilter{
 		IsRead:     req.IsRead,
 		IsStarred:  req.IsStarred,
 		IsArchived: req.IsArchived,
