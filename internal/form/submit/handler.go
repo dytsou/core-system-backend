@@ -6,6 +6,9 @@ import (
 	"NYCU-SDC/core-system-backend/internal/form/shared"
 	"NYCU-SDC/core-system-backend/internal/user"
 	"context"
+	"net/http"
+	"time"
+
 	handlerutil "github.com/NYCU-SDC/summer/pkg/handler"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/NYCU-SDC/summer/pkg/problem"
@@ -14,8 +17,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
-	"net/http"
-	"time"
 )
 
 type Request struct {
@@ -65,7 +66,7 @@ func NewHandler(logger *zap.Logger, validator *validator.Validate, problemWriter
 
 // SubmitHandler submits a response to a form
 func (h *Handler) SubmitHandler(w http.ResponseWriter, r *http.Request) {
-	traceCtx, span := h.tracer.Start(r.Context(), "SubmitFormHandler")
+	traceCtx, span := h.tracer.Start(r.Context(), "SubmitHandler")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
