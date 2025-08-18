@@ -2,6 +2,9 @@ package question
 
 import (
 	"context"
+	"net/http"
+	"time"
+
 	handlerutil "github.com/NYCU-SDC/summer/pkg/handler"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/NYCU-SDC/summer/pkg/problem"
@@ -11,8 +14,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
-	"net/http"
-	"time"
 )
 
 type Request struct {
@@ -83,8 +84,8 @@ func NewHandler(
 	}
 }
 
-func (h *Handler) AddQuestionHandler(w http.ResponseWriter, r *http.Request) {
-	traceCtx, span := h.tracer.Start(r.Context(), "AddQuestionHandler")
+func (h *Handler) AddHandler(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "AddHandler")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
@@ -121,8 +122,8 @@ func (h *Handler) AddQuestionHandler(w http.ResponseWriter, r *http.Request) {
 	handlerutil.WriteJSONResponse(w, http.StatusCreated, response)
 }
 
-func (h *Handler) UpdateQuestionHandler(w http.ResponseWriter, r *http.Request) {
-	traceCtx, span := h.tracer.Start(r.Context(), "UpdateQuestionHandler")
+func (h *Handler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "UpdateHandler")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
@@ -167,8 +168,8 @@ func (h *Handler) UpdateQuestionHandler(w http.ResponseWriter, r *http.Request) 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
 }
 
-func (h *Handler) DeleteQuestionHandler(w http.ResponseWriter, r *http.Request) {
-	traceCtx, span := h.tracer.Start(r.Context(), "DeleteQuestionHandler")
+func (h *Handler) DeleteHandler(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "DeleteHandler")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
@@ -195,8 +196,8 @@ func (h *Handler) DeleteQuestionHandler(w http.ResponseWriter, r *http.Request) 
 	handlerutil.WriteJSONResponse(w, http.StatusNoContent, nil)
 }
 
-func (h *Handler) ListQuestionsHandler(w http.ResponseWriter, r *http.Request) {
-	traceCtx, span := h.tracer.Start(r.Context(), "ListQuestionsHandler")
+func (h *Handler) ListHandler(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "ListHandler")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
