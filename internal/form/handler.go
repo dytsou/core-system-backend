@@ -58,8 +58,8 @@ func (h *Handler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
-	formIDStr := r.PathValue("id")
-	formID, err := handlerutil.ParseUUID(formIDStr)
+	idStr := r.PathValue("id")
+	id, err := handlerutil.ParseUUID(idStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
@@ -77,7 +77,7 @@ func (h *Handler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	currentForm, err := h.store.Update(traceCtx, formID, req, currentUser.ID)
+	currentForm, err := h.store.Update(traceCtx, id, req, currentUser.ID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
@@ -91,14 +91,14 @@ func (h *Handler) DeleteHandler(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
-	formIDStr := r.PathValue("id")
-	formID, err := handlerutil.ParseUUID(formIDStr)
+	idStr := r.PathValue("id")
+	id, err := handlerutil.ParseUUID(idStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
 
-	err = h.store.Delete(traceCtx, formID)
+	err = h.store.Delete(traceCtx, id)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
@@ -112,14 +112,14 @@ func (h *Handler) GetHandler(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
-	formIDStr := r.PathValue("id")
-	formID, err := handlerutil.ParseUUID(formIDStr)
+	idStr := r.PathValue("id")
+	id, err := handlerutil.ParseUUID(idStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
 
-	currentForm, err := h.store.GetByID(traceCtx, formID)
+	currentForm, err := h.store.GetByID(traceCtx, id)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
