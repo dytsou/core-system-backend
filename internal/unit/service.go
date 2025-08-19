@@ -5,6 +5,8 @@ import (
 	"NYCU-SDC/core-system-backend/internal/tenant"
 	"NYCU-SDC/core-system-backend/internal/user"
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
@@ -133,6 +135,29 @@ func NewService(logger *zap.Logger, db DBTX) *Service {
 }
 
 // Validation Functions
+func (s *Service) validateOrgSlugExistence(ctx context.Context, slug string, logger *zap.Logger, span trace.Span, orgID uuid.UUID) error {
+	println("ValidateOrgSlugExistence")
+	foundID, err := s.queries.GetOrgIDBySlug(ctx, slug)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		err = databaseutil.WrapDBError(err, logger, "GetOrgIDBySlug")
+		span.RecordError(err)
+		return err
+	}
+
+	println(fmt.Sprintf("Found Org ID %s", foundID))
+	println(fmt.Sprintf("Org ID %s", orgID))
+
+	if orgID != uuid.Nil || foundID != orgID {
+		println("Slug Already Exists!")
+		return internal.ErrOrgSlugAlreadyExists
+	}
+
+	return nil
+}
+
 func (s *Service) validateMemberExistence(ctx context.Context, memberID uuid.UUID, logger *zap.Logger, span trace.Span) error {
 	exists, err := s.userService.ExistsByID(ctx, memberID)
 	if err != nil {
@@ -196,6 +221,10 @@ func (s *Service) CreateOrg(ctx context.Context, name string, description string
 	traceCtx, span := s.tracer.Start(ctx, "CreateOrg")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
+
+	if err := s.validateOrgSlugExistence(traceCtx, slug, logger, span, uuid.Nil); err != nil {
+		return Organization{}, err
+	}
 
 	org, err := s.queries.CreateOrg(traceCtx, CreateOrgParams{
 		Name:        pgtype.Text{String: name, Valid: true},
@@ -446,6 +475,10 @@ func (s *Service) UpdateOrg(ctx context.Context, id uuid.UUID, args UpdateOrgPar
 	traceCtx, span := s.tracer.Start(ctx, "UpdateOrg")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
+
+	if err := s.validateOrgSlugExistence(traceCtx, args.Slug, logger, span, id); err != nil {
+		return Organization{}, err
+	}
 
 	org, err := s.queries.UpdateOrg(traceCtx, UpdateOrgParams{
 		ID:          id,

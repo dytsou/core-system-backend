@@ -29,6 +29,10 @@ var (
 	// User Errors
 	ErrUserNotFound    = errors.New("user not found")
 	ErrNoUserInContext = errors.New("no user found in request context")
+
+	// Unit Errors
+	ErrOrgSlugNotFound      = errors.New("org slug not found")
+	ErrOrgSlugAlreadyExists = errors.New("org slug already exists")
 )
 
 func NewProblemWriter() *problem.HttpWriter {
@@ -69,6 +73,12 @@ func ErrorHandler(err error) problem.Problem {
 		return problem.NewNotFoundProblem("user not found")
 	case errors.Is(err, ErrNoUserInContext):
 		return problem.NewUnauthorizedProblem("no user found in request context")
+
+	// Unit Errors
+	case errors.Is(err, ErrOrgSlugNotFound):
+		return problem.NewNotFoundProblem("org slug not found")
+	case errors.Is(err, ErrOrgSlugAlreadyExists):
+		return problem.NewValidateProblem("org slug already exists")
 	}
 	return problem.Problem{}
 }
