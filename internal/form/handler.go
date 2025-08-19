@@ -22,12 +22,10 @@ type Request struct {
 }
 
 type Store interface {
-	Create(ctx context.Context, request Request, unitID uuid.UUID, userID uuid.UUID) (Form, error)
 	Update(ctx context.Context, id uuid.UUID, request Request, userID uuid.UUID) (Form, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 	GetByID(ctx context.Context, id uuid.UUID) (Form, error)
 	List(ctx context.Context) ([]Form, error)
-	ListByUnit(ctx context.Context, unitID uuid.UUID) ([]Form, error)
 }
 
 type Handler struct {
