@@ -33,6 +33,7 @@ var (
 	// Unit Errors
 	ErrOrgSlugNotFound      = errors.New("org slug not found")
 	ErrOrgSlugAlreadyExists = errors.New("org slug already exists")
+	ErrUnitNotFound         = errors.New("unit not found")
 )
 
 func NewProblemWriter() *problem.HttpWriter {
@@ -79,6 +80,8 @@ func ErrorHandler(err error) problem.Problem {
 		return problem.NewNotFoundProblem("org slug not found")
 	case errors.Is(err, ErrOrgSlugAlreadyExists):
 		return problem.NewValidateProblem("org slug already exists")
+	case errors.Is(err, ErrUnitNotFound):
+		return problem.NewNotFoundProblem("unit not found")
 	}
 	return problem.Problem{}
 }

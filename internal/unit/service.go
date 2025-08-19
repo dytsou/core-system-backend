@@ -136,7 +136,6 @@ func NewService(logger *zap.Logger, db DBTX) *Service {
 
 // Validation Functions
 func (s *Service) validateOrgSlugExistence(ctx context.Context, slug string, logger *zap.Logger, span trace.Span, orgID uuid.UUID) error {
-	println("ValidateOrgSlugExistence")
 	foundID, err := s.queries.GetOrgIDBySlug(ctx, slug)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -147,12 +146,22 @@ func (s *Service) validateOrgSlugExistence(ctx context.Context, slug string, log
 		return err
 	}
 
-	println(fmt.Sprintf("Found Org ID %s", foundID))
-	println(fmt.Sprintf("Org ID %s", orgID))
-
 	if orgID != uuid.Nil || foundID != orgID {
-		println("Slug Already Exists!")
 		return internal.ErrOrgSlugAlreadyExists
+	}
+
+	return nil
+}
+
+func (s *Service) validateUnitExistence(ctx context.Context, unitID uuid.UUID, logger *zap.Logger, span trace.Span) error {
+	_, err := s.queries.GetUnitByID(ctx, unitID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return internal.ErrUnitNotFound
+		}
+		err = databaseutil.WrapDBError(err, logger, "GetUnitByID")
+		span.RecordError(err)
+		return err
 	}
 
 	return nil
@@ -345,6 +354,10 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID, orgID uuid.UUID, un
 		}
 		return OrgWrapper{org}, nil
 	case "unit":
+		if err := s.validateUnitExistence(traceCtx, id, logger, span); err != nil {
+			return nil, err
+		}
+
 		unit, err := s.queries.GetUnitByID(traceCtx, id)
 		if err != nil {
 			err = databaseutil.WrapDBError(err, logger, "get unit by id")
@@ -359,14 +372,14 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID, orgID uuid.UUID, un
 }
 
 // ListSubUnits retrieves all subunits of a parent unit
-func (s *Service) ListSubUnits(ctx context.Context, ID uuid.UUID, unitType string) ([]Unit, error) {
+func (s *Service) ListSubUnits(ctx context.Context, id uuid.UUID, unitType string) ([]Unit, error) {
 	traceCtx, span := s.tracer.Start(ctx, "ListSubUnits")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
 	switch unitType {
 	case "organization":
-		subUnits, err := s.queries.ListOrgSubUnits(traceCtx, ID)
+		subUnits, err := s.queries.ListOrgSubUnits(traceCtx, id)
 		if err != nil {
 			err = databaseutil.WrapDBError(err, logger, "list sub units of an organization")
 			span.RecordError(err)
@@ -377,11 +390,15 @@ func (s *Service) ListSubUnits(ctx context.Context, ID uuid.UUID, unitType strin
 			subUnits = []Unit{}
 		}
 
-		logger.Info("Listed sub units of an organization", zap.String("parent_id", ID.String()), zap.Int("count", len(subUnits)))
+		logger.Info("Listed sub units of an organization", zap.String("parent_id", id.String()), zap.Int("count", len(subUnits)))
 		return subUnits, nil
 
 	case "unit":
-		subUnits, err := s.queries.ListSubUnits(traceCtx, pgtype.UUID{Bytes: ID, Valid: true})
+		if err := s.validateUnitExistence(traceCtx, id, logger, span); err != nil {
+			return nil, err
+		}
+
+		subUnits, err := s.queries.ListSubUnits(traceCtx, pgtype.UUID{Bytes: id, Valid: true})
 		if err != nil {
 			err = databaseutil.WrapDBError(err, logger, "list sub units of an unit")
 			span.RecordError(err)
@@ -392,7 +409,7 @@ func (s *Service) ListSubUnits(ctx context.Context, ID uuid.UUID, unitType strin
 			subUnits = []Unit{}
 		}
 
-		logger.Info("Listed sub units of an unit", zap.String("parent_id", ID.String()), zap.Int("count", len(subUnits)))
+		logger.Info("Listed sub units of an unit", zap.String("parent_id", id.String()), zap.Int("count", len(subUnits)))
 		return subUnits, nil
 	}
 
@@ -401,14 +418,14 @@ func (s *Service) ListSubUnits(ctx context.Context, ID uuid.UUID, unitType strin
 }
 
 // ListSubUnitIDs retrieves all child unit IDs of a parent unit
-func (s *Service) ListSubUnitIDs(ctx context.Context, ID uuid.UUID, unitType string) ([]uuid.UUID, error) {
+func (s *Service) ListSubUnitIDs(ctx context.Context, id uuid.UUID, unitType string) ([]uuid.UUID, error) {
 	traceCtx, span := s.tracer.Start(ctx, "ListSubUnitIDs")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
 	switch unitType {
 	case "organization":
-		subUnitIDs, err := s.queries.ListOrgSubUnitIDs(traceCtx, ID)
+		subUnitIDs, err := s.queries.ListOrgSubUnitIDs(traceCtx, id)
 		if err != nil {
 			err = databaseutil.WrapDBError(err, logger, "list sub unit IDs of an organization")
 			span.RecordError(err)
@@ -419,11 +436,15 @@ func (s *Service) ListSubUnitIDs(ctx context.Context, ID uuid.UUID, unitType str
 			subUnitIDs = []uuid.UUID{}
 		}
 
-		logger.Info("Listed sub unit IDs of an organization", zap.String("parent_id", ID.String()), zap.Int("count", len(subUnitIDs)))
+		logger.Info("Listed sub unit IDs of an organization", zap.String("parent_id", id.String()), zap.Int("count", len(subUnitIDs)))
 		return subUnitIDs, nil
 
 	case "unit":
-		subUnitIDs, err := s.queries.ListSubUnitIDs(traceCtx, pgtype.UUID{Bytes: ID, Valid: true})
+		if err := s.validateUnitExistence(traceCtx, id, logger, span); err != nil {
+			return nil, err
+		}
+
+		subUnitIDs, err := s.queries.ListSubUnitIDs(traceCtx, pgtype.UUID{Bytes: id, Valid: true})
 		if err != nil {
 			err = databaseutil.WrapDBError(err, logger, "list sub unit IDs of an unit")
 			span.RecordError(err)
@@ -434,7 +455,7 @@ func (s *Service) ListSubUnitIDs(ctx context.Context, ID uuid.UUID, unitType str
 			subUnitIDs = []uuid.UUID{}
 		}
 
-		logger.Info("Listed sub unit IDs of an unit", zap.String("parent_id", ID.String()), zap.Int("count", len(subUnitIDs)))
+		logger.Info("Listed sub unit IDs of an unit", zap.String("parent_id", id.String()), zap.Int("count", len(subUnitIDs)))
 		return subUnitIDs, nil
 	}
 
@@ -447,6 +468,10 @@ func (s *Service) UpdateUnit(ctx context.Context, id uuid.UUID, args UpdateUnitP
 	traceCtx, span := s.tracer.Start(ctx, "UpdateUnit")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
+
+	if err := s.validateUnitExistence(traceCtx, id, logger, span); err != nil {
+		return Unit{}, err
+	}
 
 	unit, err := s.queries.UpdateUnit(traceCtx, UpdateUnitParams{
 		ID:          id,
@@ -563,6 +588,16 @@ func (s *Service) AddParentChild(ctx context.Context, arg AddParentChildParams) 
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
+	if err := s.validateUnitExistence(traceCtx, arg.ChildID, logger, span); err != nil {
+		return ParentChild{}, err
+	}
+
+	if arg.ParentID.Valid {
+		if err := s.validateUnitExistence(traceCtx, arg.ParentID.Bytes, logger, span); err != nil {
+			return ParentChild{}, err
+		}
+	}
+
 	parentChild, err := s.queries.AddParentChild(traceCtx, arg)
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "add parent-child relationship")
@@ -608,6 +643,10 @@ func (s *Service) AddMember(ctx context.Context, unitType string, arg AddMemberP
 		return nil, err
 	}
 
+	if err := s.validateUnitExistence(traceCtx, arg.ID, logger, span); err != nil {
+		return nil, err
+	}
+
 	switch unitType {
 	case "organization":
 		orgMember, err := s.queries.AddOrgMember(traceCtx, AddOrgMemberParams{
@@ -649,7 +688,7 @@ func (s *Service) AddMember(ctx context.Context, unitType string, arg AddMemberP
 }
 
 // ListMembers lists all members of an organization or a unit
-func (s *Service) ListMembers(ctx context.Context, unitType string, ID uuid.UUID) ([]uuid.UUID, error) {
+func (s *Service) ListMembers(ctx context.Context, unitType string, id uuid.UUID) ([]uuid.UUID, error) {
 	mapping := map[string]string{
 		"unit":         "Unit",
 		"organization": "Org",
@@ -659,13 +698,17 @@ func (s *Service) ListMembers(ctx context.Context, unitType string, ID uuid.UUID
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
+	if err := s.validateUnitExistence(traceCtx, id, logger, span); err != nil {
+		return nil, err
+	}
+
 	var members []uuid.UUID
 	var err error
 	switch unitType {
 	case "organization":
-		members, err = s.queries.ListOrgMembers(traceCtx, ID)
+		members, err = s.queries.ListOrgMembers(traceCtx, id)
 	case "unit":
-		members, err = s.queries.ListUnitMembers(traceCtx, ID)
+		members, err = s.queries.ListUnitMembers(traceCtx, id)
 	}
 
 	if err != nil {
@@ -679,7 +722,7 @@ func (s *Service) ListMembers(ctx context.Context, unitType string, ID uuid.UUID
 	}
 
 	logger.Info(fmt.Sprintf("Listed %s members", unitType),
-		zap.String("org_id", ID.String()),
+		zap.String("org_id", id.String()),
 		zap.Int("count", len(members)),
 		zap.String("members", fmt.Sprintf("%v", members)))
 
