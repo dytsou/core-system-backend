@@ -127,8 +127,8 @@ func (h *Handler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
-	questionIDStr := r.PathValue("questionId")
-	questionID, err := handlerutil.ParseUUID(questionIDStr)
+	idStr := r.PathValue("id")
+	id, err := handlerutil.ParseUUID(idStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
@@ -148,7 +148,7 @@ func (h *Handler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	request := UpdateParams{
-		ID:          questionID,
+		ID:          id,
 		FormID:      formID,
 		Required:    req.Required,
 		Type:        QuestionType(req.Type),
@@ -180,14 +180,14 @@ func (h *Handler) DeleteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	questionIDStr := r.PathValue("questionId")
-	questionID, err := handlerutil.ParseUUID(questionIDStr)
+	idStr := r.PathValue("id")
+	id, err := handlerutil.ParseUUID(idStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
 
-	err = h.store.Delete(traceCtx, formID, questionID)
+	err = h.store.Delete(traceCtx, formID, id)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
