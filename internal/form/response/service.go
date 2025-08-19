@@ -91,7 +91,7 @@ func (s Service) Create(ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 		return FormResponse{}, err
 	}
 
-	for inx, answer := range answers {
+	for idx, answer := range answers {
 		questionID, err := internal.ParseUUID(answer.QuestionID)
 		if err != nil {
 			err = databaseutil.WrapDBError(err, logger, "parse question id")
@@ -102,7 +102,7 @@ func (s Service) Create(ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 		_, err = s.queries.CreateAnswer(traceCtx, CreateAnswerParams{
 			ResponseID: newResponse.ID,
 			QuestionID: questionID,
-			Type:       questionType[inx],
+			Type:       questionType[idx],
 			Value:      answer.Value,
 		})
 		if err != nil {

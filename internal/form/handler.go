@@ -22,12 +22,10 @@ type Request struct {
 }
 
 type Store interface {
-	Create(ctx context.Context, request Request, unitID uuid.UUID, userID uuid.UUID) (Form, error)
 	Update(ctx context.Context, id uuid.UUID, request Request, userID uuid.UUID) (Form, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 	GetByID(ctx context.Context, id uuid.UUID) (Form, error)
 	List(ctx context.Context) ([]Form, error)
-	ListByUnit(ctx context.Context, unitID uuid.UUID) ([]Form, error)
 }
 
 type Handler struct {
@@ -55,13 +53,13 @@ func NewHandler(
 	}
 }
 
-func (h *Handler) UpdateFormHandler(w http.ResponseWriter, r *http.Request) {
-	traceCtx, span := h.tracer.Start(r.Context(), "UpdateFormHandler")
+func (h *Handler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "UpdateHandler")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
-	formIDStr := r.PathValue("id")
-	formID, err := handlerutil.ParseUUID(formIDStr)
+	idStr := r.PathValue("id")
+	id, err := handlerutil.ParseUUID(idStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
@@ -79,7 +77,7 @@ func (h *Handler) UpdateFormHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	currentForm, err := h.store.Update(traceCtx, formID, req, currentUser.ID)
+	currentForm, err := h.store.Update(traceCtx, id, req, currentUser.ID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
@@ -88,19 +86,19 @@ func (h *Handler) UpdateFormHandler(w http.ResponseWriter, r *http.Request) {
 	handlerutil.WriteJSONResponse(w, http.StatusOK, currentForm)
 }
 
-func (h *Handler) DeleteFormHandler(w http.ResponseWriter, r *http.Request) {
-	traceCtx, span := h.tracer.Start(r.Context(), "DeleteFormHandler")
+func (h *Handler) DeleteHandler(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "DeleteHandler")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
-	formIDStr := r.PathValue("id")
-	formID, err := handlerutil.ParseUUID(formIDStr)
+	idStr := r.PathValue("id")
+	id, err := handlerutil.ParseUUID(idStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
 
-	err = h.store.Delete(traceCtx, formID)
+	err = h.store.Delete(traceCtx, id)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
@@ -109,19 +107,19 @@ func (h *Handler) DeleteFormHandler(w http.ResponseWriter, r *http.Request) {
 	handlerutil.WriteJSONResponse(w, http.StatusNoContent, nil)
 }
 
-func (h *Handler) GetFormHandler(w http.ResponseWriter, r *http.Request) {
-	traceCtx, span := h.tracer.Start(r.Context(), "GetFormHandler")
+func (h *Handler) GetHandler(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "GetHandler")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
-	formIDStr := r.PathValue("id")
-	formID, err := handlerutil.ParseUUID(formIDStr)
+	idStr := r.PathValue("id")
+	id, err := handlerutil.ParseUUID(idStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
 
-	currentForm, err := h.store.GetByID(traceCtx, formID)
+	currentForm, err := h.store.GetByID(traceCtx, id)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
@@ -130,8 +128,8 @@ func (h *Handler) GetFormHandler(w http.ResponseWriter, r *http.Request) {
 	handlerutil.WriteJSONResponse(w, http.StatusOK, currentForm)
 }
 
-func (h *Handler) ListFormsHandler(w http.ResponseWriter, r *http.Request) {
-	traceCtx, span := h.tracer.Start(r.Context(), "ListFormHandler")
+func (h *Handler) ListHandler(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "ListHandler")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
