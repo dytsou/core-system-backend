@@ -2,6 +2,7 @@ package unit
 
 import (
 	"NYCU-SDC/core-system-backend/internal/tenant"
+	"NYCU-SDC/core-system-backend/internal/user"
 	"context"
 	"fmt"
 
@@ -110,6 +111,7 @@ type Service struct {
 	queries       Querier
 	tracer        trace.Tracer
 	tenantService *tenant.Service
+	userService   *user.Service
 }
 
 type Base struct {
@@ -125,6 +127,7 @@ func NewService(logger *zap.Logger, db DBTX) *Service {
 		queries:       New(db),
 		tracer:        otel.Tracer("unit/service"),
 		tenantService: tenant.NewService(logger, db),
+		userService:   user.NewService(logger, db),
 	}
 }
 
@@ -537,9 +540,14 @@ func (s *Service) RemoveParentChild(ctx context.Context, childID uuid.UUID) erro
 	return nil
 }
 
-// AddMember adds a member to an organization or an unit
+// AddMember adds a member to an organization or a unit
 func (s *Service) AddMember(ctx context.Context, unitType string, arg AddMemberParams) (GenericMember, error) {
-	traceCtx, span := s.tracer.Start(ctx, "AddOrgMember")
+	mapping := map[string]string{
+		"unit":         "Unit",
+		"organization": "Org",
+	}
+
+	traceCtx, span := s.tracer.Start(ctx, fmt.Sprintf("Add%sMember", mapping[unitType]))
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
@@ -583,9 +591,14 @@ func (s *Service) AddMember(ctx context.Context, unitType string, arg AddMemberP
 	return MemberWrapper{}, fmt.Errorf("invalid unit type: %s", unitType)
 }
 
-// ListMembers lists all members of an organization or an unit
+// ListMembers lists all members of an organization or a unit
 func (s *Service) ListMembers(ctx context.Context, unitType string, ID uuid.UUID) ([]uuid.UUID, error) {
-	traceCtx, span := s.tracer.Start(ctx, "ListOrgMembers")
+	mapping := map[string]string{
+		"unit":         "Unit",
+		"organization": "Org",
+	}
+
+	traceCtx, span := s.tracer.Start(ctx, fmt.Sprintf("List%sMembers", mapping[unitType]))
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
@@ -616,9 +629,14 @@ func (s *Service) ListMembers(ctx context.Context, unitType string, ID uuid.UUID
 	return members, nil
 }
 
-// RemoveMember removes a member from an organization or an unit
+// RemoveMember removes a member from an organization or a unit
 func (s *Service) RemoveMember(ctx context.Context, unitType string, arg RemoveMemberParams) error {
-	traceCtx, span := s.tracer.Start(ctx, "RemoveOrgMember")
+	mapping := map[string]string{
+		"unit":         "Unit",
+		"organization": "Org",
+	}
+
+	traceCtx, span := s.tracer.Start(ctx, fmt.Sprintf("Remove%sMember", mapping[unitType]))
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
