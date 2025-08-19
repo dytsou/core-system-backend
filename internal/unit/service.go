@@ -1,6 +1,7 @@
 package unit
 
 import (
+	"NYCU-SDC/core-system-backend/internal"
 	"NYCU-SDC/core-system-backend/internal/tenant"
 	"NYCU-SDC/core-system-backend/internal/user"
 	"context"
@@ -129,6 +130,25 @@ func NewService(logger *zap.Logger, db DBTX) *Service {
 		tenantService: tenant.NewService(logger, db),
 		userService:   user.NewService(logger, db),
 	}
+}
+
+// Validation Functions
+func (s *Service) validateMemberExistence(ctx context.Context, memberID uuid.UUID, logger *zap.Logger, span trace.Span) error {
+	exists, err := s.userService.ExistsByID(ctx, memberID)
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "check if user exists")
+		span.RecordError(err)
+		return internal.ErrUserNotFound
+	}
+
+	if !exists {
+		err := fmt.Errorf("member with ID %s does not exist", memberID.String())
+		span.RecordError(err)
+		logger.Error("Member does not exist", zap.String("member_id", memberID.String()))
+		return internal.ErrUserNotFound
+	}
+
+	return nil
 }
 
 // CreateUnit creates a new unit
@@ -550,6 +570,10 @@ func (s *Service) AddMember(ctx context.Context, unitType string, arg AddMemberP
 	traceCtx, span := s.tracer.Start(ctx, fmt.Sprintf("Add%sMember", mapping[unitType]))
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
+
+	if err := s.validateMemberExistence(traceCtx, arg.MemberID, logger, span); err != nil {
+		return nil, err
+	}
 
 	switch unitType {
 	case "organization":
