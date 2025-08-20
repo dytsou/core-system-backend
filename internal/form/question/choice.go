@@ -4,9 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/google/uuid"
 	"strings"
+
+	"github.com/google/uuid"
 )
+
+type ChoiceOption struct {
+	Name string `json:"name" validate:"required"`
+}
 
 type Choice struct {
 	ID   uuid.UUID `json:"id"`
@@ -71,7 +76,7 @@ func NewSingleChoice(q Question) (SingleChoice, error) {
 			}
 		}
 
-		if choice.Name == "" {
+		if strings.TrimSpace(choice.Name) == "" {
 			return SingleChoice{}, ErrMetadataBroken{
 				QuestionID: q.ID.String(),
 				RawData:    metadata,
@@ -158,7 +163,7 @@ func NewMultiChoice(q Question) (MultiChoice, error) {
 			}
 		}
 
-		if choice.Name == "" {
+		if strings.TrimSpace(choice.Name) == "" {
 			return MultiChoice{}, ErrMetadataBroken{
 				QuestionID: q.ID.String(),
 				RawData:    metadata,
@@ -171,6 +176,49 @@ func NewMultiChoice(q Question) (MultiChoice, error) {
 		question: q,
 		Choices:  choices,
 	}, nil
+}
+
+// Creates and validates metadata JSON for choice-based questions
+func GenerateMetadata(questionType string, choiceOptions []ChoiceOption) ([]byte, error) {
+	// For non-choice questions, return empty metadata
+	if questionType != "single_choice" && questionType != "multiple_choice" {
+		if len(choiceOptions) > 0 {
+			return nil, ErrUnsupportedQuestionType{QuestionType: questionType}
+		}
+		return json.Marshal(map[string]any{})
+	}
+
+	// For choice questions, require at least one choice
+	if len(choiceOptions) == 0 {
+		return nil, ErrMetadataValidate{
+			QuestionID: questionType,
+			RawData:    []byte(fmt.Sprintf("%v", choiceOptions)),
+			Message:    "no choices provided for choice question",
+		}
+	}
+
+	// Generate choices with UUIDs
+	choices := make([]Choice, len(choiceOptions))
+	for i, option := range choiceOptions {
+		name := strings.TrimSpace(option.Name)
+		if name == "" {
+			return nil, ErrMetadataValidate{
+				QuestionID: questionType,
+				RawData:    []byte(fmt.Sprintf("%v", choiceOptions)),
+				Message:    "choice name cannot be empty",
+			}
+		}
+		choices[i] = Choice{
+			ID:   uuid.New(),
+			Name: name,
+		}
+	}
+
+	metadata := map[string]any{
+		"choice": choices,
+	}
+
+	return json.Marshal(metadata)
 }
 
 func ExtractChoices(data []byte) ([]Choice, error) {
