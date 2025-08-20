@@ -108,5 +108,5 @@ func (h *Handler) SubmitHandler(w http.ResponseWriter, r *http.Request) {
 		UpdatedAt: newResponse.UpdatedAt.Time,
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusOK, submitResponse)
+	handlerutil.WriteJSONResponse(w, http.StatusCreated, submitResponse)
 }
