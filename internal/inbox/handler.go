@@ -33,7 +33,8 @@ type UserInboxMessageFilter struct {
 	IsStarred  bool `json:"isStarred"`
 	IsArchived bool `json:"isArchived"`
 }
-type InboxMessageResponse struct {
+
+type MessageResponse struct {
 	ID        string      `json:"id"`
 	PostedBy  string      `json:"postedBy"`
 	Title     string      `json:"title"`
@@ -43,10 +44,11 @@ type InboxMessageResponse struct {
 	CreatedAt string      `json:"createdAt"`
 	UpdatedAt string      `json:"updatedAt"`
 }
+
 type Response struct {
-	ID      string               `json:"id"`
-	Message InboxMessageResponse `json:"message"`
-	Content any                  `json:"content"`
+	ID      string          `json:"id"`
+	Message MessageResponse `json:"message"`
+	Content any             `json:"content"`
 	UserInboxMessageFilter
 }
 
@@ -80,7 +82,7 @@ func NewHandler(
 func mapToResponse(message GetAllRow) Response {
 	return Response{
 		ID: message.ID.String(),
-		Message: InboxMessageResponse{
+		Message: MessageResponse{
 			ID:        message.MessageID.String(),
 			PostedBy:  message.PostedBy.String(),
 			Title:     message.Title,
@@ -155,7 +157,7 @@ func (h *Handler) GetAll(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
-	traceCtx, span := h.tracer.Start(r.Context(), "GetById")
+	traceCtx, span := h.tracer.Start(r.Context(), "GetByID")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
@@ -190,7 +192,7 @@ func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 
 	response := Response{
 		ID: message.ID.String(),
-		Message: InboxMessageResponse{
+		Message: MessageResponse{
 			ID:        message.MessageID.String(),
 			PostedBy:  message.PostedBy.String(),
 			Title:     message.Title,
@@ -212,7 +214,7 @@ func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) UpdateByID(w http.ResponseWriter, r *http.Request) {
-	traceCtx, span := h.tracer.Start(r.Context(), "UpdateById")
+	traceCtx, span := h.tracer.Start(r.Context(), "UpdateByID")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
@@ -247,7 +249,7 @@ func (h *Handler) UpdateByID(w http.ResponseWriter, r *http.Request) {
 
 	response := Response{
 		ID: message.ID.String(),
-		Message: InboxMessageResponse{
+		Message: MessageResponse{
 			ID:        message.MessageID.String(),
 			PostedBy:  message.PostedBy.String(),
 			Title:     message.Title,

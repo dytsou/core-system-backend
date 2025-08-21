@@ -15,4 +15,4 @@ UPDATE user_inbox_messages AS uim
 SET is_read = $3, is_starred = $4, is_archived = $5
 FROM inbox_message AS im
 WHERE uim.message_id = im.id AND uim.id = $1 AND uim.user_id = $2
-    RETURNING *;
+RETURNING *;

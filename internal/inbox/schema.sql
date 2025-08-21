@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS inbox_message(
     content_id UUID,
     created_at TIMESTAMP NOT NULL DEFAULT now(),
     updated_at TIMESTAMP NOT NULL DEFAULT now()
-    );
+);
 
 CREATE TABLE IF NOT EXISTS user_inbox_messages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -21,4 +21,4 @@ CREATE TABLE IF NOT EXISTS user_inbox_messages (
     is_read boolean DEFAULT false,
     is_starred boolean DEFAULT false,
     is_archived boolean DEFAULT false
-    );
+);

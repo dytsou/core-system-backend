@@ -18,6 +18,7 @@ type Querier interface {
 	GetById(ctx context.Context, arg GetByIdParams) (GetByIdRow, error)
 	UpdateById(ctx context.Context, arg UpdateByIdParams) (UpdateByIdRow, error)
 }
+
 type Service struct {
 	logger  *zap.Logger
 	queries Querier
@@ -52,7 +53,7 @@ func (s *Service) GetAll(ctx context.Context, userId uuid.UUID) ([]GetAllRow, er
 }
 
 func (s *Service) GetByID(ctx context.Context, id uuid.UUID, userId uuid.UUID) (GetByIdRow, error) {
-	traceCtx, span := s.tracer.Start(ctx, "GetById")
+	traceCtx, span := s.tracer.Start(ctx, "GetByID")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
@@ -61,7 +62,7 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID, userId uuid.UUID) (
 		UserID: pgtype.UUID{Bytes: userId, Valid: true},
 	})
 	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "get the full message by id")
+		err = databaseutil.WrapDBError(err, logger, "get the full inbox_message by id")
 		span.RecordError(err)
 		return GetByIdRow{}, err
 	}
@@ -70,7 +71,7 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID, userId uuid.UUID) (
 }
 
 func (s *Service) UpdateByID(ctx context.Context, id uuid.UUID, userId uuid.UUID, arg UserInboxMessageFilter) (UpdateByIdRow, error) {
-	traceCtx, span := s.tracer.Start(ctx, "UpdateById")
+	traceCtx, span := s.tracer.Start(ctx, "UpdateByID")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
@@ -82,7 +83,7 @@ func (s *Service) UpdateByID(ctx context.Context, id uuid.UUID, userId uuid.UUID
 		IsStarred:  pgtype.Bool{Bool: arg.IsStarred, Valid: true},
 	})
 	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "update message by id")
+		err = databaseutil.WrapDBError(err, logger, "update user_inbox_message by id")
 		span.RecordError(err)
 		return UpdateByIdRow{}, err
 	}
