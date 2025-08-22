@@ -230,6 +230,10 @@ func (s *Service) GetAllOrganizations(ctx context.Context) ([]Organization, erro
 		return nil, err
 	}
 
+	if organizations == nil {
+		organizations = []Organization{}
+	}
+
 	return organizations, nil
 }
 
@@ -277,6 +281,10 @@ func (s *Service) ListSubUnits(ctx context.Context, ID uuid.UUID, unitType strin
 			return nil, err
 		}
 
+		if subUnits == nil {
+			subUnits = []Unit{}
+		}
+
 		logger.Info("Listed sub units of an organization", zap.String("parent_id", ID.String()), zap.Int("count", len(subUnits)))
 		return subUnits, nil
 
@@ -286,6 +294,10 @@ func (s *Service) ListSubUnits(ctx context.Context, ID uuid.UUID, unitType strin
 			err = databaseutil.WrapDBError(err, logger, "list sub units of an unit")
 			span.RecordError(err)
 			return nil, err
+		}
+
+		if subUnits == nil {
+			subUnits = []Unit{}
 		}
 
 		logger.Info("Listed sub units of an unit", zap.String("parent_id", ID.String()), zap.Int("count", len(subUnits)))
@@ -311,6 +323,10 @@ func (s *Service) ListSubUnitIDs(ctx context.Context, ID uuid.UUID, unitType str
 			return nil, err
 		}
 
+		if subUnitIDs == nil {
+			subUnitIDs = []uuid.UUID{}
+		}
+
 		logger.Info("Listed sub unit IDs of an organization", zap.String("parent_id", ID.String()), zap.Int("count", len(subUnitIDs)))
 		return subUnitIDs, nil
 
@@ -320,6 +336,10 @@ func (s *Service) ListSubUnitIDs(ctx context.Context, ID uuid.UUID, unitType str
 			err = databaseutil.WrapDBError(err, logger, "list sub unit IDs of an unit")
 			span.RecordError(err)
 			return nil, err
+		}
+
+		if subUnitIDs == nil {
+			subUnitIDs = []uuid.UUID{}
 		}
 
 		logger.Info("Listed sub unit IDs of an unit", zap.String("parent_id", ID.String()), zap.Int("count", len(subUnitIDs)))
