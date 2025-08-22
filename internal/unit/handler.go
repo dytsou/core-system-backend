@@ -163,7 +163,7 @@ func (h *Handler) GetUnitByID(w http.ResponseWriter, r *http.Request) {
 
 	idStr := r.PathValue("id")
 
-	id, err := uuid.Parse(idStr)
+	id, err := internal.ParseUUID(idStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid unit ID: %w", err), h.logger)
 		return
@@ -235,7 +235,7 @@ func (h *Handler) UpdateUnit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	idStr := r.PathValue("id")
-	id, err := uuid.Parse(idStr)
+	id, err := internal.ParseUUID(idStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid unit ID: %w", err), h.logger)
 		return
@@ -327,7 +327,7 @@ func (h *Handler) DeleteUnit(w http.ResponseWriter, r *http.Request) {
 	h.logger = logutil.WithContext(traceCtx, h.logger)
 
 	idStr := r.PathValue("id")
-	id, err := uuid.Parse(idStr)
+	id, err := internal.ParseUUID(idStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid unit ID: %w", err), h.logger)
 		return
@@ -372,8 +372,7 @@ func (h *Handler) RemoveParentChild(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "parent or child ID not provided", http.StatusBadRequest)
 		return
 	}
-
-	cID, err := uuid.Parse(cIDStr)
+	cID, err := internal.ParseUUID(cIDStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid child ID: %w", err), h.logger)
 		return
@@ -420,7 +419,7 @@ func (h *Handler) ListUnitSubUnits(w http.ResponseWriter, r *http.Request) {
 	h.logger = logutil.WithContext(traceCtx, h.logger)
 
 	idStr := r.PathValue("id")
-	id, err := uuid.Parse(idStr)
+	id, err := internal.ParseUUID(idStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid unit ID: %w", err), h.logger)
 		return
@@ -466,7 +465,7 @@ func (h *Handler) ListUnitSubUnitIDs(w http.ResponseWriter, r *http.Request) {
 	h.logger = logutil.WithContext(traceCtx, h.logger)
 
 	idStr := r.PathValue("id")
-	id, err := uuid.Parse(idStr)
+	id, err := internal.ParseUUID(idStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid unit ID: %w", err), h.logger)
 		return
