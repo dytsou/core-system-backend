@@ -15,7 +15,6 @@ import (
 	"github.com/NYCU-SDC/summer/pkg/problem"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -27,10 +26,10 @@ type Store interface {
 	CreateOrg(ctx context.Context, name string, desc string, creatorID uuid.UUID, metadata []byte, slug string) (Organization, error)
 	GetByID(ctx context.Context, id uuid.UUID, orgID uuid.UUID, unitType Type) (GenericUnit, error)
 	GetAllOrganizations(ctx context.Context) ([]Organization, error)
-	UpdateUnit(ctx context.Context, id uuid.UUID, params UpdateUnitParams) (Unit, error)
-	UpdateOrg(ctx context.Context, id uuid.UUID, params UpdateOrgParams) (Organization, error)
+	UpdateUnit(ctx context.Context, id uuid.UUID, name string, description string, metadata []byte) (Unit, error)
+	UpdateOrg(ctx context.Context, id uuid.UUID, name string, description string, metadata []byte, slug string) (Organization, error)
 	Delete(ctx context.Context, id uuid.UUID, unitType Type) error
-	AddParentChild(ctx context.Context, params AddParentChildParams) (ParentChild, error)
+	AddParentChild(ctx context.Context, parentID uuid.UUID, childID uuid.UUID, orgID uuid.UUID) (ParentChild, error)
 	RemoveParentChild(ctx context.Context, childID uuid.UUID) error
 	ListSubUnits(ctx context.Context, id uuid.UUID, unitType Type) ([]Unit, error)
 	ListSubUnitIDs(ctx context.Context, id uuid.UUID, unitType Type) ([]uuid.UUID, error)
@@ -73,6 +72,12 @@ type Request struct {
 	Name        string            `json:"name" validate:"required"`
 	Description string            `json:"description"`
 	Metadata    map[string]string `json:"metadata"`
+}
+
+type ParentChildRequest struct {
+	ParentID uuid.UUID `json:"parent_id"`
+	ChildID  uuid.UUID `json:"child_id" validate:"required"`
+	OrgID    uuid.UUID `json:"org_id" validate:"required"`
 }
 
 func (h *Handler) CreateUnit(w http.ResponseWriter, r *http.Request) {
@@ -244,14 +249,7 @@ func (h *Handler) UpdateUnit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	params := UpdateUnitParams{
-		ID:          id,
-		Name:        pgtype.Text{String: req.Name, Valid: true},
-		Description: pgtype.Text{String: req.Description, Valid: req.Description != ""},
-		Metadata:    metadataBytes,
-	}
-
-	updatedUnit, err := h.store.UpdateUnit(traceCtx, id, params)
+	updatedUnit, err := h.store.UpdateUnit(traceCtx, id, req.Name, req.Description, metadataBytes)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to update unit: %w", err), h.logger)
 		return
@@ -289,15 +287,7 @@ func (h *Handler) UpdateOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	params := UpdateOrgParams{
-		ID:          id,
-		Name:        pgtype.Text{String: req.Name, Valid: true},
-		Description: pgtype.Text{String: req.Description, Valid: req.Description != ""},
-		Metadata:    metadataBytes,
-		Slug:        req.Slug,
-	}
-
-	updatedOrg, err := h.store.UpdateOrg(traceCtx, id, params)
+	updatedOrg, err := h.store.UpdateOrg(traceCtx, id, req.Name, req.Description, metadataBytes, req.Slug)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to update organization: %w", err), h.logger)
 		return
@@ -359,13 +349,13 @@ func (h *Handler) AddParentChild(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	h.logger = logutil.WithContext(traceCtx, h.logger)
 
-	var params AddParentChildParams
-	if err := handlerutil.ParseAndValidateRequestBody(traceCtx, h.validator, r, &params); err != nil {
+	var req ParentChildRequest
+	if err := handlerutil.ParseAndValidateRequestBody(traceCtx, h.validator, r, &req); err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid request body: %w", err), h.logger)
 		return
 	}
 
-	pc, err := h.store.AddParentChild(traceCtx, params)
+	pc, err := h.store.AddParentChild(traceCtx, req.ParentID, req.ChildID, req.OrgID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to add parent-child relationship: %w", err), h.logger)
 		return
