@@ -92,6 +92,17 @@ type Base struct {
 	Metadata    []byte
 }
 
+type Type int
+
+const (
+	TypeOrg Type = iota
+	TypeUnit
+)
+
+func (t Type) String() string {
+	return [...]string{"org", "unit"}[t]
+}
+
 func NewService(logger *zap.Logger, db DBTX) *Service {
 	return &Service{
 		logger:        logger,
@@ -251,13 +262,13 @@ func (s *Service) GetAllOrganizations(ctx context.Context) ([]Organization, erro
 }
 
 // GetByID retrieves a unit by ID
-func (s *Service) GetByID(ctx context.Context, id uuid.UUID, orgID uuid.UUID, unitType string) (GenericUnit, error) {
+func (s *Service) GetByID(ctx context.Context, id uuid.UUID, orgID uuid.UUID, unitType Type) (GenericUnit, error) {
 	traceCtx, span := s.tracer.Start(ctx, "GetByID")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
 	switch unitType {
-	case "organization":
+	case TypeOrg:
 		org, err := s.queries.GetOrgByID(traceCtx, orgID)
 		if err != nil {
 			err = databaseutil.WrapDBError(err, logger, "get organization by id")
@@ -265,7 +276,7 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID, orgID uuid.UUID, un
 			return nil, err
 		}
 		return OrgWrapper{org}, nil
-	case "unit":
+	case TypeUnit:
 		unit, err := s.queries.GetUnitByID(traceCtx, id)
 		if err != nil {
 			err = databaseutil.WrapDBError(err, logger, "get unit by id")
@@ -275,18 +286,18 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID, orgID uuid.UUID, un
 		return Wrapper{unit}, nil
 	}
 
-	logger.Error("invalid unit type: ", zap.String("unitType", unitType))
-	return nil, fmt.Errorf("invalid unit type: %s", unitType)
+	logger.Error("invalid unit type: ", zap.String("unitType", unitType.String()))
+	return nil, fmt.Errorf("invalid unit type: %s", unitType.String())
 }
 
 // ListSubUnits retrieves all subunits of a parent unit
-func (s *Service) ListSubUnits(ctx context.Context, id uuid.UUID, unitType string) ([]Unit, error) {
+func (s *Service) ListSubUnits(ctx context.Context, id uuid.UUID, unitType Type) ([]Unit, error) {
 	traceCtx, span := s.tracer.Start(ctx, "ListSubUnits")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
 	switch unitType {
-	case "organization":
+	case TypeOrg:
 		subUnits, err := s.queries.ListOrgSubUnits(traceCtx, id)
 		if err != nil {
 			err = databaseutil.WrapDBError(err, logger, "list sub units of an organization")
@@ -301,7 +312,7 @@ func (s *Service) ListSubUnits(ctx context.Context, id uuid.UUID, unitType strin
 		logger.Info("Listed sub units of an organization", zap.String("parent_id", id.String()), zap.Int("count", len(subUnits)))
 		return subUnits, nil
 
-	case "unit":
+	case TypeUnit:
 		subUnits, err := s.queries.ListSubUnits(traceCtx, pgtype.UUID{Bytes: id, Valid: true})
 		if err != nil {
 			err = databaseutil.WrapDBError(err, logger, "list sub units of an unit")
@@ -317,18 +328,18 @@ func (s *Service) ListSubUnits(ctx context.Context, id uuid.UUID, unitType strin
 		return subUnits, nil
 	}
 
-	logger.Error("invalid unit type: ", zap.String("unitType", unitType))
-	return nil, fmt.Errorf("invalid unit type: %s", unitType)
+	logger.Error("invalid unit type: ", zap.String("unitType", unitType.String()))
+	return nil, fmt.Errorf("invalid unit type: %s", unitType.String())
 }
 
 // ListSubUnitIDs retrieves all child unit IDs of a parent unit
-func (s *Service) ListSubUnitIDs(ctx context.Context, id uuid.UUID, unitType string) ([]uuid.UUID, error) {
+func (s *Service) ListSubUnitIDs(ctx context.Context, id uuid.UUID, unitType Type) ([]uuid.UUID, error) {
 	traceCtx, span := s.tracer.Start(ctx, "ListSubUnitIDs")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
 	switch unitType {
-	case "organization":
+	case TypeOrg:
 		subUnitIDs, err := s.queries.ListOrgSubUnitIDs(traceCtx, id)
 		if err != nil {
 			err = databaseutil.WrapDBError(err, logger, "list sub unit IDs of an organization")
@@ -343,7 +354,7 @@ func (s *Service) ListSubUnitIDs(ctx context.Context, id uuid.UUID, unitType str
 		logger.Info("Listed sub unit IDs of an organization", zap.String("parent_id", id.String()), zap.Int("count", len(subUnitIDs)))
 		return subUnitIDs, nil
 
-	case "unit":
+	case TypeUnit:
 		subUnitIDs, err := s.queries.ListSubUnitIDs(traceCtx, pgtype.UUID{Bytes: id, Valid: true})
 		if err != nil {
 			err = databaseutil.WrapDBError(err, logger, "list sub unit IDs of an unit")
@@ -359,8 +370,8 @@ func (s *Service) ListSubUnitIDs(ctx context.Context, id uuid.UUID, unitType str
 		return subUnitIDs, nil
 	}
 
-	logger.Error("invalid unit type: ", zap.String("unitType", unitType))
-	return nil, fmt.Errorf("invalid unit type: %s", unitType)
+	logger.Error("invalid unit type: ", zap.String("unitType", unitType.String()))
+	return nil, fmt.Errorf("invalid unit type: %s", unitType.String())
 }
 
 // UpdateUnit updates the base fields of a unit
@@ -421,13 +432,13 @@ func (s *Service) UpdateOrg(ctx context.Context, id uuid.UUID, args UpdateOrgPar
 }
 
 // Delete deletes a unit by ID
-func (s *Service) Delete(ctx context.Context, id uuid.UUID, unitType string) error {
+func (s *Service) Delete(ctx context.Context, id uuid.UUID, unitType Type) error {
 	traceCtx, span := s.tracer.Start(ctx, "Delete")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
 	switch unitType {
-	case "unit":
+	case TypeUnit:
 		// Deletion Check: Ensure not deleting default unit
 		unit, err := s.queries.GetUnitByID(traceCtx, id)
 		if err != nil {
@@ -453,7 +464,7 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID, unitType string) err
 			}
 		}
 
-	case "organization":
+	case TypeOrg:
 		err := s.queries.DeleteOrg(traceCtx, id)
 		if err != nil {
 			err = databaseutil.WrapDBError(err, logger, "delete organization")
@@ -466,7 +477,7 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID, unitType string) err
 	default:
 		err := fmt.Errorf("invalid unit type for deletion: %s", unitType)
 		span.RecordError(err)
-		logger.Error("Invalid unit type for deletion", zap.String("unit_type", string(unitType)))
+		logger.Error("Invalid unit type for deletion", zap.String("unit_type", unitType.String()))
 		return err
 	}
 
