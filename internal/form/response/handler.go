@@ -95,21 +95,21 @@ func (h *Handler) ListHandler(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
-	formIdStr := r.PathValue("formId")
-	formId, err := internal.ParseUUID(formIdStr)
+	formIDStr := r.PathValue("formId")
+	formID, err := internal.ParseUUID(formIDStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
 
-	responses, err := h.store.ListByFormID(traceCtx, formId)
+	responses, err := h.store.ListByFormID(traceCtx, formID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
 
 	listResponse := ListResponse{
-		FormID:        formId.String(),
+		FormID:        formID.String(),
 		ResponseJSONs: make([]Response, len(responses)),
 	}
 	for i, currentResponse := range responses {
@@ -129,8 +129,8 @@ func (h *Handler) GetHandler(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
-	formIdStr := r.PathValue("formId")
-	formId, err := internal.ParseUUID(formIdStr)
+	formIDStr := r.PathValue("formId")
+	formID, err := internal.ParseUUID(formIDStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
@@ -143,7 +143,7 @@ func (h *Handler) GetHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	currentResponse, answers, err := h.store.Get(traceCtx, formId, id)
+	currentResponse, answers, err := h.store.Get(traceCtx, formID, id)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
@@ -201,27 +201,27 @@ func (h *Handler) GetAnswersByQuestionIDHandler(w http.ResponseWriter, r *http.R
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
-	formIdStr := r.PathValue("formId")
-	formId, err := internal.ParseUUID(formIdStr)
+	formIDStr := r.PathValue("formId")
+	formID, err := internal.ParseUUID(formIDStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
 
-	questionIdStr := r.PathValue("questionId")
-	questionId, err := internal.ParseUUID(questionIdStr)
+	questionIDStr := r.PathValue("questionId")
+	questionID, err := internal.ParseUUID(questionIDStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
 
-	answers, err := h.store.GetAnswersByQuestionID(traceCtx, questionId, formId)
+	answers, err := h.store.GetAnswersByQuestionID(traceCtx, questionID, formID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
 
-	currentQuestion, err := h.questionStore.GetByID(traceCtx, questionId)
+	currentQuestion, err := h.questionStore.GetByID(traceCtx, questionID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
