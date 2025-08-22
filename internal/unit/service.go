@@ -280,14 +280,14 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID, orgID uuid.UUID, un
 }
 
 // ListSubUnits retrieves all subunits of a parent unit
-func (s *Service) ListSubUnits(ctx context.Context, ID uuid.UUID, unitType string) ([]Unit, error) {
+func (s *Service) ListSubUnits(ctx context.Context, id uuid.UUID, unitType string) ([]Unit, error) {
 	traceCtx, span := s.tracer.Start(ctx, "ListSubUnits")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
 	switch unitType {
 	case "organization":
-		subUnits, err := s.queries.ListOrgSubUnits(traceCtx, ID)
+		subUnits, err := s.queries.ListOrgSubUnits(traceCtx, id)
 		if err != nil {
 			err = databaseutil.WrapDBError(err, logger, "list sub units of an organization")
 			span.RecordError(err)
@@ -298,11 +298,11 @@ func (s *Service) ListSubUnits(ctx context.Context, ID uuid.UUID, unitType strin
 			subUnits = []Unit{}
 		}
 
-		logger.Info("Listed sub units of an organization", zap.String("parent_id", ID.String()), zap.Int("count", len(subUnits)))
+		logger.Info("Listed sub units of an organization", zap.String("parent_id", id.String()), zap.Int("count", len(subUnits)))
 		return subUnits, nil
 
 	case "unit":
-		subUnits, err := s.queries.ListSubUnits(traceCtx, pgtype.UUID{Bytes: ID, Valid: true})
+		subUnits, err := s.queries.ListSubUnits(traceCtx, pgtype.UUID{Bytes: id, Valid: true})
 		if err != nil {
 			err = databaseutil.WrapDBError(err, logger, "list sub units of an unit")
 			span.RecordError(err)
@@ -313,7 +313,7 @@ func (s *Service) ListSubUnits(ctx context.Context, ID uuid.UUID, unitType strin
 			subUnits = []Unit{}
 		}
 
-		logger.Info("Listed sub units of an unit", zap.String("parent_id", ID.String()), zap.Int("count", len(subUnits)))
+		logger.Info("Listed sub units of an unit", zap.String("parent_id", id.String()), zap.Int("count", len(subUnits)))
 		return subUnits, nil
 	}
 
@@ -322,14 +322,14 @@ func (s *Service) ListSubUnits(ctx context.Context, ID uuid.UUID, unitType strin
 }
 
 // ListSubUnitIDs retrieves all child unit IDs of a parent unit
-func (s *Service) ListSubUnitIDs(ctx context.Context, ID uuid.UUID, unitType string) ([]uuid.UUID, error) {
+func (s *Service) ListSubUnitIDs(ctx context.Context, id uuid.UUID, unitType string) ([]uuid.UUID, error) {
 	traceCtx, span := s.tracer.Start(ctx, "ListSubUnitIDs")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
 	switch unitType {
 	case "organization":
-		subUnitIDs, err := s.queries.ListOrgSubUnitIDs(traceCtx, ID)
+		subUnitIDs, err := s.queries.ListOrgSubUnitIDs(traceCtx, id)
 		if err != nil {
 			err = databaseutil.WrapDBError(err, logger, "list sub unit IDs of an organization")
 			span.RecordError(err)
@@ -340,11 +340,11 @@ func (s *Service) ListSubUnitIDs(ctx context.Context, ID uuid.UUID, unitType str
 			subUnitIDs = []uuid.UUID{}
 		}
 
-		logger.Info("Listed sub unit IDs of an organization", zap.String("parent_id", ID.String()), zap.Int("count", len(subUnitIDs)))
+		logger.Info("Listed sub unit IDs of an organization", zap.String("parent_id", id.String()), zap.Int("count", len(subUnitIDs)))
 		return subUnitIDs, nil
 
 	case "unit":
-		subUnitIDs, err := s.queries.ListSubUnitIDs(traceCtx, pgtype.UUID{Bytes: ID, Valid: true})
+		subUnitIDs, err := s.queries.ListSubUnitIDs(traceCtx, pgtype.UUID{Bytes: id, Valid: true})
 		if err != nil {
 			err = databaseutil.WrapDBError(err, logger, "list sub unit IDs of an unit")
 			span.RecordError(err)
@@ -355,7 +355,7 @@ func (s *Service) ListSubUnitIDs(ctx context.Context, ID uuid.UUID, unitType str
 			subUnitIDs = []uuid.UUID{}
 		}
 
-		logger.Info("Listed sub unit IDs of an unit", zap.String("parent_id", ID.String()), zap.Int("count", len(subUnitIDs)))
+		logger.Info("Listed sub unit IDs of an unit", zap.String("parent_id", id.String()), zap.Int("count", len(subUnitIDs)))
 		return subUnitIDs, nil
 	}
 
@@ -444,7 +444,7 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID, unitType string) err
 		} else {
 			err := s.queries.DeleteUnit(traceCtx, id)
 			if err != nil {
-				err = databaseutil.WrapDBError(err, logger, "Delete Unit")
+				err = databaseutil.WrapDBError(err, logger, "delete unit")
 				span.RecordError(err)
 				logger.Error("Failed to delete unit",
 					zap.String("unit_id", id.String()),
@@ -456,7 +456,7 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID, unitType string) err
 	case "organization":
 		err := s.queries.DeleteOrg(traceCtx, id)
 		if err != nil {
-			err = databaseutil.WrapDBError(err, logger, "Delete Organization")
+			err = databaseutil.WrapDBError(err, logger, "delete organization")
 			span.RecordError(err)
 			logger.Error("Failed to delete organization",
 				zap.String("org_id", id.String()),
