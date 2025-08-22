@@ -428,12 +428,8 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID, unitType Type) error
 	case TypeOrg:
 		err := s.queries.DeleteOrg(traceCtx, id)
 		if err != nil {
-			err = databaseutil.WrapDBError(err, logger, "delete organization")
+			err = databaseutil.WrapDBErrorWithKeyValue(err, "organizations", "id", id.String(), logger, "delete organization")
 			span.RecordError(err)
-			logger.Error("Failed to delete organization",
-				zap.String("org_id", id.String()),
-				zap.Error(err),
-			)
 			return err
 		}
 	case TypeUnit:
@@ -453,12 +449,8 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID, unitType Type) error
 		} else {
 			err = s.queries.DeleteUnit(traceCtx, id)
 			if err != nil {
-				err = databaseutil.WrapDBError(err, logger, "delete unit")
+				err = databaseutil.WrapDBErrorWithKeyValue(err, "units", "id", id.String(), logger, "delete unit")
 				span.RecordError(err)
-				logger.Error("Failed to delete unit",
-					zap.String("unit_id", id.String()),
-					zap.Error(err),
-				)
 				return err
 			}
 		}
