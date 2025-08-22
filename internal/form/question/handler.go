@@ -38,7 +38,7 @@ type Response struct {
 	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
-func ToResponse(answerable Answerable) Response {
+func ToResponse(answerable Answerable) (Response, error) {
 	q := answerable.Question()
 
 	response := Response{
@@ -55,12 +55,18 @@ func ToResponse(answerable Answerable) Response {
 
 	// Add choices for choice-based questions
 	if q.Type == QuestionTypeSingleChoice || q.Type == QuestionTypeMultipleChoice {
-		if choices, err := ExtractChoices(q.Metadata); err == nil {
-			response.Choices = choices
+		choices, err := ExtractChoices(q.Metadata)
+		if err != nil {
+			return response, ErrInvalidChoices{
+				QuestionID: q.ID.String(),
+				RawData:    q.Metadata,
+				Message:    err.Error(),
+			}
 		}
+		response.Choices = choices
 	}
 
-	return response
+	return response, nil
 }
 
 type Store interface {
@@ -136,7 +142,11 @@ func (h *Handler) AddHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := ToResponse(createdQuestion)
+	response, err := ToResponse(createdQuestion)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, err, logger)
+		return
+	}
 
 	handlerutil.WriteJSONResponse(w, http.StatusCreated, response)
 }
@@ -190,7 +200,11 @@ func (h *Handler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := ToResponse(updatedQuestion)
+	response, err := ToResponse(updatedQuestion)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, err, logger)
+		return
+	}
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
 }
@@ -243,7 +257,12 @@ func (h *Handler) ListHandler(w http.ResponseWriter, r *http.Request) {
 
 	responses := make([]Response, len(questions))
 	for i, q := range questions {
-		responses[i] = ToResponse(q)
+		response, err := ToResponse(q)
+		if err != nil {
+			h.problemWriter.WriteError(traceCtx, w, err, logger)
+			return
+		}
+		responses[i] = response
 	}
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, responses)

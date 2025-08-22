@@ -58,3 +58,13 @@ type ErrUnsupportedQuestionType struct {
 func (e ErrUnsupportedQuestionType) Error() string {
 	return fmt.Sprintf("unsupported question type: %s", e.QuestionType)
 }
+
+type ErrInvalidChoices struct {
+	QuestionID string
+	RawData    []byte
+	Message    string
+}
+
+func (e ErrInvalidChoices) Error() string {
+	return fmt.Sprintf("invalid choices for question %s: %s, raw data: %s", e.QuestionID, e.Message, e.RawData)
+}
