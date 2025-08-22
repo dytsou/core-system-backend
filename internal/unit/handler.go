@@ -7,17 +7,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	logutil "github.com/NYCU-SDC/summer/pkg/log"
-	"net/http"
-	"strings"
-
 	handlerutil "github.com/NYCU-SDC/summer/pkg/handler"
+	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/NYCU-SDC/summer/pkg/problem"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
+	"net/http"
 )
 
 type Store interface {
@@ -395,11 +393,6 @@ func (h *Handler) ListOrgSubUnits(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	h.logger = logutil.WithContext(traceCtx, h.logger)
 
-	prefix := "/api/orgs/"
-	if !strings.HasPrefix(r.URL.Path, prefix) {
-		http.Error(w, "invalid path", http.StatusBadRequest)
-		return
-	}
 	slug, err := internal.GetSlugFromContext(traceCtx)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org slug from context: %w", err), h.logger)
