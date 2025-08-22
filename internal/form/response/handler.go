@@ -136,14 +136,14 @@ func (h *Handler) GetHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	responseIdStr := r.PathValue("responseId")
-	responseId, err := internal.ParseUUID(responseIdStr)
+	idStr := r.PathValue("responseId")
+	id, err := internal.ParseUUID(idStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
 
-	currentResponse, answers, err := h.store.Get(traceCtx, formId, responseId)
+	currentResponse, answers, err := h.store.Get(traceCtx, formId, id)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
@@ -179,14 +179,14 @@ func (h *Handler) DeleteHandler(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
-	responseIdStr := r.PathValue("responseId")
-	responseId, err := internal.ParseUUID(responseIdStr)
+	idStr := r.PathValue("responseId")
+	id, err := internal.ParseUUID(idStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
 
-	err = h.store.Delete(traceCtx, responseId)
+	err = h.store.Delete(traceCtx, id)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
