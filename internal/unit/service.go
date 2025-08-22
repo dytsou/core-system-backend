@@ -276,6 +276,7 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID, orgID uuid.UUID, un
 			return nil, err
 		}
 		return OrgWrapper{org}, nil
+
 	case TypeUnit:
 		unit, err := s.queries.GetUnitByID(traceCtx, id)
 		if err != nil {
@@ -284,10 +285,11 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID, orgID uuid.UUID, un
 			return nil, err
 		}
 		return Wrapper{unit}, nil
-	}
 
-	logger.Error("invalid unit type: ", zap.String("unitType", unitType.String()))
-	return nil, fmt.Errorf("invalid unit type: %s", unitType.String())
+	default:
+		logger.Error("invalid unit type: ", zap.String("unitType", unitType.String()))
+		return nil, fmt.Errorf("invalid unit type: %s", unitType.String())
+	}
 }
 
 // ListSubUnits retrieves all subunits of a parent unit
@@ -326,10 +328,11 @@ func (s *Service) ListSubUnits(ctx context.Context, id uuid.UUID, unitType Type)
 
 		logger.Info("Listed sub units of an unit", zap.String("parent_id", id.String()), zap.Int("count", len(subUnits)))
 		return subUnits, nil
-	}
 
-	logger.Error("invalid unit type: ", zap.String("unitType", unitType.String()))
-	return nil, fmt.Errorf("invalid unit type: %s", unitType.String())
+	default:
+		logger.Error("invalid unit type: ", zap.String("unitType", unitType.String()))
+		return nil, fmt.Errorf("invalid unit type: %s", unitType.String())
+	}
 }
 
 // ListSubUnitIDs retrieves all child unit IDs of a parent unit
@@ -368,10 +371,11 @@ func (s *Service) ListSubUnitIDs(ctx context.Context, id uuid.UUID, unitType Typ
 
 		logger.Info("Listed sub unit IDs of an unit", zap.String("parent_id", id.String()), zap.Int("count", len(subUnitIDs)))
 		return subUnitIDs, nil
-	}
 
-	logger.Error("invalid unit type: ", zap.String("unitType", unitType.String()))
-	return nil, fmt.Errorf("invalid unit type: %s", unitType.String())
+	default:
+		logger.Error("invalid unit type: ", zap.String("unitType", unitType.String()))
+		return nil, fmt.Errorf("invalid unit type: %s", unitType.String())
+	}
 }
 
 // UpdateUnit updates the base fields of a unit
@@ -438,6 +442,18 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID, unitType Type) error
 	logger := logutil.WithContext(traceCtx, s.logger)
 
 	switch unitType {
+	case TypeOrg:
+		err := s.queries.DeleteOrg(traceCtx, id)
+		if err != nil {
+			err = databaseutil.WrapDBError(err, logger, "delete organization")
+			span.RecordError(err)
+			logger.Error("Failed to delete organization",
+				zap.String("org_id", id.String()),
+				zap.Error(err),
+			)
+			return err
+		}
+
 	case TypeUnit:
 		// Deletion Check: Ensure not deleting default unit
 		unit, err := s.queries.GetUnitByID(traceCtx, id)
@@ -461,19 +477,10 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID, unitType Type) error
 					zap.String("unit_id", id.String()),
 					zap.Error(err),
 				)
+				return err
 			}
 		}
 
-	case TypeOrg:
-		err := s.queries.DeleteOrg(traceCtx, id)
-		if err != nil {
-			err = databaseutil.WrapDBError(err, logger, "delete organization")
-			span.RecordError(err)
-			logger.Error("Failed to delete organization",
-				zap.String("org_id", id.String()),
-				zap.Error(err),
-			)
-		}
 	default:
 		err := fmt.Errorf("invalid unit type for deletion: %s", unitType)
 		span.RecordError(err)
