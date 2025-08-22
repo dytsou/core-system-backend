@@ -99,8 +99,13 @@ const (
 	TypeUnit
 )
 
+var typeStrings = [...]string{"organization", "unit"}
+
 func (t Type) String() string {
-	return [...]string{"org", "unit"}[t]
+	if int(t) < 0 || int(t) >= len(typeStrings) {
+		return "unknown"
+	}
+	return typeStrings[t]
 }
 
 func NewService(logger *zap.Logger, db DBTX) *Service {
@@ -267,29 +272,28 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID, orgID uuid.UUID, un
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
+	var returnUnit GenericUnit
+	var err error
 	switch unitType {
 	case TypeOrg:
-		org, err := s.queries.GetOrgByID(traceCtx, orgID)
-		if err != nil {
-			err = databaseutil.WrapDBError(err, logger, "get organization by id")
-			span.RecordError(err)
-			return nil, err
-		}
-		return OrgWrapper{org}, nil
-
+		var org Organization
+		org, err = s.queries.GetOrgByID(traceCtx, orgID)
+		returnUnit = OrgWrapper{org}
 	case TypeUnit:
-		unit, err := s.queries.GetUnitByID(traceCtx, id)
-		if err != nil {
-			err = databaseutil.WrapDBError(err, logger, "get unit by id")
-			span.RecordError(err)
-			return nil, err
-		}
-		return Wrapper{unit}, nil
-
+		var unit Unit
+		unit, err = s.queries.GetUnitByID(traceCtx, id)
+		returnUnit = Wrapper{unit}
 	default:
 		logger.Error("invalid unit type: ", zap.String("unitType", unitType.String()))
 		return nil, fmt.Errorf("invalid unit type: %s", unitType.String())
 	}
+
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, fmt.Sprintf("get %s by id", unitType.String()))
+		span.RecordError(err)
+		return nil, err
+	}
+	return returnUnit, nil
 }
 
 // ListSubUnits retrieves all subunits of a parent unit
@@ -298,41 +302,30 @@ func (s *Service) ListSubUnits(ctx context.Context, id uuid.UUID, unitType Type)
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
+	var subUnits []Unit
+	var err error
 	switch unitType {
 	case TypeOrg:
-		subUnits, err := s.queries.ListOrgSubUnits(traceCtx, id)
-		if err != nil {
-			err = databaseutil.WrapDBError(err, logger, "list sub units of an organization")
-			span.RecordError(err)
-			return nil, err
-		}
-
-		if subUnits == nil {
-			subUnits = []Unit{}
-		}
-
-		logger.Info("Listed sub units of an organization", zap.String("parent_id", id.String()), zap.Int("count", len(subUnits)))
-		return subUnits, nil
-
+		subUnits, err = s.queries.ListOrgSubUnits(traceCtx, id)
 	case TypeUnit:
-		subUnits, err := s.queries.ListSubUnits(traceCtx, pgtype.UUID{Bytes: id, Valid: true})
-		if err != nil {
-			err = databaseutil.WrapDBError(err, logger, "list sub units of an unit")
-			span.RecordError(err)
-			return nil, err
-		}
-
-		if subUnits == nil {
-			subUnits = []Unit{}
-		}
-
-		logger.Info("Listed sub units of an unit", zap.String("parent_id", id.String()), zap.Int("count", len(subUnits)))
-		return subUnits, nil
-
+		subUnits, err = s.queries.ListSubUnits(traceCtx, pgtype.UUID{Bytes: id, Valid: true})
 	default:
 		logger.Error("invalid unit type: ", zap.String("unitType", unitType.String()))
 		return nil, fmt.Errorf("invalid unit type: %s", unitType.String())
 	}
+
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, fmt.Sprintf("list sub units of an %s", unitType.String()))
+		span.RecordError(err)
+		return nil, err
+	}
+
+	if subUnits == nil {
+		subUnits = []Unit{}
+	}
+
+	logger.Info(fmt.Sprintf("Listed sub units of an %s", unitType.String()), zap.String("parent_id", id.String()), zap.Int("count", len(subUnits)))
+	return subUnits, nil
 }
 
 // ListSubUnitIDs retrieves all child unit IDs of a parent unit
@@ -341,41 +334,30 @@ func (s *Service) ListSubUnitIDs(ctx context.Context, id uuid.UUID, unitType Typ
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
+	var subUnitIDs []uuid.UUID
+	var err error
 	switch unitType {
 	case TypeOrg:
-		subUnitIDs, err := s.queries.ListOrgSubUnitIDs(traceCtx, id)
-		if err != nil {
-			err = databaseutil.WrapDBError(err, logger, "list sub unit IDs of an organization")
-			span.RecordError(err)
-			return nil, err
-		}
-
-		if subUnitIDs == nil {
-			subUnitIDs = []uuid.UUID{}
-		}
-
-		logger.Info("Listed sub unit IDs of an organization", zap.String("parent_id", id.String()), zap.Int("count", len(subUnitIDs)))
-		return subUnitIDs, nil
-
+		subUnitIDs, err = s.queries.ListOrgSubUnitIDs(traceCtx, id)
 	case TypeUnit:
-		subUnitIDs, err := s.queries.ListSubUnitIDs(traceCtx, pgtype.UUID{Bytes: id, Valid: true})
-		if err != nil {
-			err = databaseutil.WrapDBError(err, logger, "list sub unit IDs of an unit")
-			span.RecordError(err)
-			return nil, err
-		}
-
-		if subUnitIDs == nil {
-			subUnitIDs = []uuid.UUID{}
-		}
-
-		logger.Info("Listed sub unit IDs of an unit", zap.String("parent_id", id.String()), zap.Int("count", len(subUnitIDs)))
-		return subUnitIDs, nil
-
+		subUnitIDs, err = s.queries.ListSubUnitIDs(traceCtx, pgtype.UUID{Bytes: id, Valid: true})
 	default:
 		logger.Error("invalid unit type: ", zap.String("unitType", unitType.String()))
 		return nil, fmt.Errorf("invalid unit type: %s", unitType.String())
 	}
+
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, fmt.Sprintf("list sub unit IDs of an %s", unitType.String()))
+		span.RecordError(err)
+		return nil, err
+	}
+
+	if subUnitIDs == nil {
+		subUnitIDs = []uuid.UUID{}
+	}
+
+	logger.Info(fmt.Sprintf("Listed sub unit IDs of an %s", unitType.String()), zap.String("parent_id", id.String()), zap.Int("count", len(subUnitIDs)))
+	return subUnitIDs, nil
 }
 
 // UpdateUnit updates the base fields of a unit
@@ -453,7 +435,6 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID, unitType Type) error
 			)
 			return err
 		}
-
 	case TypeUnit:
 		// Deletion Check: Ensure not deleting default unit
 		unit, err := s.queries.GetUnitByID(traceCtx, id)
@@ -464,12 +445,12 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID, unitType Type) error
 		}
 
 		if unit.ID == unit.OrgID {
-			err := fmt.Errorf("cannot delete default unit with ID %s", id.String())
+			err = fmt.Errorf("cannot delete default unit with ID %s", id.String())
 			span.RecordError(err)
 			logger.Error("Attempted to delete default unit", zap.String("unit_id", id.String()))
 			return err
 		} else {
-			err := s.queries.DeleteUnit(traceCtx, id)
+			err = s.queries.DeleteUnit(traceCtx, id)
 			if err != nil {
 				err = databaseutil.WrapDBError(err, logger, "delete unit")
 				span.RecordError(err)
