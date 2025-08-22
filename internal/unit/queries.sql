@@ -8,7 +8,7 @@ INSERT INTO units (name, org_id, description, metadata)
 VALUES ($1, $2, $3, $4)
 RETURNING *;
 
--- name: CreateDefaultUnit :one
+-- name: CreateUnitWithID :one
 INSERT INTO units (id, name, org_id, description, metadata)
 VALUES ($1, $2, $3, $4, $5)
 RETURNING *;

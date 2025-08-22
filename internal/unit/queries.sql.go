@@ -31,41 +31,6 @@ func (q *Queries) AddParentChild(ctx context.Context, arg AddParentChildParams) 
 	return i, err
 }
 
-const createDefaultUnit = `-- name: CreateDefaultUnit :one
-INSERT INTO units (id, name, org_id, description, metadata)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, org_id, name, description, metadata, created_at, updated_at
-`
-
-type CreateDefaultUnitParams struct {
-	ID          uuid.UUID
-	Name        pgtype.Text
-	OrgID       uuid.UUID
-	Description pgtype.Text
-	Metadata    []byte
-}
-
-func (q *Queries) CreateDefaultUnit(ctx context.Context, arg CreateDefaultUnitParams) (Unit, error) {
-	row := q.db.QueryRow(ctx, createDefaultUnit,
-		arg.ID,
-		arg.Name,
-		arg.OrgID,
-		arg.Description,
-		arg.Metadata,
-	)
-	var i Unit
-	err := row.Scan(
-		&i.ID,
-		&i.OrgID,
-		&i.Name,
-		&i.Description,
-		&i.Metadata,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
 const createOrg = `-- name: CreateOrg :one
 INSERT INTO organizations (name, owner_id, description, metadata, slug)
 VALUES ($1, $2, $3, $4, $5)
@@ -117,6 +82,41 @@ type CreateUnitParams struct {
 
 func (q *Queries) CreateUnit(ctx context.Context, arg CreateUnitParams) (Unit, error) {
 	row := q.db.QueryRow(ctx, createUnit,
+		arg.Name,
+		arg.OrgID,
+		arg.Description,
+		arg.Metadata,
+	)
+	var i Unit
+	err := row.Scan(
+		&i.ID,
+		&i.OrgID,
+		&i.Name,
+		&i.Description,
+		&i.Metadata,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const createUnitWithID = `-- name: CreateUnitWithID :one
+INSERT INTO units (id, name, org_id, description, metadata)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, org_id, name, description, metadata, created_at, updated_at
+`
+
+type CreateUnitWithIDParams struct {
+	ID          uuid.UUID
+	Name        pgtype.Text
+	OrgID       uuid.UUID
+	Description pgtype.Text
+	Metadata    []byte
+}
+
+func (q *Queries) CreateUnitWithID(ctx context.Context, arg CreateUnitWithIDParams) (Unit, error) {
+	row := q.db.QueryRow(ctx, createUnitWithID,
+		arg.ID,
 		arg.Name,
 		arg.OrgID,
 		arg.Description,

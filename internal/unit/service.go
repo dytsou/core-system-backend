@@ -59,7 +59,7 @@ func (o OrgWrapper) SetBase(base Base) {
 
 type Querier interface {
 	CreateUnit(ctx context.Context, arg CreateUnitParams) (Unit, error)
-	CreateDefaultUnit(ctx context.Context, arg CreateDefaultUnitParams) (Unit, error)
+	CreateUnitWithID(ctx context.Context, arg CreateUnitWithIDParams) (Unit, error)
 	CreateOrg(ctx context.Context, arg CreateOrgParams) (Organization, error)
 	GetOrgByID(ctx context.Context, id uuid.UUID) (Organization, error)
 	GetAllOrganizations(ctx context.Context) ([]Organization, error)
@@ -174,7 +174,7 @@ func (s *Service) CreateOrg(ctx context.Context, name string, description string
 		zap.String("org_slug", org.Slug),
 		zap.String("org_description", org.Description.String))
 
-	defaultUnit, err := s.queries.CreateDefaultUnit(traceCtx, CreateDefaultUnitParams{
+	defaultUnit, err := s.queries.CreateUnitWithID(traceCtx, CreateUnitWithIDParams{
 		ID: org.ID,
 		Name: pgtype.Text{
 			String: fmt.Sprintf("%s - default unit", name),
