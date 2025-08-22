@@ -368,30 +368,19 @@ func (h *Handler) RemoveParentChild(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	h.logger = logutil.WithContext(traceCtx, h.logger)
 
-	pIDStr := r.PathValue("parent_id")
 	cIDStr := r.PathValue("child_id")
-
-	if pIDStr == "" || cIDStr == "" {
+	if cIDStr == "" {
 		http.Error(w, "parent or child ID not provided", http.StatusBadRequest)
 		return
 	}
-	pID, err := uuid.Parse(pIDStr)
-	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid parent ID: %w", err), h.logger)
-		return
-	}
+
 	cID, err := uuid.Parse(cIDStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid child ID: %w", err), h.logger)
 		return
 	}
 
-	params := RemoveParentChildParams{
-		ParentID: pgtype.UUID{Bytes: pID, Valid: true},
-		ChildID:  cID,
-	}
-
-	err = h.service.RemoveParentChild(traceCtx, params)
+	err = h.service.RemoveParentChild(traceCtx, cID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to remove parent-child relationship: %w", err), h.logger)
 		return

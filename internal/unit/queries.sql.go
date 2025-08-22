@@ -353,16 +353,11 @@ func (q *Queries) ListSubUnits(ctx context.Context, parentID pgtype.UUID) ([]Uni
 }
 
 const removeParentChild = `-- name: RemoveParentChild :exec
-DELETE FROM parent_child WHERE parent_id = $1 AND child_id = $2
+DELETE FROM parent_child WHERE child_id = $1
 `
 
-type RemoveParentChildParams struct {
-	ParentID pgtype.UUID
-	ChildID  uuid.UUID
-}
-
-func (q *Queries) RemoveParentChild(ctx context.Context, arg RemoveParentChildParams) error {
-	_, err := q.db.Exec(ctx, removeParentChild, arg.ParentID, arg.ChildID)
+func (q *Queries) RemoveParentChild(ctx context.Context, childID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, removeParentChild, childID)
 	return err
 }
 
