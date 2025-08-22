@@ -467,6 +467,7 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID, unitType string) err
 		err := fmt.Errorf("invalid unit type for deletion: %s", unitType)
 		span.RecordError(err)
 		logger.Error("Invalid unit type for deletion", zap.String("unit_type", string(unitType)))
+		return err
 	}
 
 	logger.Info(fmt.Sprintf("Deleted %s", unitType), zap.String("ID: ", id.String()))
