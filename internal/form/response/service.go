@@ -91,7 +91,7 @@ func (s Service) Create(ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 		return FormResponse{}, err
 	}
 
-	for idx, answer := range answers {
+	for i, answer := range answers {
 		questionID, err := internal.ParseUUID(answer.QuestionID)
 		if err != nil {
 			err = databaseutil.WrapDBError(err, logger, "parse question id")
@@ -102,7 +102,7 @@ func (s Service) Create(ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 		_, err = s.queries.CreateAnswer(traceCtx, CreateAnswerParams{
 			ResponseID: newResponse.ID,
 			QuestionID: questionID,
-			Type:       questionType[idx],
+			Type:       questionType[i],
 			Value:      answer.Value,
 		})
 		if err != nil {
@@ -130,7 +130,7 @@ func (s Service) Update(ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 		return FormResponse{}, err
 	}
 
-	for idx, answer := range answers {
+	for i, answer := range answers {
 		// check if answer exists
 		questionID, err := internal.ParseUUID(answer.QuestionID)
 		if err != nil {
@@ -153,7 +153,7 @@ func (s Service) Update(ctx context.Context, formID uuid.UUID, userID uuid.UUID,
 			_, err = s.queries.CreateAnswer(traceCtx, CreateAnswerParams{
 				ResponseID: currentResponse.ID,
 				QuestionID: questionID,
-				Type:       questionType[idx],
+				Type:       questionType[i],
 				Value:      answer.Value,
 			})
 			if err != nil {
