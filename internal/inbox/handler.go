@@ -48,6 +48,12 @@ type MessageResponse struct {
 type Response struct {
 	ID      string          `json:"id"`
 	Message MessageResponse `json:"message"`
+	UserInboxMessageFilter
+}
+
+type ResponseDetail struct {
+	ID      string          `json:"id"`
+	Message MessageResponse `json:"message"`
 	Content any             `json:"content"`
 	UserInboxMessageFilter
 }
@@ -92,7 +98,6 @@ func mapToResponse(message ListRow) Response {
 			CreatedAt: message.CreatedAt.Time.Format(time.RFC3339),
 			UpdatedAt: message.UpdatedAt.Time.Format(time.RFC3339),
 		},
-		Content: nil,
 		UserInboxMessageFilter: UserInboxMessageFilter{
 			IsRead:     message.IsRead,
 			IsStarred:  message.IsStarred,
@@ -190,7 +195,7 @@ func (h *Handler) GetHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := Response{
+	response := ResponseDetail{
 		ID: message.ID.String(),
 		Message: MessageResponse{
 			ID:        message.MessageID.String(),
