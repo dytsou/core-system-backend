@@ -34,7 +34,7 @@ jobs:
                 },
                 "cleanup_domain": {
                   "enable": true,
-                  "name": "pr-${{ github.event.pull_request.number }}.core-system.sdc.nycu.club",
+                  "name": "pr-${{ github.event.pull_request.number }}.core-system.sdc.nycu.club"
                 }
               }
             }'

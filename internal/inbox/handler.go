@@ -23,7 +23,7 @@ import (
 
 //go:generate mockery --name Store
 type Store interface {
-	GetAll(ctx context.Context, userId uuid.UUID) ([]GetAllRow, error)
+	GetAll(ctx context.Context, userId uuid.UUID) ([]ListAllByUserIDRow, error)
 	GetByID(ctx context.Context, id uuid.UUID, userId uuid.UUID) (GetByIdRow, error)
 	UpdateByID(ctx context.Context, id uuid.UUID, userId uuid.UUID, arg UserInboxMessageFilter) (UpdateByIdRow, error)
 }
@@ -79,7 +79,7 @@ func NewHandler(
 	}
 }
 
-func mapToResponse(message GetAllRow) Response {
+func mapToResponse(message ListAllByUserIDRow) Response {
 	return Response{
 		ID: message.ID.String(),
 		Message: MessageResponse{
@@ -94,9 +94,9 @@ func mapToResponse(message GetAllRow) Response {
 		},
 		Content: nil,
 		UserInboxMessageFilter: UserInboxMessageFilter{
-			IsRead:     message.IsRead.Bool,
-			IsStarred:  message.IsStarred.Bool,
-			IsArchived: message.IsArchived.Bool,
+			IsRead:     message.IsRead,
+			IsStarred:  message.IsStarred,
+			IsArchived: message.IsArchived,
 		},
 	}
 }
@@ -204,9 +204,9 @@ func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 		},
 		Content: messageContent,
 		UserInboxMessageFilter: UserInboxMessageFilter{
-			IsRead:     message.IsRead.Bool,
-			IsStarred:  message.IsStarred.Bool,
-			IsArchived: message.IsArchived.Bool,
+			IsRead:     message.IsRead,
+			IsStarred:  message.IsStarred,
+			IsArchived: message.IsArchived,
 		},
 	}
 
@@ -260,9 +260,9 @@ func (h *Handler) UpdateByID(w http.ResponseWriter, r *http.Request) {
 			UpdatedAt: message.UpdatedAt.Time.Format(time.RFC3339),
 		},
 		UserInboxMessageFilter: UserInboxMessageFilter{
-			IsRead:     message.IsRead.Bool,
-			IsStarred:  message.IsStarred.Bool,
-			IsArchived: message.IsArchived.Bool,
+			IsRead:     message.IsRead,
+			IsStarred:  message.IsStarred,
+			IsArchived: message.IsArchived,
 		},
 	}
 

@@ -3,8 +3,6 @@ package inbox
 import (
 	"context"
 
-	"github.com/jackc/pgx/v5/pgtype"
-
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/google/uuid"
@@ -14,7 +12,7 @@ import (
 )
 
 type Querier interface {
-	GetAll(ctx context.Context, userID pgtype.UUID) ([]GetAllRow, error)
+	ListAllByUserID(ctx context.Context, userID uuid.UUID) ([]ListAllByUserIDRow, error)
 	GetById(ctx context.Context, arg GetByIdParams) (GetByIdRow, error)
 	UpdateById(ctx context.Context, arg UpdateByIdParams) (UpdateByIdRow, error)
 }
@@ -33,12 +31,12 @@ func NewService(logger *zap.Logger, db DBTX) *Service {
 	}
 }
 
-func (s *Service) GetAll(ctx context.Context, userId uuid.UUID) ([]GetAllRow, error) {
+func (s *Service) GetAll(ctx context.Context, userId uuid.UUID) ([]ListAllByUserIDRow, error) {
 	traceCtx, span := s.tracer.Start(ctx, "GetAll")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	messages, err := s.queries.GetAll(traceCtx, pgtype.UUID{Bytes: userId, Valid: true})
+	messages, err := s.queries.ListAllByUserID(traceCtx, userId)
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "get all user inbox messages")
 		span.RecordError(err)
@@ -46,7 +44,7 @@ func (s *Service) GetAll(ctx context.Context, userId uuid.UUID) ([]GetAllRow, er
 	}
 
 	if messages == nil {
-		return []GetAllRow{}, err
+		return []ListAllByUserIDRow{}, err
 	}
 
 	return messages, err
@@ -59,7 +57,7 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID, userId uuid.UUID) (
 
 	message, err := s.queries.GetById(traceCtx, GetByIdParams{
 		ID:     id,
-		UserID: pgtype.UUID{Bytes: userId, Valid: true},
+		UserID: userId,
 	})
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "get the full inbox_message by id")
@@ -77,10 +75,10 @@ func (s *Service) UpdateByID(ctx context.Context, id uuid.UUID, userId uuid.UUID
 
 	message, err := s.queries.UpdateById(traceCtx, UpdateByIdParams{
 		ID:         id,
-		UserID:     pgtype.UUID{Bytes: userId, Valid: true},
-		IsRead:     pgtype.Bool{Bool: arg.IsRead, Valid: true},
-		IsArchived: pgtype.Bool{Bool: arg.IsArchived, Valid: true},
-		IsStarred:  pgtype.Bool{Bool: arg.IsStarred, Valid: true},
+		UserID:     userId,
+		IsRead:     arg.IsRead,
+		IsArchived: arg.IsArchived,
+		IsStarred:  arg.IsStarred,
 	})
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "update user_inbox_message by id")

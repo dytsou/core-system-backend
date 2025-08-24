@@ -15,7 +15,7 @@ import (
 const create = `-- name: Create :one
 INSERT INTO questions (form_id, required, type, title, description, "order")
 VALUES ($1, $2, $3, $4, $5, $6)
-    RETURNING id, form_id, required, type, title, description, "order", created_at, updated_at
+    RETURNING id, form_id, required, type, title, description, metadata, "order", created_at, updated_at
 `
 
 type CreateParams struct {
@@ -44,6 +44,7 @@ func (q *Queries) Create(ctx context.Context, arg CreateParams) (Question, error
 		&i.Type,
 		&i.Title,
 		&i.Description,
+		&i.Metadata,
 		&i.Order,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -65,8 +66,30 @@ func (q *Queries) Delete(ctx context.Context, arg DeleteParams) error {
 	return err
 }
 
+const getByID = `-- name: GetByID :one
+SELECT id, form_id, required, type, title, description, metadata, "order", created_at, updated_at FROM questions WHERE id = $1
+`
+
+func (q *Queries) GetByID(ctx context.Context, id uuid.UUID) (Question, error) {
+	row := q.db.QueryRow(ctx, getByID, id)
+	var i Question
+	err := row.Scan(
+		&i.ID,
+		&i.FormID,
+		&i.Required,
+		&i.Type,
+		&i.Title,
+		&i.Description,
+		&i.Metadata,
+		&i.Order,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const listByFormID = `-- name: ListByFormID :many
-SELECT id, form_id, required, type, title, description, "order", created_at, updated_at FROM questions WHERE form_id = $1 ORDER BY "order"
+SELECT id, form_id, required, type, title, description, metadata, "order", created_at, updated_at FROM questions WHERE form_id = $1 ORDER BY "order"
 `
 
 func (q *Queries) ListByFormID(ctx context.Context, formID uuid.UUID) ([]Question, error) {
@@ -85,6 +108,7 @@ func (q *Queries) ListByFormID(ctx context.Context, formID uuid.UUID) ([]Questio
 			&i.Type,
 			&i.Title,
 			&i.Description,
+			&i.Metadata,
 			&i.Order,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -103,7 +127,7 @@ const update = `-- name: Update :one
 UPDATE questions
 SET required = $3, type = $4, title = $5, description = $6, "order" = $7, updated_at = now()
 WHERE form_id = $1 AND id = $2
-    RETURNING id, form_id, required, type, title, description, "order", created_at, updated_at
+    RETURNING id, form_id, required, type, title, description, metadata, "order", created_at, updated_at
 `
 
 type UpdateParams struct {
@@ -134,6 +158,7 @@ func (q *Queries) Update(ctx context.Context, arg UpdateParams) (Question, error
 		&i.Type,
 		&i.Title,
 		&i.Description,
+		&i.Metadata,
 		&i.Order,
 		&i.CreatedAt,
 		&i.UpdatedAt,

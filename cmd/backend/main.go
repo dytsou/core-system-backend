@@ -6,6 +6,8 @@ import (
 	"NYCU-SDC/core-system-backend/internal/config"
 	"NYCU-SDC/core-system-backend/internal/form"
 	"NYCU-SDC/core-system-backend/internal/form/question"
+	"NYCU-SDC/core-system-backend/internal/form/response"
+	"NYCU-SDC/core-system-backend/internal/form/submit"
 	"NYCU-SDC/core-system-backend/internal/inbox"
 	"NYCU-SDC/core-system-backend/internal/jwt"
 	"NYCU-SDC/core-system-backend/internal/tenant"
@@ -16,7 +18,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
 	"log"
 	"net/http"
 	"os"
@@ -24,6 +25,7 @@ import (
 	"syscall"
 	"time"
 
+	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/NYCU-SDC/summer/pkg/middleware"
 	"github.com/google/uuid"
@@ -99,6 +101,8 @@ func main() {
 		cfg.Secret = uuid.New().String()
 	}
 
+	logger.Info("Starting application...")
+
 	logger.Info("Starting database migration...")
 
 	err = databaseutil.MigrationUp(cfg.MigrationSource, cfg.DatabaseURL, logger)
@@ -123,22 +127,28 @@ func main() {
 	// Service
 	userService := user.NewService(logger, dbPool)
 	jwtService := jwt.NewService(logger, dbPool, cfg.Secret, cfg.OauthProxySecret, cfg.AccessTokenExpiration, cfg.RefreshTokenExpiration)
+	tenantService := tenant.NewService(logger, dbPool)
+	unitService := unit.NewService(logger, dbPool)
 	formService := form.NewService(logger, dbPool)
 	questionService := question.NewService(logger, dbPool)
-	unitService := unit.NewService(logger, dbPool)
 	inboxService := inbox.NewService(logger, dbPool)
+	responseService := response.NewService(logger, dbPool)
+	submitService := submit.NewService(logger, questionService, responseService)
 
 	// Handler
 	authHandler := auth.NewHandler(logger, validator, problemWriter, userService, jwtService, jwtService, cfg.BaseURL, cfg.OauthProxyBaseURL, Environment, cfg.AccessTokenExpiration, cfg.RefreshTokenExpiration, cfg.GoogleOauth)
 	userHandler := user.NewHandler(logger, validator, problemWriter, userService)
-	formHandler := form.NewHandler(logger, validator, problemWriter, formService, questionService)
+	formHandler := form.NewHandler(logger, validator, problemWriter, formService)
+	questionHandler := question.NewHandler(logger, validator, problemWriter, questionService)
 	unitHandler := unit.NewHandler(logger, validator, problemWriter, unitService, formService)
+	responseHandler := response.NewHandler(logger, validator, problemWriter, responseService, questionService)
+	submitHandler := submit.NewHandler(logger, validator, problemWriter, submitService)
 	inboxHandler := inbox.NewHandler(logger, validator, problemWriter, inboxService, formService)
 
 	// Middleware
 	traceMiddleware := trace.NewMiddleware(logger, cfg.Debug)
 	jwtMiddleware := jwt.NewMiddleware(logger, validator, problemWriter, jwtService)
-	tenantMiddleware := tenant.NewMiddleware(logger, dbPool, tenant.NewService(logger, dbPool), unit.NewService(logger, dbPool))
+	tenantMiddleware := tenant.NewMiddleware(logger, dbPool, tenantService, unitService)
 
 	// Basic Middleware (Tracing and Recovery)
 	basicMiddleware := middleware.NewSet(traceMiddleware.RecoverMiddleware)
@@ -199,19 +209,28 @@ func main() {
 	mux.Handle("DELETE /api/orgs/relations/parent_id/{p_id}/child_id/{c_id}", tenantMiddleware.Middleware(unitHandler.RemoveParentChild))
 
 	// Form routes
-	mux.HandleFunc("GET /api/forms", jwtMiddleware.AuthenticateMiddleware(formHandler.ListFormsHandler))
-	mux.HandleFunc("POST /api/forms/{formId}/questions", jwtMiddleware.AuthenticateMiddleware(formHandler.AddQuestionHandler))
-	mux.HandleFunc("PUT /api/forms/{id}", jwtMiddleware.AuthenticateMiddleware(formHandler.UpdateFormHandler))
-	mux.HandleFunc("DELETE /api/forms/{id}", jwtMiddleware.AuthenticateMiddleware(formHandler.DeleteFormHandler))
-	mux.HandleFunc("GET /api/forms/{id}", jwtMiddleware.AuthenticateMiddleware(formHandler.GetFormHandler))
-	mux.HandleFunc("GET /api/forms/{formId}/questions", jwtMiddleware.AuthenticateMiddleware(formHandler.ListQuestionsHandler))
-	mux.HandleFunc("PUT /api/forms/{formId}/questions/{questionId}", jwtMiddleware.AuthenticateMiddleware(formHandler.UpdateQuestionHandler))
-	mux.HandleFunc("DELETE /api/forms/{formId}/questions/{questionId}", jwtMiddleware.AuthenticateMiddleware(formHandler.DeleteQuestionHandler))
+	mux.HandleFunc("GET /api/forms", authMiddleware.HandlerFunc(formHandler.ListHandler))
+	mux.HandleFunc("GET /api/forms/{id}", authMiddleware.HandlerFunc(formHandler.GetHandler))
+	mux.HandleFunc("PUT /api/forms/{id}", authMiddleware.HandlerFunc(formHandler.UpdateHandler))
+	mux.HandleFunc("DELETE /api/forms/{id}", authMiddleware.HandlerFunc(formHandler.DeleteHandler))
+
+	// Question routes
+	mux.HandleFunc("GET /api/forms/{formId}/questions", authMiddleware.HandlerFunc(questionHandler.ListHandler))
+	mux.HandleFunc("POST /api/forms/{formId}/questions", authMiddleware.HandlerFunc(questionHandler.AddHandler))
+	mux.HandleFunc("PUT /api/forms/{formId}/questions/{questionId}", authMiddleware.HandlerFunc(questionHandler.UpdateHandler))
+	mux.HandleFunc("DELETE /api/forms/{formId}/questions/{questionId}", authMiddleware.HandlerFunc(questionHandler.DeleteHandler))
+
+	// Response routes
+	mux.Handle("GET /api/forms/{formId}/responses", authMiddleware.HandlerFunc(responseHandler.ListHandler))
+	mux.Handle("POST /api/forms/{formId}/responses", authMiddleware.HandlerFunc(submitHandler.SubmitHandler))
+	mux.Handle("GET /api/forms/{formId}/responses/{responseId}", authMiddleware.HandlerFunc(responseHandler.GetHandler))
+	mux.Handle("DELETE /api/forms/{formId}/responses/{responseId}", authMiddleware.HandlerFunc(responseHandler.DeleteHandler))
+	mux.Handle("GET /api/forms/{formId}/questions/{questionId}", authMiddleware.HandlerFunc(responseHandler.GetAnswersByQuestionIDHandler))
 
 	// User Inbox message route
-	mux.Handle("GET /api/inbox", jwtMiddleware.AuthenticateMiddleware(inboxHandler.GetAll))
-	mux.Handle("GET /api/inbox/{id}", jwtMiddleware.AuthenticateMiddleware(inboxHandler.GetByID))
-	mux.Handle("PUT /api/inbox/{id}", jwtMiddleware.AuthenticateMiddleware(inboxHandler.UpdateByID))
+	mux.Handle("GET /api/inbox", authMiddleware.HandlerFunc(inboxHandler.GetAll))
+	mux.Handle("GET /api/inbox/{id}", authMiddleware.HandlerFunc(inboxHandler.GetByID))
+	mux.Handle("PUT /api/inbox/{id}", authMiddleware.HandlerFunc(inboxHandler.UpdateByID))
 
 	// handle interrupt signal
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

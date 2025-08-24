@@ -12,65 +12,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const getAll = `-- name: GetAll :many
-SELECT uim.id, user_id, message_id, is_read, is_starred, is_archived, im.id, posted_by, title, subtitle, type, content_id, created_at, updated_at
-FROM user_inbox_messages uim
-JOIN inbox_message im ON uim.message_id = im.id
-WHERE uim.user_id = $1
-`
-
-type GetAllRow struct {
-	ID         uuid.UUID
-	UserID     pgtype.UUID
-	MessageID  pgtype.UUID
-	IsRead     pgtype.Bool
-	IsStarred  pgtype.Bool
-	IsArchived pgtype.Bool
-	ID_2       uuid.UUID
-	PostedBy   uuid.UUID
-	Title      string
-	Subtitle   pgtype.Text
-	Type       ContentType
-	ContentID  pgtype.UUID
-	CreatedAt  pgtype.Timestamp
-	UpdatedAt  pgtype.Timestamp
-}
-
-func (q *Queries) GetAll(ctx context.Context, userID pgtype.UUID) ([]GetAllRow, error) {
-	rows, err := q.db.Query(ctx, getAll, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetAllRow
-	for rows.Next() {
-		var i GetAllRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.UserID,
-			&i.MessageID,
-			&i.IsRead,
-			&i.IsStarred,
-			&i.IsArchived,
-			&i.ID_2,
-			&i.PostedBy,
-			&i.Title,
-			&i.Subtitle,
-			&i.Type,
-			&i.ContentID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getById = `-- name: GetById :one
 SELECT uim.id, user_id, message_id, is_read, is_starred, is_archived, im.id, posted_by, title, subtitle, type, content_id, created_at, updated_at
 FROM user_inbox_messages uim
@@ -80,16 +21,16 @@ WHERE uim.id = $1 AND uim.user_id = $2
 
 type GetByIdParams struct {
 	ID     uuid.UUID
-	UserID pgtype.UUID
+	UserID uuid.UUID
 }
 
 type GetByIdRow struct {
 	ID         uuid.UUID
-	UserID     pgtype.UUID
-	MessageID  pgtype.UUID
-	IsRead     pgtype.Bool
-	IsStarred  pgtype.Bool
-	IsArchived pgtype.Bool
+	UserID     uuid.UUID
+	MessageID  uuid.UUID
+	IsRead     bool
+	IsStarred  bool
+	IsArchived bool
 	ID_2       uuid.UUID
 	PostedBy   uuid.UUID
 	Title      string
@@ -122,20 +63,79 @@ func (q *Queries) GetById(ctx context.Context, arg GetByIdParams) (GetByIdRow, e
 	return i, err
 }
 
+const listAllByUserID = `-- name: ListAllByUserID :many
+SELECT uim.id, user_id, message_id, is_read, is_starred, is_archived, im.id, posted_by, title, subtitle, type, content_id, created_at, updated_at
+FROM user_inbox_messages uim
+JOIN inbox_message im ON uim.message_id = im.id
+WHERE uim.user_id = $1
+`
+
+type ListAllByUserIDRow struct {
+	ID         uuid.UUID
+	UserID     uuid.UUID
+	MessageID  uuid.UUID
+	IsRead     bool
+	IsStarred  bool
+	IsArchived bool
+	ID_2       uuid.UUID
+	PostedBy   uuid.UUID
+	Title      string
+	Subtitle   pgtype.Text
+	Type       ContentType
+	ContentID  pgtype.UUID
+	CreatedAt  pgtype.Timestamp
+	UpdatedAt  pgtype.Timestamp
+}
+
+func (q *Queries) ListAllByUserID(ctx context.Context, userID uuid.UUID) ([]ListAllByUserIDRow, error) {
+	rows, err := q.db.Query(ctx, listAllByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAllByUserIDRow
+	for rows.Next() {
+		var i ListAllByUserIDRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.MessageID,
+			&i.IsRead,
+			&i.IsStarred,
+			&i.IsArchived,
+			&i.ID_2,
+			&i.PostedBy,
+			&i.Title,
+			&i.Subtitle,
+			&i.Type,
+			&i.ContentID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateById = `-- name: UpdateById :one
 UPDATE user_inbox_messages AS uim
 SET is_read = $3, is_starred = $4, is_archived = $5
 FROM inbox_message AS im
 WHERE uim.message_id = im.id AND uim.id = $1 AND uim.user_id = $2
-    RETURNING im.id, posted_by, title, subtitle, type, content_id, created_at, updated_at, uim.id, user_id, message_id, is_read, is_starred, is_archived
+RETURNING im.id, posted_by, title, subtitle, type, content_id, created_at, updated_at, uim.id, user_id, message_id, is_read, is_starred, is_archived
 `
 
 type UpdateByIdParams struct {
 	ID         uuid.UUID
-	UserID     pgtype.UUID
-	IsRead     pgtype.Bool
-	IsStarred  pgtype.Bool
-	IsArchived pgtype.Bool
+	UserID     uuid.UUID
+	IsRead     bool
+	IsStarred  bool
+	IsArchived bool
 }
 
 type UpdateByIdRow struct {
@@ -148,11 +148,11 @@ type UpdateByIdRow struct {
 	CreatedAt  pgtype.Timestamp
 	UpdatedAt  pgtype.Timestamp
 	ID_2       uuid.UUID
-	UserID     pgtype.UUID
-	MessageID  pgtype.UUID
-	IsRead     pgtype.Bool
-	IsStarred  pgtype.Bool
-	IsArchived pgtype.Bool
+	UserID     uuid.UUID
+	MessageID  uuid.UUID
+	IsRead     bool
+	IsStarred  bool
+	IsArchived bool
 }
 
 func (q *Queries) UpdateById(ctx context.Context, arg UpdateByIdParams) (UpdateByIdRow, error) {

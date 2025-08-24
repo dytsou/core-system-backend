@@ -16,10 +16,10 @@ CREATE TABLE IF NOT EXISTS inbox_message(
 
 CREATE TABLE IF NOT EXISTS user_inbox_messages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID references users(id),
-    message_id UUID references inbox_message(id),
-    is_read boolean DEFAULT false,
-    is_starred boolean DEFAULT false,
-    is_archived boolean DEFAULT false
+    user_id UUID NOT NULL references users(id) ON DELETE CASCADE,
+    message_id UUID NOT NULL references inbox_message(id) ON DELETE CASCADE,
+    is_read boolean NOT NULL DEFAULT false,
+    is_starred boolean NOT NULL DEFAULT false,
+    is_archived boolean NOT NULL DEFAULT false
 );
 
