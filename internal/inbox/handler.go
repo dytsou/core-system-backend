@@ -23,7 +23,7 @@ import (
 
 //go:generate mockery --name Store
 type Store interface {
-	GetAll(ctx context.Context, userId uuid.UUID) ([]ListAllByUserIDRow, error)
+	List(ctx context.Context, userId uuid.UUID) ([]ListRow, error)
 	GetByID(ctx context.Context, id uuid.UUID, userId uuid.UUID) (GetByIdRow, error)
 	UpdateByID(ctx context.Context, id uuid.UUID, userId uuid.UUID, arg UserInboxMessageFilter) (UpdateByIdRow, error)
 }
@@ -79,7 +79,7 @@ func NewHandler(
 	}
 }
 
-func mapToResponse(message ListAllByUserIDRow) Response {
+func mapToResponse(message ListRow) Response {
 	return Response{
 		ID: message.ID.String(),
 		Message: MessageResponse{
@@ -122,8 +122,8 @@ func (h *Handler) GetMessageContent(ctx context.Context, contentType ContentType
 	return nil, fmt.Errorf("content type %s not supported", contentType)
 }
 
-func (h *Handler) GetAll(w http.ResponseWriter, r *http.Request) {
-	traceCtx, span := h.tracer.Start(r.Context(), "GetAll")
+func (h *Handler) ListHandler(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "ListHandler")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
@@ -140,7 +140,7 @@ func (h *Handler) GetAll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	messages, err := h.store.GetAll(traceCtx, currentUser.ID)
+	messages, err := h.store.List(traceCtx, currentUser.ID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
@@ -156,8 +156,8 @@ func (h *Handler) GetAll(w http.ResponseWriter, r *http.Request) {
 	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
 }
 
-func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
-	traceCtx, span := h.tracer.Start(r.Context(), "GetByID")
+func (h *Handler) GetHandler(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "GetHandler")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
@@ -213,8 +213,8 @@ func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
 }
 
-func (h *Handler) UpdateByID(w http.ResponseWriter, r *http.Request) {
-	traceCtx, span := h.tracer.Start(r.Context(), "UpdateByID")
+func (h *Handler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "UpdateHandler")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 

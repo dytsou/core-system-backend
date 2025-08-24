@@ -63,14 +63,14 @@ func (q *Queries) GetById(ctx context.Context, arg GetByIdParams) (GetByIdRow, e
 	return i, err
 }
 
-const listAllByUserID = `-- name: ListAllByUserID :many
+const list = `-- name: List :many
 SELECT uim.id, user_id, message_id, is_read, is_starred, is_archived, im.id, posted_by, title, subtitle, type, content_id, created_at, updated_at
 FROM user_inbox_messages uim
 JOIN inbox_message im ON uim.message_id = im.id
 WHERE uim.user_id = $1
 `
 
-type ListAllByUserIDRow struct {
+type ListRow struct {
 	ID         uuid.UUID
 	UserID     uuid.UUID
 	MessageID  uuid.UUID
@@ -87,15 +87,15 @@ type ListAllByUserIDRow struct {
 	UpdatedAt  pgtype.Timestamp
 }
 
-func (q *Queries) ListAllByUserID(ctx context.Context, userID uuid.UUID) ([]ListAllByUserIDRow, error) {
-	rows, err := q.db.Query(ctx, listAllByUserID, userID)
+func (q *Queries) List(ctx context.Context, userID uuid.UUID) ([]ListRow, error) {
+	rows, err := q.db.Query(ctx, list, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListAllByUserIDRow
+	var items []ListRow
 	for rows.Next() {
-		var i ListAllByUserIDRow
+		var i ListRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,

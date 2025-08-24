@@ -4,7 +4,7 @@ FROM user_inbox_messages uim
 JOIN inbox_message im ON uim.message_id = im.id
 WHERE uim.id = $1 AND uim.user_id = $2;
 
--- name: ListAllByUserID :many
+-- name: List :many
 SELECT *
 FROM user_inbox_messages uim
 JOIN inbox_message im ON uim.message_id = im.id

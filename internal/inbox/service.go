@@ -12,7 +12,7 @@ import (
 )
 
 type Querier interface {
-	ListAllByUserID(ctx context.Context, userID uuid.UUID) ([]ListAllByUserIDRow, error)
+	List(ctx context.Context, userID uuid.UUID) ([]ListRow, error)
 	GetById(ctx context.Context, arg GetByIdParams) (GetByIdRow, error)
 	UpdateById(ctx context.Context, arg UpdateByIdParams) (UpdateByIdRow, error)
 }
@@ -31,20 +31,20 @@ func NewService(logger *zap.Logger, db DBTX) *Service {
 	}
 }
 
-func (s *Service) GetAll(ctx context.Context, userId uuid.UUID) ([]ListAllByUserIDRow, error) {
-	traceCtx, span := s.tracer.Start(ctx, "GetAll")
+func (s *Service) List(ctx context.Context, userId uuid.UUID) ([]ListRow, error) {
+	traceCtx, span := s.tracer.Start(ctx, "List")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	messages, err := s.queries.ListAllByUserID(traceCtx, userId)
+	messages, err := s.queries.List(traceCtx, userId)
 	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "get all user inbox messages")
+		err = databaseutil.WrapDBError(err, logger, "list all user inbox messages")
 		span.RecordError(err)
 		return nil, err
 	}
 
 	if messages == nil {
-		return []ListAllByUserIDRow{}, err
+		return []ListRow{}, err
 	}
 
 	return messages, err

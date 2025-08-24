@@ -228,9 +228,9 @@ func main() {
 	mux.Handle("GET /api/forms/{formId}/questions/{questionId}", authMiddleware.HandlerFunc(responseHandler.GetAnswersByQuestionIDHandler))
 
 	// User Inbox message route
-	mux.Handle("GET /api/inbox", authMiddleware.HandlerFunc(inboxHandler.GetAll))
-	mux.Handle("GET /api/inbox/{id}", authMiddleware.HandlerFunc(inboxHandler.GetByID))
-	mux.Handle("PUT /api/inbox/{id}", authMiddleware.HandlerFunc(inboxHandler.UpdateByID))
+	mux.Handle("GET /api/inbox", authMiddleware.HandlerFunc(inboxHandler.ListHandler))
+	mux.Handle("GET /api/inbox/{id}", authMiddleware.HandlerFunc(inboxHandler.GetHandler))
+	mux.Handle("PUT /api/inbox/{id}", authMiddleware.HandlerFunc(inboxHandler.UpdateHandler))
 
 	// handle interrupt signal
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
