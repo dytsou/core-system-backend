@@ -12,19 +12,19 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const getById = `-- name: GetById :one
+const getByID = `-- name: GetByID :one
 SELECT uim.id, user_id, message_id, is_read, is_starred, is_archived, im.id, posted_by, title, subtitle, type, content_id, created_at, updated_at
 FROM user_inbox_messages uim
 JOIN inbox_message im ON uim.message_id = im.id
 WHERE uim.id = $1 AND uim.user_id = $2
 `
 
-type GetByIdParams struct {
+type GetByIDParams struct {
 	ID     uuid.UUID
 	UserID uuid.UUID
 }
 
-type GetByIdRow struct {
+type GetByIDRow struct {
 	ID         uuid.UUID
 	UserID     uuid.UUID
 	MessageID  uuid.UUID
@@ -41,9 +41,9 @@ type GetByIdRow struct {
 	UpdatedAt  pgtype.Timestamp
 }
 
-func (q *Queries) GetById(ctx context.Context, arg GetByIdParams) (GetByIdRow, error) {
-	row := q.db.QueryRow(ctx, getById, arg.ID, arg.UserID)
-	var i GetByIdRow
+func (q *Queries) GetByID(ctx context.Context, arg GetByIDParams) (GetByIDRow, error) {
+	row := q.db.QueryRow(ctx, getByID, arg.ID, arg.UserID)
+	var i GetByIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
@@ -122,7 +122,7 @@ func (q *Queries) List(ctx context.Context, userID uuid.UUID) ([]ListRow, error)
 	return items, nil
 }
 
-const updateById = `-- name: UpdateById :one
+const updateByID = `-- name: UpdateByID :one
 UPDATE user_inbox_messages AS uim
 SET is_read = $3, is_starred = $4, is_archived = $5
 FROM inbox_message AS im
@@ -130,7 +130,7 @@ WHERE uim.message_id = im.id AND uim.id = $1 AND uim.user_id = $2
 RETURNING im.id, posted_by, title, subtitle, type, content_id, created_at, updated_at, uim.id, user_id, message_id, is_read, is_starred, is_archived
 `
 
-type UpdateByIdParams struct {
+type UpdateByIDParams struct {
 	ID         uuid.UUID
 	UserID     uuid.UUID
 	IsRead     bool
@@ -138,7 +138,7 @@ type UpdateByIdParams struct {
 	IsArchived bool
 }
 
-type UpdateByIdRow struct {
+type UpdateByIDRow struct {
 	ID         uuid.UUID
 	PostedBy   uuid.UUID
 	Title      string
@@ -155,15 +155,15 @@ type UpdateByIdRow struct {
 	IsArchived bool
 }
 
-func (q *Queries) UpdateById(ctx context.Context, arg UpdateByIdParams) (UpdateByIdRow, error) {
-	row := q.db.QueryRow(ctx, updateById,
+func (q *Queries) UpdateByID(ctx context.Context, arg UpdateByIDParams) (UpdateByIDRow, error) {
+	row := q.db.QueryRow(ctx, updateByID,
 		arg.ID,
 		arg.UserID,
 		arg.IsRead,
 		arg.IsStarred,
 		arg.IsArchived,
 	)
-	var i UpdateByIdRow
+	var i UpdateByIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.PostedBy,

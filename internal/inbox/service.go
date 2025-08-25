@@ -13,8 +13,8 @@ import (
 
 type Querier interface {
 	List(ctx context.Context, userID uuid.UUID) ([]ListRow, error)
-	GetById(ctx context.Context, arg GetByIdParams) (GetByIdRow, error)
-	UpdateById(ctx context.Context, arg UpdateByIdParams) (UpdateByIdRow, error)
+	GetByID(ctx context.Context, arg GetByIDParams) (GetByIDRow, error)
+	UpdateByID(ctx context.Context, arg UpdateByIDParams) (UpdateByIDRow, error)
 }
 
 type Service struct {
@@ -31,12 +31,12 @@ func NewService(logger *zap.Logger, db DBTX) *Service {
 	}
 }
 
-func (s *Service) List(ctx context.Context, userId uuid.UUID) ([]ListRow, error) {
+func (s *Service) List(ctx context.Context, userID uuid.UUID) ([]ListRow, error) {
 	traceCtx, span := s.tracer.Start(ctx, "List")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	messages, err := s.queries.List(traceCtx, userId)
+	messages, err := s.queries.List(traceCtx, userID)
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "list all user inbox messages")
 		span.RecordError(err)
@@ -50,32 +50,32 @@ func (s *Service) List(ctx context.Context, userId uuid.UUID) ([]ListRow, error)
 	return messages, err
 }
 
-func (s *Service) GetByID(ctx context.Context, id uuid.UUID, userId uuid.UUID) (GetByIdRow, error) {
+func (s *Service) GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (GetByIDRow, error) {
 	traceCtx, span := s.tracer.Start(ctx, "GetByID")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	message, err := s.queries.GetById(traceCtx, GetByIdParams{
+	message, err := s.queries.GetByID(traceCtx, GetByIDParams{
 		ID:     id,
-		UserID: userId,
+		UserID: userID,
 	})
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "get the full inbox_message by id")
 		span.RecordError(err)
-		return GetByIdRow{}, err
+		return GetByIDRow{}, err
 	}
 
 	return message, err
 }
 
-func (s *Service) UpdateByID(ctx context.Context, id uuid.UUID, userId uuid.UUID, arg UserInboxMessageFilter) (UpdateByIdRow, error) {
+func (s *Service) UpdateByID(ctx context.Context, id uuid.UUID, userID uuid.UUID, arg UserInboxMessageFilter) (UpdateByIDRow, error) {
 	traceCtx, span := s.tracer.Start(ctx, "UpdateByID")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	message, err := s.queries.UpdateById(traceCtx, UpdateByIdParams{
+	message, err := s.queries.UpdateByID(traceCtx, UpdateByIDParams{
 		ID:         id,
-		UserID:     userId,
+		UserID:     userID,
 		IsRead:     arg.IsRead,
 		IsArchived: arg.IsArchived,
 		IsStarred:  arg.IsStarred,
@@ -83,7 +83,7 @@ func (s *Service) UpdateByID(ctx context.Context, id uuid.UUID, userId uuid.UUID
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "update user_inbox_message by id")
 		span.RecordError(err)
-		return UpdateByIdRow{}, err
+		return UpdateByIDRow{}, err
 	}
 
 	return message, err

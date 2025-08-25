@@ -23,9 +23,9 @@ import (
 
 //go:generate mockery --name Store
 type Store interface {
-	List(ctx context.Context, userId uuid.UUID) ([]ListRow, error)
-	GetByID(ctx context.Context, id uuid.UUID, userId uuid.UUID) (GetByIdRow, error)
-	UpdateByID(ctx context.Context, id uuid.UUID, userId uuid.UUID, arg UserInboxMessageFilter) (UpdateByIdRow, error)
+	List(ctx context.Context, userID uuid.UUID) ([]ListRow, error)
+	GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (GetByIDRow, error)
+	UpdateByID(ctx context.Context, id uuid.UUID, userID uuid.UUID, arg UserInboxMessageFilter) (UpdateByIDRow, error)
 }
 
 type UserInboxMessageFilter struct {
@@ -40,7 +40,7 @@ type MessageResponse struct {
 	Title     string      `json:"title"`
 	Subtitle  string      `json:"subtitle"`
 	Type      ContentType `json:"type"`
-	ContentId string      `json:"contentId"`
+	ContentID string      `json:"contentId"`
 	CreatedAt string      `json:"createdAt"`
 	UpdatedAt string      `json:"updatedAt"`
 }
@@ -94,7 +94,7 @@ func mapToResponse(message ListRow) Response {
 			Title:     message.Title,
 			Subtitle:  message.Subtitle.String,
 			Type:      message.Type,
-			ContentId: message.ContentID.String(),
+			ContentID: message.ContentID.String(),
 			CreatedAt: message.CreatedAt.Time.Format(time.RFC3339),
 			UpdatedAt: message.UpdatedAt.Time.Format(time.RFC3339),
 		},
@@ -106,14 +106,14 @@ func mapToResponse(message ListRow) Response {
 	}
 }
 
-func (h *Handler) GetMessageContent(ctx context.Context, contentType ContentType, contentId uuid.UUID) (any, error) {
+func (h *Handler) GetMessageContent(ctx context.Context, contentType ContentType, contentID uuid.UUID) (any, error) {
 	traceCtx, span := h.tracer.Start(ctx, "GetMessageContent")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
 	switch contentType {
 	case ContentTypeForm:
-		currentForm, err := h.formStore.GetByID(traceCtx, contentId)
+		currentForm, err := h.formStore.GetByID(traceCtx, contentID)
 		if err != nil {
 			err = databaseutil.WrapDBError(err, logger, "get form by id")
 			span.RecordError(err)
@@ -185,12 +185,12 @@ func (h *Handler) GetHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentId, err := internal.ParseUUID(message.ContentID.String())
+	contentID, err := internal.ParseUUID(message.ContentID.String())
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
-	messageContent, err := h.GetMessageContent(traceCtx, message.Type, contentId)
+	messageContent, err := h.GetMessageContent(traceCtx, message.Type, contentID)
 	if err != nil {
 		return
 	}
@@ -203,7 +203,7 @@ func (h *Handler) GetHandler(w http.ResponseWriter, r *http.Request) {
 			Title:     message.Title,
 			Subtitle:  message.Subtitle.String,
 			Type:      message.Type,
-			ContentId: message.ContentID.String(),
+			ContentID: message.ContentID.String(),
 			CreatedAt: message.CreatedAt.Time.Format(time.RFC3339),
 			UpdatedAt: message.UpdatedAt.Time.Format(time.RFC3339),
 		},
@@ -260,7 +260,7 @@ func (h *Handler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 			Title:     message.Title,
 			Subtitle:  message.Subtitle.String,
 			Type:      message.Type,
-			ContentId: message.ContentID.String(),
+			ContentID: message.ContentID.String(),
 			CreatedAt: message.CreatedAt.Time.Format(time.RFC3339),
 			UpdatedAt: message.UpdatedAt.Time.Format(time.RFC3339),
 		},
