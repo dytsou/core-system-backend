@@ -12,6 +12,48 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type ContentType string
+
+const (
+	ContentTypeText ContentType = "text"
+	ContentTypeForm ContentType = "form"
+)
+
+func (e *ContentType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ContentType(s)
+	case string:
+		*e = ContentType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ContentType: %T", src)
+	}
+	return nil
+}
+
+type NullContentType struct {
+	ContentType ContentType
+	Valid       bool // Valid is true if ContentType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullContentType) Scan(value interface{}) error {
+	if value == nil {
+		ns.ContentType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ContentType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullContentType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ContentType), nil
+}
+
 type DbStrategy string
 
 const (
@@ -178,6 +220,17 @@ type FormResponse struct {
 	UpdatedAt   pgtype.Timestamptz
 }
 
+type InboxMessage struct {
+	ID        uuid.UUID
+	PostedBy  uuid.UUID
+	Title     string
+	Subtitle  pgtype.Text
+	Type      ContentType
+	ContentID pgtype.UUID
+	CreatedAt pgtype.Timestamp
+	UpdatedAt pgtype.Timestamp
+}
+
 type OrgMember struct {
 	OrgID    uuid.UUID
 	MemberID uuid.UUID
@@ -249,4 +302,13 @@ type User struct {
 	Role      []string
 	CreatedAt pgtype.Timestamptz
 	UpdatedAt pgtype.Timestamptz
+}
+
+type UserInboxMessage struct {
+	ID         uuid.UUID
+	UserID     uuid.UUID
+	MessageID  uuid.UUID
+	IsRead     bool
+	IsStarred  bool
+	IsArchived bool
 }
