@@ -2,7 +2,6 @@ package form
 
 import (
 	"context"
-
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/google/uuid"
@@ -19,6 +18,7 @@ type Querier interface {
 	GetByID(ctx context.Context, id uuid.UUID) (Form, error)
 	List(ctx context.Context) ([]Form, error)
 	ListByUnit(ctx context.Context, unitID pgtype.UUID) ([]Form, error)
+	SetStatus(ctx context.Context, arg SetStatusParams) (Form, error)
 }
 
 type Service struct {
@@ -132,4 +132,23 @@ func (s *Service) ListByUnit(ctx context.Context, unitID uuid.UUID) ([]Form, err
 	}
 
 	return forms, nil
+}
+
+func (s *Service) SetStatus(ctx context.Context, id uuid.UUID, status string, userID uuid.UUID) (Form, error) {
+	ctx, span := s.tracer.Start(ctx, "SetStatus")
+	defer span.End()
+	logger := logutil.WithContext(ctx, s.logger)
+
+	updated, err := s.queries.SetStatus(ctx, SetStatusParams{
+		ID:         id,
+		Status:     Status(status),
+		LastEditor: userID,
+	})
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "set form status")
+		span.RecordError(err)
+		return Form{}, err
+	}
+
+	return updated, nil
 }
