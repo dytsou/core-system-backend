@@ -137,7 +137,8 @@ func (s *Service) CreateUnit(ctx context.Context, name string, orgID uuid.UUID, 
 
 	_, err = s.queries.AddParentChild(traceCtx, AddParentChildParams{
 		ParentID: pgtype.UUID{
-			Valid: false,
+			Bytes: orgID,
+			Valid: true,
 		},
 		ChildID: unit.ID,
 		OrgID:   orgID,
