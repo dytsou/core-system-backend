@@ -75,7 +75,7 @@ type Request struct {
 
 type orgResponse struct {
 	ID          uuid.UUID         `json:"id"`
-	OwnerID     uuid.UUID         `json:"ownerID"`
+	OwnerID     uuid.UUID         `json:"owner_id"`
 	Name        string            `json:"name"`
 	Description string            `json:"description"`
 	Metadata    map[string]string `json:"metadata"`
@@ -276,7 +276,7 @@ func (h *Handler) GetAllOrganizations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var orgResponses []orgResponse
+	orgResponses := make([]orgResponse, 0)
 	for _, org := range organizations {
 		orgResponses = append(orgResponses, convertOrgResponse(org))
 	}
@@ -471,7 +471,7 @@ func (h *Handler) ListOrgSubUnits(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var responses []Response
+	responses := make([]Response, 0)
 	for _, u := range subUnits {
 		responses = append(responses, convertResponse(u))
 	}
@@ -496,7 +496,7 @@ func (h *Handler) ListUnitSubUnits(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var responses []Response
+	responses := make([]Response, 0)
 	for _, u := range subUnits {
 		responses = append(responses, convertResponse(u))
 	}
