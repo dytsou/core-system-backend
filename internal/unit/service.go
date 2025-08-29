@@ -197,15 +197,10 @@ func (s *Service) CreateOrg(ctx context.Context, name string, description string
 	defaultUnit, err := s.queries.CreateUnitWithID(traceCtx, CreateUnitWithIDParams{
 		ID: org.ID,
 		Name: pgtype.Text{
-			String: fmt.Sprintf("%s - default unit", name),
+			String: "Default Unit",
 			Valid:  true,
 		},
 		OrgID: org.ID,
-		Description: pgtype.Text{
-			String: fmt.Sprintf("Default unit for %s", name),
-			Valid:  true,
-		},
-		Metadata: metadata,
 	})
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "create default unit after creating organization")
