@@ -165,7 +165,7 @@ func (h *Handler) GetUnitByID(w http.ResponseWriter, r *http.Request) {
 
 	id, err := internal.ParseUUID(idStr)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid unit ID: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, err, h.logger)
 		return
 	}
 
@@ -237,7 +237,7 @@ func (h *Handler) UpdateUnit(w http.ResponseWriter, r *http.Request) {
 	idStr := r.PathValue("id")
 	id, err := internal.ParseUUID(idStr)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid unit ID: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, err, h.logger)
 		return
 	}
 
@@ -329,7 +329,7 @@ func (h *Handler) DeleteUnit(w http.ResponseWriter, r *http.Request) {
 	idStr := r.PathValue("id")
 	id, err := internal.ParseUUID(idStr)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid unit ID: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, err, h.logger)
 		return
 	}
 
@@ -374,7 +374,7 @@ func (h *Handler) RemoveParentChild(w http.ResponseWriter, r *http.Request) {
 	}
 	cID, err := internal.ParseUUID(cIDStr)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid child ID: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, err, h.logger)
 		return
 	}
 
@@ -421,7 +421,7 @@ func (h *Handler) ListUnitSubUnits(w http.ResponseWriter, r *http.Request) {
 	idStr := r.PathValue("id")
 	id, err := internal.ParseUUID(idStr)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid unit ID: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, err, h.logger)
 		return
 	}
 	subUnits, err := h.store.ListSubUnits(traceCtx, id, TypeUnit)
@@ -467,7 +467,7 @@ func (h *Handler) ListUnitSubUnitIDs(w http.ResponseWriter, r *http.Request) {
 	idStr := r.PathValue("id")
 	id, err := internal.ParseUUID(idStr)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid unit ID: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, err, h.logger)
 		return
 	}
 
