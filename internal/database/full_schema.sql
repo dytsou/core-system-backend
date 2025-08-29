@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS tenants
 
 CREATE TABLE IF NOT EXISTS organizations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    owner_id UUID NOT NULL REFERENCES users(id) ON DELETE SET NULL,
+    owner_id UUID REFERENCES users(id) ON DELETE SET NULL,
     name VARCHAR(255),
     description VARCHAR(255),
     metadata JSONB,

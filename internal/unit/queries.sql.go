@@ -39,7 +39,7 @@ RETURNING id, owner_id, name, description, metadata, slug, created_at, updated_a
 
 type CreateOrgParams struct {
 	Name        pgtype.Text
-	OwnerID     uuid.UUID
+	OwnerID     pgtype.UUID
 	Description pgtype.Text
 	Metadata    []byte
 	Slug        string

@@ -162,10 +162,11 @@ func (s *Service) CreateOrg(ctx context.Context, name string, description string
 	traceCtx, span := s.tracer.Start(ctx, "CreateOrg")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
+	println("OwnerID:", ownerID.String())
 
 	org, err := s.queries.CreateOrg(traceCtx, CreateOrgParams{
 		Name:        pgtype.Text{String: name, Valid: name != ""},
-		OwnerID:     ownerID,
+		OwnerID:     pgtype.UUID{Bytes: ownerID, Valid: true},
 		Description: pgtype.Text{String: description, Valid: true},
 		Metadata:    metadata,
 		Slug:        slug,
@@ -175,6 +176,8 @@ func (s *Service) CreateOrg(ctx context.Context, name string, description string
 		span.RecordError(err)
 		return Organization{}, err
 	}
+
+	println("Owner ID", org.OwnerID.String())
 
 	_, err = s.tenantService.Create(traceCtx, org.ID)
 	if err != nil {
