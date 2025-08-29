@@ -78,7 +78,7 @@ type Querier interface {
 	ListSubUnits(ctx context.Context, parentID pgtype.UUID) ([]Unit, error)
 	ListOrgSubUnits(ctx context.Context, orgID pgtype.UUID) ([]Unit, error)
 	ListSubUnitIDs(ctx context.Context, parentID pgtype.UUID) ([]uuid.UUID, error)
-	ListOrgSubUnitIDs(ctx context.Context, orgID uuid.UUID) ([]uuid.UUID, error)
+	ListOrgSubUnitIDs(ctx context.Context, orgID pgtype.UUID) ([]uuid.UUID, error)
 	UpdateUnit(ctx context.Context, arg UpdateUnitParams) (Unit, error)
 	UpdateOrg(ctx context.Context, arg UpdateOrgParams) (Organization, error)
 	DeleteOrg(ctx context.Context, id uuid.UUID) error
@@ -331,7 +331,7 @@ func (s *Service) ListSubUnits(ctx context.Context, id uuid.UUID, unitType Type)
 	}
 
 	if subUnits == nil {
-		subUnits = []Unit{}
+		subUnits = make([]Unit, 0)
 	}
 
 	logger.Info(fmt.Sprintf("Listed sub units of an %s", unitType.String()), zap.String("parent_id", id.String()), zap.Int("count", len(subUnits)))
@@ -348,7 +348,7 @@ func (s *Service) ListSubUnitIDs(ctx context.Context, id uuid.UUID, unitType Typ
 	var err error
 	switch unitType {
 	case TypeOrg:
-		subUnitIDs, err = s.queries.ListOrgSubUnitIDs(traceCtx, id)
+		subUnitIDs, err = s.queries.ListOrgSubUnitIDs(traceCtx, pgtype.UUID{Bytes: id, Valid: true})
 	case TypeUnit:
 		subUnitIDs, err = s.queries.ListSubUnitIDs(traceCtx, pgtype.UUID{Bytes: id, Valid: true})
 	default:

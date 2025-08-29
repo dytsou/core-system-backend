@@ -237,11 +237,11 @@ func (q *Queries) GetUnitByID(ctx context.Context, id uuid.UUID) (Unit, error) {
 }
 
 const listOrgSubUnitIDs = `-- name: ListOrgSubUnitIDs :many
-SELECT child_id FROM parent_child WHERE parent_id IS NULL AND org_id = $1
+SELECT child_id FROM parent_child WHERE parent_id = $1
 `
 
-func (q *Queries) ListOrgSubUnitIDs(ctx context.Context, orgID uuid.UUID) ([]uuid.UUID, error) {
-	rows, err := q.db.Query(ctx, listOrgSubUnitIDs, orgID)
+func (q *Queries) ListOrgSubUnitIDs(ctx context.Context, parentID pgtype.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listOrgSubUnitIDs, parentID)
 	if err != nil {
 		return nil, err
 	}
