@@ -263,11 +263,11 @@ func (q *Queries) ListOrgSubUnitIDs(ctx context.Context, orgID uuid.UUID) ([]uui
 const listOrgSubUnits = `-- name: ListOrgSubUnits :many
 SELECT u.id, u.org_id, u.name, u.description, u.metadata, u.created_at, u.updated_at FROM units u
 JOIN parent_child pc ON u.id = pc.child_id
-WHERE pc.parent_id IS NULL AND pc.org_id = $1
+WHERE pc.parent_id = $1
 `
 
-func (q *Queries) ListOrgSubUnits(ctx context.Context, orgID uuid.UUID) ([]Unit, error) {
-	rows, err := q.db.Query(ctx, listOrgSubUnits, orgID)
+func (q *Queries) ListOrgSubUnits(ctx context.Context, parentID pgtype.UUID) ([]Unit, error) {
+	rows, err := q.db.Query(ctx, listOrgSubUnits, parentID)
 	if err != nil {
 		return nil, err
 	}

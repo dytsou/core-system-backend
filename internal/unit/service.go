@@ -66,7 +66,7 @@ type Querier interface {
 	GetUnitByID(ctx context.Context, id uuid.UUID) (Unit, error)
 	GetOrgIDBySlug(ctx context.Context, slug string) (uuid.UUID, error)
 	ListSubUnits(ctx context.Context, parentID pgtype.UUID) ([]Unit, error)
-	ListOrgSubUnits(ctx context.Context, orgID uuid.UUID) ([]Unit, error)
+	ListOrgSubUnits(ctx context.Context, orgID pgtype.UUID) ([]Unit, error)
 	ListSubUnitIDs(ctx context.Context, parentID pgtype.UUID) ([]uuid.UUID, error)
 	ListOrgSubUnitIDs(ctx context.Context, orgID uuid.UUID) ([]uuid.UUID, error)
 	UpdateUnit(ctx context.Context, arg UpdateUnitParams) (Unit, error)
@@ -310,11 +310,12 @@ func (s *Service) ListSubUnits(ctx context.Context, id uuid.UUID, unitType Type)
 	var err error
 	switch unitType {
 	case TypeOrg:
-		subUnits, err = s.queries.ListOrgSubUnits(traceCtx, id)
+		subUnits, err = s.queries.ListOrgSubUnits(traceCtx, pgtype.UUID{Bytes: id, Valid: true})
 	case TypeUnit:
 		subUnits, err = s.queries.ListSubUnits(traceCtx, pgtype.UUID{Bytes: id, Valid: true})
 	default:
 		logger.Error("invalid unit type: ", zap.String("unitType", unitType.String()))
+		span.RecordError(err)
 		return nil, fmt.Errorf("invalid unit type: %s", unitType.String())
 	}
 
@@ -347,6 +348,7 @@ func (s *Service) ListSubUnitIDs(ctx context.Context, id uuid.UUID, unitType Typ
 		subUnitIDs, err = s.queries.ListSubUnitIDs(traceCtx, pgtype.UUID{Bytes: id, Valid: true})
 	default:
 		logger.Error("invalid unit type: ", zap.String("unitType", unitType.String()))
+		span.RecordError(err)
 		return nil, fmt.Errorf("invalid unit type: %s", unitType.String())
 	}
 
