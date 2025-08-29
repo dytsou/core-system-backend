@@ -15,15 +15,16 @@ import (
 )
 
 type GenericUnit interface {
-	GetBase() Base
+	Base() Base
 	SetBase(Base)
+	Instance() any
 }
 
 type Wrapper struct {
 	Unit Unit
 }
 
-func (u Wrapper) GetBase() Base {
+func (u Wrapper) Base() Base {
 	return Base{
 		ID:          u.Unit.ID,
 		Name:        u.Unit.Name.String,
@@ -31,6 +32,11 @@ func (u Wrapper) GetBase() Base {
 		Metadata:    u.Unit.Metadata,
 	}
 }
+
+func (u Wrapper) Instance() any {
+	return u.Unit
+}
+
 func (u Wrapper) SetBase(base Base) {
 	u.Unit.ID = base.ID
 	u.Unit.Name = pgtype.Text{String: base.Name, Valid: base.Name != ""}
@@ -42,13 +48,17 @@ type OrgWrapper struct {
 	Organization Organization
 }
 
-func (o OrgWrapper) GetBase() Base {
+func (o OrgWrapper) Base() Base {
 	return Base{
 		ID:          o.Organization.ID,
 		Name:        o.Organization.Name.String,
 		Description: o.Organization.Description.String,
 		Metadata:    o.Organization.Metadata,
 	}
+}
+
+func (o OrgWrapper) Instance() any {
+	return o.Organization
 }
 
 func (o OrgWrapper) SetBase(base Base) {
@@ -271,17 +281,17 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID, orgID uuid.UUID, un
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	var returnUnit GenericUnit
+	var resultUnit GenericUnit
 	var err error
 	switch unitType {
 	case TypeOrg:
 		var org Organization
 		org, err = s.queries.GetOrgByID(traceCtx, orgID)
-		returnUnit = OrgWrapper{org}
+		resultUnit = OrgWrapper{org}
 	case TypeUnit:
 		var unit Unit
 		unit, err = s.queries.GetUnitByID(traceCtx, id)
-		returnUnit = Wrapper{unit}
+		resultUnit = Wrapper{unit}
 	default:
 		logger.Error("invalid unit type: ", zap.String("unitType", unitType.String()))
 		return nil, fmt.Errorf("invalid unit type: %s", unitType.String())
@@ -292,7 +302,7 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID, orgID uuid.UUID, un
 		span.RecordError(err)
 		return nil, err
 	}
-	return returnUnit, nil
+	return resultUnit, nil
 }
 
 // ListSubUnits retrieves all subunits of a parent unit

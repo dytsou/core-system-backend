@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"net/http"
+	"time"
 )
 
 type Store interface {
@@ -72,6 +73,60 @@ type Request struct {
 	Metadata    map[string]string `json:"metadata"`
 }
 
+type orgResponse struct {
+	ID          uuid.UUID         `json:"id"`
+	OwnerID     uuid.UUID         `json:"ownerID"`
+	Name        string            `json:"name"`
+	Description string            `json:"description"`
+	Metadata    map[string]string `json:"metadata"`
+	Slug        string            `json:"slug"`
+	CreatedAt   string            `json:"created_at"`
+	UpdatedAt   string            `json:"updated_at"`
+}
+
+type Response struct {
+	ID          uuid.UUID         `json:"id"`
+	OrgID       uuid.UUID         `json:"org_id"`
+	Name        string            `json:"name"`
+	Description string            `json:"description"`
+	Metadata    map[string]string `json:"metadata"`
+	CreatedAt   string            `json:"created_at"`
+	UpdatedAt   string            `json:"updated_at"`
+}
+
+func convertResponse(u Unit) Response {
+	var meta map[string]string
+	if err := json.Unmarshal(u.Metadata, &meta); err != nil {
+		meta = make(map[string]string)
+	}
+	return Response{
+		ID:          u.ID,
+		OrgID:       u.OrgID,
+		Name:        u.Name.String,
+		Description: u.Description.String,
+		Metadata:    meta,
+		CreatedAt:   u.CreatedAt.Time.Format(time.RFC3339),
+		UpdatedAt:   u.UpdatedAt.Time.Format(time.RFC3339),
+	}
+}
+
+func convertOrgResponse(o Organization) orgResponse {
+	var meta map[string]string
+	if err := json.Unmarshal(o.Metadata, &meta); err != nil {
+		meta = make(map[string]string)
+	}
+	return orgResponse{
+		ID:          o.ID,
+		OwnerID:     o.OwnerID.Bytes,
+		Name:        o.Name.String,
+		Description: o.Description.String,
+		Metadata:    meta,
+		Slug:        o.Slug,
+		CreatedAt:   o.CreatedAt.Time.Format(time.RFC3339),
+		UpdatedAt:   o.UpdatedAt.Time.Format(time.RFC3339),
+	}
+}
+
 type ParentChildRequest struct {
 	ParentID uuid.UUID `json:"parent_id"`
 	ChildID  uuid.UUID `json:"child_id" validate:"required"`
@@ -114,7 +169,7 @@ func (h *Handler) CreateUnit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusCreated, createdUnit)
+	handlerutil.WriteJSONResponse(w, http.StatusCreated, convertResponse(createdUnit))
 }
 
 func (h *Handler) CreateOrg(w http.ResponseWriter, r *http.Request) {
@@ -147,7 +202,7 @@ func (h *Handler) CreateOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusCreated, createdOrg)
+	handlerutil.WriteJSONResponse(w, http.StatusCreated, convertOrgResponse(createdOrg))
 }
 
 func (h *Handler) GetUnitByID(w http.ResponseWriter, r *http.Request) {
@@ -175,12 +230,13 @@ func (h *Handler) GetUnitByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	unit, err := h.store.GetByID(traceCtx, id, orgID, TypeUnit)
+	unitWrap, err := h.store.GetByID(traceCtx, id, orgID, TypeUnit)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get unit by ID: %w", err), h.logger)
 		return
 	}
-	handlerutil.WriteJSONResponse(w, http.StatusOK, unit)
+
+	handlerutil.WriteJSONResponse(w, http.StatusOK, convertResponse(unitWrap.Instance().(Unit)))
 }
 
 func (h *Handler) GetOrgByID(w http.ResponseWriter, r *http.Request) {
@@ -200,13 +256,13 @@ func (h *Handler) GetOrgByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	unit, err := h.store.GetByID(traceCtx, orgID, orgID, TypeOrg)
+	orgWrap, err := h.store.GetByID(traceCtx, orgID, orgID, TypeOrg)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get unit by ID: %w", err), h.logger)
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusOK, unit)
+	handlerutil.WriteJSONResponse(w, http.StatusOK, convertOrgResponse(orgWrap.Instance().(Organization)))
 }
 
 func (h *Handler) GetAllOrganizations(w http.ResponseWriter, r *http.Request) {
@@ -220,7 +276,12 @@ func (h *Handler) GetAllOrganizations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusOK, organizations)
+	var orgResponses []orgResponse
+	for _, org := range organizations {
+		orgResponses = append(orgResponses, convertOrgResponse(org))
+	}
+
+	handlerutil.WriteJSONResponse(w, http.StatusOK, orgResponses)
 }
 
 func (h *Handler) UpdateUnit(w http.ResponseWriter, r *http.Request) {
@@ -253,7 +314,7 @@ func (h *Handler) UpdateUnit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusOK, updatedUnit)
+	handlerutil.WriteJSONResponse(w, http.StatusOK, convertResponse(updatedUnit))
 }
 
 func (h *Handler) UpdateOrg(w http.ResponseWriter, r *http.Request) {
@@ -291,7 +352,7 @@ func (h *Handler) UpdateOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusOK, updatedOrg)
+	handlerutil.WriteJSONResponse(w, http.StatusOK, convertOrgResponse(updatedOrg))
 }
 
 func (h *Handler) DeleteOrg(w http.ResponseWriter, r *http.Request) {
@@ -410,7 +471,12 @@ func (h *Handler) ListOrgSubUnits(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusOK, subUnits)
+	var responses []Response
+	for _, u := range subUnits {
+		responses = append(responses, convertResponse(u))
+	}
+
+	handlerutil.WriteJSONResponse(w, http.StatusOK, responses)
 }
 
 func (h *Handler) ListUnitSubUnits(w http.ResponseWriter, r *http.Request) {
@@ -430,7 +496,12 @@ func (h *Handler) ListUnitSubUnits(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusOK, subUnits)
+	var responses []Response
+	for _, u := range subUnits {
+		responses = append(responses, convertResponse(u))
+	}
+
+	handlerutil.WriteJSONResponse(w, http.StatusOK, responses)
 }
 
 func (h *Handler) ListOrgSubUnitIDs(w http.ResponseWriter, r *http.Request) {
