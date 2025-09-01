@@ -34,14 +34,14 @@ func NewService(logger *zap.Logger, store UnitStore) *Service {
 	}
 }
 
-func (s *Service) GetRecipients(ctx context.Context, orgID, unitIDs []uuid.UUID) ([]uuid.UUID, error) {
+func (s *Service) GetRecipients(ctx context.Context, orgIDs, unitIDs []uuid.UUID) ([]uuid.UUID, error) {
 	ctx, span := s.tracer.Start(ctx, "GetRecipients")
 	defer span.End()
 	logger := logutil.WithContext(ctx, s.logger)
 
-	all := make([]uuid.UUID, 0, 64)
+	all := make([]uuid.UUID, 0, len(orgIDs)+len(unitIDs))
 
-	for _, orgID := range orgID {
+	for _, orgID := range orgIDs {
 		ids, err := s.store.UsersByOrg(ctx, orgID)
 		if err != nil {
 			err = databaseutil.WrapDBError(err, logger, fmt.Sprintf("list org members (org_id=%s)", orgID))
@@ -64,22 +64,19 @@ func (s *Service) GetRecipients(ctx context.Context, orgID, unitIDs []uuid.UUID)
 	//remove duplicated
 	seen := make(map[uuid.UUID]struct{}, len(all))
 	uniq := make([]uuid.UUID, 0, len(all))
-	for _, u := range all {
-		if _, ok := seen[uuid.UUID{}]; ok {
+	for _, id := range all {
+		if _, ok := seen[id]; ok {
 			continue
 		}
-		seen[uuid.UUID{}] = struct{}{}
-		uniq = append(uniq, u)
+		seen[id] = struct{}{}
+		uniq = append(uniq, id)
 	}
 
 	logger.Info("Recipients resolved",
-		zap.Int("org_count", len(orgID)),
+		zap.Int("org_count", len(orgIDs)),
 		zap.Int("unit_count", len(unitIDs)),
 		zap.Int("unique_recipients", len(uniq)),
 	)
 
-	if uniq == nil {
-		uniq = []uuid.UUID{}
-	}
 	return uniq, nil
 }
