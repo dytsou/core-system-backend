@@ -2,7 +2,6 @@ package publish
 
 import (
 	"context"
-	"errors"
 
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
@@ -74,7 +73,7 @@ func (s *Service) PreviewRecipients(ctx context.Context, sel Selection) ([]uuid.
 }
 
 // PublishForm not Publish is because maybe we will publish something else in future
-func (s *Service) PublishForm(ctx context.Context, formID uuid.UUID, sel Selection, editor uuid.UUID) error {
+func (s *Service) PublishForm(ctx context.Context, formID uuid.UUID, recipientIDs []uuid.UUID, editor uuid.UUID) error {
 	ctx, span := s.tracer.Start(ctx, "PublishForm")
 	defer span.End()
 	logger := logutil.WithContext(ctx, s.logger)
@@ -87,22 +86,6 @@ func (s *Service) PublishForm(ctx context.Context, formID uuid.UUID, sel Selecti
 		return err
 	}
 
-	if string(f.Status) == "published" {
-		// do something here?
-	}
-
-	// get recipients
-	ids, err := s.distributor.GetRecipients(ctx, sel.OrgID, sel.UnitIDs)
-	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "get recipients")
-		span.RecordError(err)
-		return err
-	}
-	if len(ids) == 0 {
-		// 再改一下error?
-		return errors.New("no recipients selected")
-	}
-
 	// set status
 	if err := s.store.SetStatus(ctx, f.ID, "published", editor); err != nil {
 		err = databaseutil.WrapDBError(err, logger, "setting form status = published")
@@ -111,7 +94,7 @@ func (s *Service) PublishForm(ctx context.Context, formID uuid.UUID, sel Selecti
 	}
 
 	// update inbox thread
-	if err := s.inbox.CreateOrUpdateThread(ctx, f, ids); err != nil {
+	if err := s.inbox.CreateOrUpdateThread(ctx, f, recipientIDs); err != nil {
 		err = databaseutil.WrapDBError(err, logger, "creating/update inbox thread")
 		span.RecordError(err)
 		return err
@@ -119,7 +102,7 @@ func (s *Service) PublishForm(ctx context.Context, formID uuid.UUID, sel Selecti
 
 	logger.Info("Form published",
 		zap.String("form_id", f.ID.String()),
-		zap.String("recipients", len(ids)),
+		zap.Int("recipients", len(recipientIDs)),
 		zap.String("editor", editor.String()),
 	)
 	return nil
