@@ -21,30 +21,27 @@ CREATE TABLE IF NOT EXISTS auth (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE(provider, provider_id)
 );CREATE EXTENSION IF NOT EXISTS pgcrypto;
-CREATE TYPE unit_type AS ENUM ('unit', 'organization');
-
-CREATE TABLE IF NOT EXISTS units (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    org_id UUID NOT NULL REFERENCES organizations(id),
-    name VARCHAR(255),
-    description VARCHAR(255),
-    metadata JSONB,
-    type unit_type NOT NULL DEFAULT 'unit',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
 
 CREATE TABLE IF NOT EXISTS organizations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    owner_id UUID NOT NULL REFERENCES users(id),
+    owner_id UUID REFERENCES users(id) ON DELETE SET NULL,
     name VARCHAR(255),
     description VARCHAR(255),
     metadata JSONB,
-    type unit_type NOT NULL DEFAULT 'organization',
     slug VARCHAR(255) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE(slug)
+    );
+
+CREATE TABLE IF NOT EXISTS units (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    name VARCHAR(255),
+    description VARCHAR(255),
+    metadata JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS unit_members (
@@ -60,9 +57,10 @@ CREATE TABLE IF NOT EXISTS org_members (
 );
 
 CREATE TABLE IF NOT EXISTS parent_child (
-    parent_id UUID NOT NULL,
+    parent_id UUID REFERENCES units(id) ON DELETE SET NULL,
     child_id UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE,
-    PRIMARY KEY (parent_id, child_id)
+    org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    PRIMARY KEY (child_id, org_id)
 );CREATE TYPE db_strategy AS ENUM ('shared', 'isolated');
 
 CREATE TABLE IF NOT EXISTS tenants
@@ -121,9 +119,7 @@ CREATE TABLE IF NOT EXISTS questions(
     "order" INTEGER NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TYPE content_type AS ENUM(
+);CREATE TYPE content_type AS ENUM(
     'text',
     'form'
 );
