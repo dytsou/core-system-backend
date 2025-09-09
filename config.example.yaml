@@ -13,6 +13,12 @@ base_url: "http://localhost:8080"
 # Secret key used for signing tokens
 secret: "your-secret-key"
 
+# Oauth callback URL, Left it empty if you don't want to use oauth proxy, and it will callback to the orginal server
+oauth_proxy_base_url: ""
+
+# If you want to use oauth proxy, you need to set the secret here, and place the same secret in the oauth-proxy service
+oauth_proxy_secret: ""
+
 # PostgreSQL connection string
 database_url: "postgres://user:password@localhost:5432/dbname?sslmode=disable"
 

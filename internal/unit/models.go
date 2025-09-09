@@ -12,6 +12,48 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type ContentType string
+
+const (
+	ContentTypeText ContentType = "text"
+	ContentTypeForm ContentType = "form"
+)
+
+func (e *ContentType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ContentType(s)
+	case string:
+		*e = ContentType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ContentType: %T", src)
+	}
+	return nil
+}
+
+type NullContentType struct {
+	ContentType ContentType
+	Valid       bool // Valid is true if ContentType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullContentType) Scan(value interface{}) error {
+	if value == nil {
+		ns.ContentType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ContentType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullContentType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ContentType), nil
+}
+
 type DbStrategy string
 
 const (
@@ -99,6 +141,58 @@ func (ns NullQuestionType) Value() (driver.Value, error) {
 	return string(ns.QuestionType), nil
 }
 
+type UnitType string
+
+const (
+	UnitTypeUnit         UnitType = "unit"
+	UnitTypeOrganization UnitType = "organization"
+)
+
+func (e *UnitType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = UnitType(s)
+	case string:
+		*e = UnitType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for UnitType: %T", src)
+	}
+	return nil
+}
+
+type NullUnitType struct {
+	UnitType UnitType
+	Valid    bool // Valid is true if UnitType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullUnitType) Scan(value interface{}) error {
+	if value == nil {
+		ns.UnitType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.UnitType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullUnitType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.UnitType), nil
+}
+
+type Answer struct {
+	ID         uuid.UUID
+	ResponseID uuid.UUID
+	QuestionID uuid.UUID
+	Type       QuestionType
+	Value      string
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
+}
+
 type Auth struct {
 	ID         uuid.UUID
 	UserID     uuid.UUID
@@ -118,6 +212,25 @@ type Form struct {
 	UpdatedAt   pgtype.Timestamptz
 }
 
+type FormResponse struct {
+	ID          uuid.UUID
+	FormID      uuid.UUID
+	SubmittedBy uuid.UUID
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+}
+
+type InboxMessage struct {
+	ID        uuid.UUID
+	PostedBy  uuid.UUID
+	Title     string
+	Subtitle  pgtype.Text
+	Type      ContentType
+	ContentID pgtype.UUID
+	CreatedAt pgtype.Timestamp
+	UpdatedAt pgtype.Timestamp
+}
+
 type OrgMember struct {
 	OrgID    uuid.UUID
 	MemberID uuid.UUID
@@ -125,19 +238,19 @@ type OrgMember struct {
 
 type Organization struct {
 	ID          uuid.UUID
-	OwnerID     pgtype.UUID
+	OwnerID     uuid.UUID
 	Name        pgtype.Text
 	Description pgtype.Text
 	Metadata    []byte
+	Type        UnitType
 	Slug        string
 	CreatedAt   pgtype.Timestamptz
 	UpdatedAt   pgtype.Timestamptz
 }
 
 type ParentChild struct {
-	ParentID pgtype.UUID
+	ParentID uuid.UUID
 	ChildID  uuid.UUID
-	OrgID    uuid.UUID
 }
 
 type Question struct {
@@ -147,6 +260,7 @@ type Question struct {
 	Type        QuestionType
 	Title       pgtype.Text
 	Description pgtype.Text
+	Metadata    []byte
 	Order       int32
 	CreatedAt   pgtype.Timestamptz
 	UpdatedAt   pgtype.Timestamptz
@@ -170,6 +284,7 @@ type Unit struct {
 	Name        pgtype.Text
 	Description pgtype.Text
 	Metadata    []byte
+	Type        UnitType
 	CreatedAt   pgtype.Timestamptz
 	UpdatedAt   pgtype.Timestamptz
 }
@@ -187,4 +302,13 @@ type User struct {
 	Role      []string
 	CreatedAt pgtype.Timestamptz
 	UpdatedAt pgtype.Timestamptz
+}
+
+type UserInboxMessage struct {
+	ID         uuid.UUID
+	UserID     uuid.UUID
+	MessageID  uuid.UUID
+	IsRead     bool
+	IsStarred  bool
+	IsArchived bool
 }
