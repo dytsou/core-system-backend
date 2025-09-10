@@ -92,7 +92,6 @@ sql:
             go_type:
               import: "github.com/google/uuid"
               type: "UUID"
-
   - engine: "postgresql"
     queries: "./internal/inbox/queries.sql"
     schema: "./internal/database/full_schema.sql"

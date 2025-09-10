@@ -1,11 +1,16 @@
--- name: CreateUnit :one
-INSERT INTO units (name, org_id, description, metadata, type)
-VALUES ($1, $2, $3, $4, 'unit')
+-- name: CreateOrg :one
+INSERT INTO organizations (name, owner_id, description, metadata, slug)
+VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
--- name: CreateOrg :one
-INSERT INTO organizations (name, owner_id, description, metadata, type, slug)
-VALUES ($1, $2, $3, $4, 'organization', $5)
+-- name: CreateUnit :one
+INSERT INTO units (name, org_id, description, metadata)
+VALUES ($1, $2, $3, $4)
+RETURNING *;
+
+-- name: CreateUnitWithID :one
+INSERT INTO units (id, name, org_id, description, metadata)
+VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
 -- name: GetUnitByID :one
@@ -39,8 +44,8 @@ DELETE FROM units WHERE id = $1;
 DELETE FROM organizations WHERE id = $1;
 
 -- name: AddParentChild :one
-INSERT INTO parent_child (parent_id, child_id)
-VALUES ($1, $2)
+INSERT INTO parent_child (parent_id, child_id, org_id)
+VALUES ($1, $2, $3)
 RETURNING *;
 
 -- name: ListSubUnits :many
@@ -48,11 +53,16 @@ SELECT u.* FROM units u
 JOIN parent_child pc ON u.id = pc.child_id
 WHERE pc.parent_id = $1;
 
+-- name: ListOrgSubUnits :many
+SELECT u.* FROM units u
+JOIN parent_child pc ON u.id = pc.child_id
+WHERE pc.parent_id = $1;
+
 -- name: ListSubUnitIDs :many
 SELECT child_id FROM parent_child WHERE parent_id = $1;
 
--- name: RemoveParentChild :exec
-DELETE FROM parent_child WHERE parent_id = $1 AND child_id = $2;
+-- name: ListOrgSubUnitIDs :many
+SELECT child_id FROM parent_child WHERE parent_id = $1;
 
--- name: RemoveParentChildByID :exec
-DELETE FROM parent_child WHERE parent_id = $1 OR child_id = $1;
+-- name: RemoveParentChild :exec
+DELETE FROM parent_child WHERE child_id = $1;
