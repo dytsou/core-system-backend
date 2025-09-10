@@ -2,7 +2,7 @@
 // versions:
 //   sqlc v1.29.0
 
-package jwt
+package inbox
 
 import (
 	"database/sql/driver"

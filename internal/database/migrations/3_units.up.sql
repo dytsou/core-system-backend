@@ -1,6 +1,6 @@
 CREATE TABLE organizations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    owner_id UUID NOT NULL REFERENCES users(id),
+    owner_id UUID REFERENCES users(id) ON DELETE SET NULL,
     name VARCHAR(255),
     description VARCHAR(255),
     metadata JSONB,
@@ -12,7 +12,7 @@ CREATE TABLE organizations (
 
 CREATE TABLE units (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    org_id UUID NOT NULL REFERENCES organizations(id),
+    org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     name VARCHAR(255),
     description VARCHAR(255),
     metadata JSONB,
@@ -33,7 +33,7 @@ CREATE TABLE org_members (
 );
 
 CREATE TABLE parent_child (
-    parent_id UUID REFERENCES units(id) ON DELETE CASCADE,
+    parent_id UUID REFERENCES units(id) ON DELETE SET NULL,
     child_id UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE,
     org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     PRIMARY KEY (child_id, org_id)

@@ -1,12 +1,8 @@
 package unit
 
 import (
-	"NYCU-SDC/core-system-backend/internal"
 	"NYCU-SDC/core-system-backend/internal/tenant"
-	"NYCU-SDC/core-system-backend/internal/user"
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
@@ -19,15 +15,16 @@ import (
 )
 
 type GenericUnit interface {
-	GetBase() Base
+	Base() Base
 	SetBase(Base)
+	Instance() any
 }
 
 type Wrapper struct {
 	Unit Unit
 }
 
-func (u Wrapper) GetBase() Base {
+func (u Wrapper) Base() Base {
 	return Base{
 		ID:          u.Unit.ID,
 		Name:        u.Unit.Name.String,
@@ -35,6 +32,11 @@ func (u Wrapper) GetBase() Base {
 		Metadata:    u.Unit.Metadata,
 	}
 }
+
+func (u Wrapper) Instance() any {
+	return u.Unit
+}
+
 func (u Wrapper) SetBase(base Base) {
 	u.Unit.ID = base.ID
 	u.Unit.Name = pgtype.Text{String: base.Name, Valid: base.Name != ""}
@@ -46,7 +48,7 @@ type OrgWrapper struct {
 	Organization Organization
 }
 
-func (o OrgWrapper) GetBase() Base {
+func (o OrgWrapper) Base() Base {
 	return Base{
 		ID:          o.Organization.ID,
 		Name:        o.Organization.Name.String,
@@ -55,44 +57,28 @@ func (o OrgWrapper) GetBase() Base {
 	}
 }
 
+func (o OrgWrapper) Instance() any {
+	return o.Organization
+}
+
 func (o OrgWrapper) SetBase(base Base) {
 	o.Organization.Name = pgtype.Text{String: base.Name, Valid: base.Name != ""}
 	o.Organization.Description = pgtype.Text{String: base.Description, Valid: base.Description != ""}
 	o.Organization.Metadata = base.Metadata
 }
 
-type GenericMember interface {
-	GetMember() uuid.UUID
-}
-
-type MemberWrapper struct {
-	UnitMember UnitMember
-}
-
-func (m MemberWrapper) GetMember() uuid.UUID {
-	return m.UnitMember.MemberID
-}
-
-type OrgMemberWrapper struct {
-	OrgMember OrgMember
-}
-
-func (o OrgMemberWrapper) GetMember() uuid.UUID {
-	return o.OrgMember.MemberID
-}
-
 type Querier interface {
 	CreateUnit(ctx context.Context, arg CreateUnitParams) (Unit, error)
-	CreateDefaultUnit(ctx context.Context, arg CreateDefaultUnitParams) (Unit, error)
+	CreateUnitWithID(ctx context.Context, arg CreateUnitWithIDParams) (Unit, error)
 	CreateOrg(ctx context.Context, arg CreateOrgParams) (Organization, error)
 	GetOrgByID(ctx context.Context, id uuid.UUID) (Organization, error)
 	GetAllOrganizations(ctx context.Context) ([]Organization, error)
 	GetUnitByID(ctx context.Context, id uuid.UUID) (Unit, error)
 	GetOrgIDBySlug(ctx context.Context, slug string) (uuid.UUID, error)
 	ListSubUnits(ctx context.Context, parentID pgtype.UUID) ([]Unit, error)
-	ListOrgSubUnits(ctx context.Context, orgID uuid.UUID) ([]Unit, error)
+	ListOrgSubUnits(ctx context.Context, orgID pgtype.UUID) ([]Unit, error)
 	ListSubUnitIDs(ctx context.Context, parentID pgtype.UUID) ([]uuid.UUID, error)
-	ListOrgSubUnitIDs(ctx context.Context, orgID uuid.UUID) ([]uuid.UUID, error)
+	ListOrgSubUnitIDs(ctx context.Context, orgID pgtype.UUID) ([]uuid.UUID, error)
 	UpdateUnit(ctx context.Context, arg UpdateUnitParams) (Unit, error)
 	UpdateOrg(ctx context.Context, arg UpdateOrgParams) (Organization, error)
 	DeleteOrg(ctx context.Context, id uuid.UUID) error
@@ -100,13 +86,6 @@ type Querier interface {
 
 	AddParentChild(ctx context.Context, arg AddParentChildParams) (ParentChild, error)
 	RemoveParentChild(ctx context.Context, childID uuid.UUID) error
-
-	AddOrgMember(ctx context.Context, arg AddOrgMemberParams) (OrgMember, error)
-	ListOrgMembers(ctx context.Context, orgID uuid.UUID) ([]uuid.UUID, error)
-	RemoveOrgMember(ctx context.Context, arg RemoveOrgMemberParams) error
-	AddUnitMember(ctx context.Context, arg AddUnitMemberParams) (UnitMember, error)
-	ListUnitMembers(ctx context.Context, unitID uuid.UUID) ([]uuid.UUID, error)
-	RemoveUnitMember(ctx context.Context, arg RemoveUnitMemberParams) error
 }
 
 type Service struct {
@@ -114,7 +93,6 @@ type Service struct {
 	queries       Querier
 	tracer        trace.Tracer
 	tenantService *tenant.Service
-	userService   *user.Service
 }
 
 type Base struct {
@@ -124,65 +102,29 @@ type Base struct {
 	Metadata    []byte
 }
 
+type Type int
+
+const (
+	TypeOrg Type = iota
+	TypeUnit
+)
+
+var typeStrings = [...]string{"organization", "unit"}
+
+func (t Type) String() string {
+	if int(t) < 0 || int(t) >= len(typeStrings) {
+		return "unknown"
+	}
+	return typeStrings[t]
+}
+
 func NewService(logger *zap.Logger, db DBTX) *Service {
 	return &Service{
 		logger:        logger,
 		queries:       New(db),
 		tracer:        otel.Tracer("unit/service"),
 		tenantService: tenant.NewService(logger, db),
-		userService:   user.NewService(logger, db),
 	}
-}
-
-// Validation Functions
-func (s *Service) validateOrgSlugExistence(ctx context.Context, slug string, logger *zap.Logger, span trace.Span, orgID uuid.UUID) error {
-	foundID, err := s.queries.GetOrgIDBySlug(ctx, slug)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil
-		}
-		err = databaseutil.WrapDBError(err, logger, "GetOrgIDBySlug")
-		span.RecordError(err)
-		return err
-	}
-
-	if orgID != uuid.Nil || foundID != orgID {
-		return internal.ErrOrgSlugAlreadyExists
-	}
-
-	return nil
-}
-
-func (s *Service) validateUnitExistence(ctx context.Context, unitID uuid.UUID, logger *zap.Logger, span trace.Span) error {
-	_, err := s.queries.GetUnitByID(ctx, unitID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return internal.ErrUnitNotFound
-		}
-		err = databaseutil.WrapDBError(err, logger, "GetUnitByID")
-		span.RecordError(err)
-		return err
-	}
-
-	return nil
-}
-
-func (s *Service) validateMemberExistence(ctx context.Context, memberID uuid.UUID, logger *zap.Logger, span trace.Span) error {
-	exists, err := s.userService.ExistsByID(ctx, memberID)
-	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "check if user exists")
-		span.RecordError(err)
-		return internal.ErrUserNotFound
-	}
-
-	if !exists {
-		err := fmt.Errorf("member with ID %s does not exist", memberID.String())
-		span.RecordError(err)
-		logger.Error("Member does not exist", zap.String("member_id", memberID.String()))
-		return internal.ErrUserNotFound
-	}
-
-	return nil
 }
 
 // CreateUnit creates a new unit
@@ -192,9 +134,9 @@ func (s *Service) CreateUnit(ctx context.Context, name string, orgID uuid.UUID, 
 	logger := logutil.WithContext(traceCtx, s.logger)
 
 	unit, err := s.queries.CreateUnit(traceCtx, CreateUnitParams{
-		Name:        pgtype.Text{String: name, Valid: true},
+		Name:        pgtype.Text{String: name, Valid: name != ""},
 		OrgID:       orgID,
-		Description: pgtype.Text{String: description, Valid: description != ""},
+		Description: pgtype.Text{String: description, Valid: true},
 		Metadata:    metadata,
 	})
 	if err != nil {
@@ -205,7 +147,8 @@ func (s *Service) CreateUnit(ctx context.Context, name string, orgID uuid.UUID, 
 
 	_, err = s.queries.AddParentChild(traceCtx, AddParentChildParams{
 		ParentID: pgtype.UUID{
-			Valid: false,
+			Bytes: orgID,
+			Valid: true,
 		},
 		ChildID: unit.ID,
 		OrgID:   orgID,
@@ -230,15 +173,12 @@ func (s *Service) CreateOrg(ctx context.Context, name string, description string
 	traceCtx, span := s.tracer.Start(ctx, "CreateOrg")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
-
-	if err := s.validateOrgSlugExistence(traceCtx, slug, logger, span, uuid.Nil); err != nil {
-		return Organization{}, err
-	}
+	println("OwnerID:", ownerID.String())
 
 	org, err := s.queries.CreateOrg(traceCtx, CreateOrgParams{
-		Name:        pgtype.Text{String: name, Valid: true},
-		OwnerID:     ownerID,
-		Description: pgtype.Text{String: description, Valid: description != ""},
+		Name:        pgtype.Text{String: name, Valid: name != ""},
+		OwnerID:     pgtype.UUID{Bytes: ownerID, Valid: true},
+		Description: pgtype.Text{String: description, Valid: true},
 		Metadata:    metadata,
 		Slug:        slug,
 	})
@@ -247,6 +187,8 @@ func (s *Service) CreateOrg(ctx context.Context, name string, description string
 		span.RecordError(err)
 		return Organization{}, err
 	}
+
+	println("Owner ID", org.OwnerID.String())
 
 	_, err = s.tenantService.Create(traceCtx, org.ID)
 	if err != nil {
@@ -262,18 +204,13 @@ func (s *Service) CreateOrg(ctx context.Context, name string, description string
 		zap.String("org_slug", org.Slug),
 		zap.String("org_description", org.Description.String))
 
-	defaultUnit, err := s.queries.CreateDefaultUnit(traceCtx, CreateDefaultUnitParams{
+	defaultUnit, err := s.queries.CreateUnitWithID(traceCtx, CreateUnitWithIDParams{
 		ID: org.ID,
 		Name: pgtype.Text{
-			String: fmt.Sprintf("%s - default unit", name),
+			String: "Default Unit",
 			Valid:  true,
 		},
 		OrgID: org.ID,
-		Description: pgtype.Text{
-			String: fmt.Sprintf("Default unit for %s", name),
-			Valid:  true,
-		},
-		Metadata: metadata,
 	})
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "create default unit after creating organization")
@@ -339,145 +276,112 @@ func (s *Service) GetAllOrganizations(ctx context.Context) ([]Organization, erro
 }
 
 // GetByID retrieves a unit by ID
-func (s *Service) GetByID(ctx context.Context, id uuid.UUID, orgID uuid.UUID, unitType string) (GenericUnit, error) {
+func (s *Service) GetByID(ctx context.Context, id uuid.UUID, orgID uuid.UUID, unitType Type) (GenericUnit, error) {
 	traceCtx, span := s.tracer.Start(ctx, "GetByID")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
+	var resultUnit GenericUnit
+	var err error
 	switch unitType {
-	case "organization":
-		org, err := s.queries.GetOrgByID(traceCtx, orgID)
-		if err != nil {
-			err = databaseutil.WrapDBError(err, logger, "get organization by id")
-			span.RecordError(err)
-			return nil, err
-		}
-		return OrgWrapper{org}, nil
-	case "unit":
-		if err := s.validateUnitExistence(traceCtx, id, logger, span); err != nil {
-			return nil, err
-		}
-
-		unit, err := s.queries.GetUnitByID(traceCtx, id)
-		if err != nil {
-			err = databaseutil.WrapDBError(err, logger, "get unit by id")
-			span.RecordError(err)
-			return nil, err
-		}
-		return Wrapper{unit}, nil
+	case TypeOrg:
+		var org Organization
+		org, err = s.queries.GetOrgByID(traceCtx, orgID)
+		resultUnit = OrgWrapper{org}
+	case TypeUnit:
+		var unit Unit
+		unit, err = s.queries.GetUnitByID(traceCtx, id)
+		resultUnit = Wrapper{unit}
+	default:
+		logger.Error("invalid unit type: ", zap.String("unitType", unitType.String()))
+		return nil, fmt.Errorf("invalid unit type: %s", unitType.String())
 	}
 
-	logger.Error("invalid unit type: ", zap.String("unitType", unitType))
-	return nil, fmt.Errorf("invalid unit type: %s", unitType)
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, fmt.Sprintf("get %s by id", unitType.String()))
+		span.RecordError(err)
+		return nil, err
+	}
+	return resultUnit, nil
 }
 
 // ListSubUnits retrieves all subunits of a parent unit
-func (s *Service) ListSubUnits(ctx context.Context, id uuid.UUID, unitType string) ([]Unit, error) {
+func (s *Service) ListSubUnits(ctx context.Context, id uuid.UUID, unitType Type) ([]Unit, error) {
 	traceCtx, span := s.tracer.Start(ctx, "ListSubUnits")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
+	var subUnits []Unit
+	var err error
 	switch unitType {
-	case "organization":
-		subUnits, err := s.queries.ListOrgSubUnits(traceCtx, id)
-		if err != nil {
-			err = databaseutil.WrapDBError(err, logger, "list sub units of an organization")
-			span.RecordError(err)
-			return nil, err
-		}
-
-		if subUnits == nil {
-			subUnits = []Unit{}
-		}
-
-		logger.Info("Listed sub units of an organization", zap.String("parent_id", id.String()), zap.Int("count", len(subUnits)))
-		return subUnits, nil
-
-	case "unit":
-		if err := s.validateUnitExistence(traceCtx, id, logger, span); err != nil {
-			return nil, err
-		}
-
-		subUnits, err := s.queries.ListSubUnits(traceCtx, pgtype.UUID{Bytes: id, Valid: true})
-		if err != nil {
-			err = databaseutil.WrapDBError(err, logger, "list sub units of an unit")
-			span.RecordError(err)
-			return nil, err
-		}
-
-		if subUnits == nil {
-			subUnits = []Unit{}
-		}
-
-		logger.Info("Listed sub units of an unit", zap.String("parent_id", id.String()), zap.Int("count", len(subUnits)))
-		return subUnits, nil
+	case TypeOrg:
+		subUnits, err = s.queries.ListOrgSubUnits(traceCtx, pgtype.UUID{Bytes: id, Valid: true})
+	case TypeUnit:
+		subUnits, err = s.queries.ListSubUnits(traceCtx, pgtype.UUID{Bytes: id, Valid: true})
+	default:
+		logger.Error("invalid unit type: ", zap.String("unitType", unitType.String()))
+		span.RecordError(err)
+		return nil, fmt.Errorf("invalid unit type: %s", unitType.String())
 	}
 
-	logger.Error("invalid unit type: ", zap.String("unitType", unitType))
-	return nil, fmt.Errorf("invalid unit type: %s", unitType)
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, fmt.Sprintf("list sub units of an %s", unitType.String()))
+		span.RecordError(err)
+		return nil, err
+	}
+
+	if subUnits == nil {
+		subUnits = make([]Unit, 0)
+	}
+
+	logger.Info(fmt.Sprintf("Listed sub units of an %s", unitType.String()), zap.String("parent_id", id.String()), zap.Int("count", len(subUnits)))
+	return subUnits, nil
 }
 
 // ListSubUnitIDs retrieves all child unit IDs of a parent unit
-func (s *Service) ListSubUnitIDs(ctx context.Context, id uuid.UUID, unitType string) ([]uuid.UUID, error) {
+func (s *Service) ListSubUnitIDs(ctx context.Context, id uuid.UUID, unitType Type) ([]uuid.UUID, error) {
 	traceCtx, span := s.tracer.Start(ctx, "ListSubUnitIDs")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
+	var subUnitIDs []uuid.UUID
+	var err error
 	switch unitType {
-	case "organization":
-		subUnitIDs, err := s.queries.ListOrgSubUnitIDs(traceCtx, id)
-		if err != nil {
-			err = databaseutil.WrapDBError(err, logger, "list sub unit IDs of an organization")
-			span.RecordError(err)
-			return nil, err
-		}
-
-		if subUnitIDs == nil {
-			subUnitIDs = []uuid.UUID{}
-		}
-
-		logger.Info("Listed sub unit IDs of an organization", zap.String("parent_id", id.String()), zap.Int("count", len(subUnitIDs)))
-		return subUnitIDs, nil
-
-	case "unit":
-		if err := s.validateUnitExistence(traceCtx, id, logger, span); err != nil {
-			return nil, err
-		}
-
-		subUnitIDs, err := s.queries.ListSubUnitIDs(traceCtx, pgtype.UUID{Bytes: id, Valid: true})
-		if err != nil {
-			err = databaseutil.WrapDBError(err, logger, "list sub unit IDs of an unit")
-			span.RecordError(err)
-			return nil, err
-		}
-
-		if subUnitIDs == nil {
-			subUnitIDs = []uuid.UUID{}
-		}
-
-		logger.Info("Listed sub unit IDs of an unit", zap.String("parent_id", id.String()), zap.Int("count", len(subUnitIDs)))
-		return subUnitIDs, nil
+	case TypeOrg:
+		subUnitIDs, err = s.queries.ListOrgSubUnitIDs(traceCtx, pgtype.UUID{Bytes: id, Valid: true})
+	case TypeUnit:
+		subUnitIDs, err = s.queries.ListSubUnitIDs(traceCtx, pgtype.UUID{Bytes: id, Valid: true})
+	default:
+		logger.Error("invalid unit type: ", zap.String("unitType", unitType.String()))
+		span.RecordError(err)
+		return nil, fmt.Errorf("invalid unit type: %s", unitType.String())
 	}
 
-	logger.Error("invalid unit type: ", zap.String("unitType", unitType))
-	return nil, fmt.Errorf("invalid unit type: %s", unitType)
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, fmt.Sprintf("list sub unit IDs of an %s", unitType.String()))
+		span.RecordError(err)
+		return nil, err
+	}
+
+	if subUnitIDs == nil {
+		subUnitIDs = []uuid.UUID{}
+	}
+
+	logger.Info(fmt.Sprintf("Listed sub unit IDs of an %s", unitType.String()), zap.String("parent_id", id.String()), zap.Int("count", len(subUnitIDs)))
+	return subUnitIDs, nil
 }
 
 // UpdateUnit updates the base fields of a unit
-func (s *Service) UpdateUnit(ctx context.Context, id uuid.UUID, args UpdateUnitParams) (Unit, error) {
+func (s *Service) UpdateUnit(ctx context.Context, id uuid.UUID, name string, description string, metadata []byte) (Unit, error) {
 	traceCtx, span := s.tracer.Start(ctx, "UpdateUnit")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	if err := s.validateUnitExistence(traceCtx, id, logger, span); err != nil {
-		return Unit{}, err
-	}
-
 	unit, err := s.queries.UpdateUnit(traceCtx, UpdateUnitParams{
 		ID:          id,
-		Name:        args.Name,
-		Description: args.Description,
-		Metadata:    args.Metadata,
+		Name:        pgtype.Text{String: name, Valid: name != ""},
+		Description: pgtype.Text{String: description, Valid: true},
+		Metadata:    metadata,
 	})
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "update unit")
@@ -496,21 +400,17 @@ func (s *Service) UpdateUnit(ctx context.Context, id uuid.UUID, args UpdateUnitP
 }
 
 // UpdateOrg updates the base fields of an organization
-func (s *Service) UpdateOrg(ctx context.Context, id uuid.UUID, args UpdateOrgParams) (Organization, error) {
+func (s *Service) UpdateOrg(ctx context.Context, id uuid.UUID, name string, description string, metadata []byte, slug string) (Organization, error) {
 	traceCtx, span := s.tracer.Start(ctx, "UpdateOrg")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	if err := s.validateOrgSlugExistence(traceCtx, args.Slug, logger, span, id); err != nil {
-		return Organization{}, err
-	}
-
 	org, err := s.queries.UpdateOrg(traceCtx, UpdateOrgParams{
 		ID:          id,
-		Name:        args.Name,
-		Description: args.Description,
-		Metadata:    args.Metadata,
-		Slug:        args.Slug,
+		Slug:        slug,
+		Name:        pgtype.Text{String: name, Valid: name != ""},
+		Description: pgtype.Text{String: description, Valid: true},
+		Metadata:    metadata,
 	})
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "update org")
@@ -521,6 +421,7 @@ func (s *Service) UpdateOrg(ctx context.Context, id uuid.UUID, args UpdateOrgPar
 	logger.Info("Updated organization",
 		zap.String("orgID", org.ID.String()),
 		zap.String("orgName", org.Name.String),
+		zap.String("orgSlug", org.Slug),
 		zap.String("orgDescription", org.Description.String),
 		zap.ByteString("orgMetadata", org.Metadata),
 	)
@@ -529,13 +430,20 @@ func (s *Service) UpdateOrg(ctx context.Context, id uuid.UUID, args UpdateOrgPar
 }
 
 // Delete deletes a unit by ID
-func (s *Service) Delete(ctx context.Context, id uuid.UUID, unitType string) error {
+func (s *Service) Delete(ctx context.Context, id uuid.UUID, unitType Type) error {
 	traceCtx, span := s.tracer.Start(ctx, "Delete")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
 	switch unitType {
-	case "unit":
+	case TypeOrg:
+		err := s.queries.DeleteOrg(traceCtx, id)
+		if err != nil {
+			err = databaseutil.WrapDBErrorWithKeyValue(err, "organizations", "id", id.String(), logger, "delete organization")
+			span.RecordError(err)
+			return err
+		}
+	case TypeUnit:
 		// Deletion Check: Ensure not deleting default unit
 		unit, err := s.queries.GetUnitByID(traceCtx, id)
 		if err != nil {
@@ -545,36 +453,24 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID, unitType string) err
 		}
 
 		if unit.ID == unit.OrgID {
-			err := fmt.Errorf("cannot delete default unit with ID %s", id.String())
+			err = fmt.Errorf("cannot delete default unit with ID %s", id.String())
 			span.RecordError(err)
 			logger.Error("Attempted to delete default unit", zap.String("unit_id", id.String()))
 			return err
 		} else {
-			err := s.queries.DeleteUnit(traceCtx, id)
+			err = s.queries.DeleteUnit(traceCtx, id)
 			if err != nil {
-				err = databaseutil.WrapDBError(err, logger, "Delete Unit")
+				err = databaseutil.WrapDBErrorWithKeyValue(err, "units", "id", id.String(), logger, "delete unit")
 				span.RecordError(err)
-				logger.Error("Failed to delete unit",
-					zap.String("unit_id", id.String()),
-					zap.Error(err),
-				)
+				return err
 			}
 		}
 
-	case "organization":
-		err := s.queries.DeleteOrg(traceCtx, id)
-		if err != nil {
-			err = databaseutil.WrapDBError(err, logger, "Delete Organization")
-			span.RecordError(err)
-			logger.Error("Failed to delete organization",
-				zap.String("org_id", id.String()),
-				zap.Error(err),
-			)
-		}
 	default:
 		err := fmt.Errorf("invalid unit type for deletion: %s", unitType)
 		span.RecordError(err)
-		logger.Error("Invalid unit type for deletion", zap.String("unit_type", string(unitType)))
+		logger.Error("Invalid unit type for deletion", zap.String("unit_type", unitType.String()))
+		return err
 	}
 
 	logger.Info(fmt.Sprintf("Deleted %s", unitType), zap.String("ID: ", id.String()))
@@ -583,29 +479,28 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID, unitType string) err
 }
 
 // AddParentChild adds a parent-child relationship between two units
-func (s *Service) AddParentChild(ctx context.Context, arg AddParentChildParams) (ParentChild, error) {
+func (s *Service) AddParentChild(ctx context.Context, parentID uuid.UUID, childID uuid.UUID, orgID uuid.UUID) (ParentChild, error) {
 	traceCtx, span := s.tracer.Start(ctx, "AddParentChild")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	if err := s.validateUnitExistence(traceCtx, arg.ChildID, logger, span); err != nil {
-		return ParentChild{}, err
+	pgParentID := pgtype.UUID{Valid: false}
+	if parentID != uuid.Nil {
+		pgParentID = pgtype.UUID{Bytes: parentID, Valid: true}
 	}
 
-	if arg.ParentID.Valid {
-		if err := s.validateUnitExistence(traceCtx, arg.ParentID.Bytes, logger, span); err != nil {
-			return ParentChild{}, err
-		}
-	}
-
-	parentChild, err := s.queries.AddParentChild(traceCtx, arg)
+	parentChild, err := s.queries.AddParentChild(traceCtx, AddParentChildParams{
+		ParentID: pgParentID,
+		ChildID:  childID,
+		OrgID:    orgID,
+	})
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "add parent-child relationship")
 		span.RecordError(err)
 		return ParentChild{}, err
 	}
 
-	logger.Info("Added parent-child relationship", zap.String("parentID", arg.ParentID.String()), zap.String("childID", arg.ChildID.String()))
+	logger.Info("Added parent-child relationship", zap.String("parentID", parentID.String()), zap.String("childID", childID.String()))
 
 	return parentChild, nil
 }
@@ -624,145 +519,6 @@ func (s *Service) RemoveParentChild(ctx context.Context, childID uuid.UUID) erro
 	}
 
 	logger.Info("Removed parent-child relationship", zap.String("childID", childID.String()))
-
-	return nil
-}
-
-// AddMember adds a member to an organization or a unit
-func (s *Service) AddMember(ctx context.Context, unitType string, arg AddMemberParams) (GenericMember, error) {
-	mapping := map[string]string{
-		"unit":         "Unit",
-		"organization": "Org",
-	}
-
-	traceCtx, span := s.tracer.Start(ctx, fmt.Sprintf("Add%sMember", mapping[unitType]))
-	defer span.End()
-	logger := logutil.WithContext(traceCtx, s.logger)
-
-	if err := s.validateMemberExistence(traceCtx, arg.MemberID, logger, span); err != nil {
-		return nil, err
-	}
-
-	if err := s.validateUnitExistence(traceCtx, arg.ID, logger, span); err != nil {
-		return nil, err
-	}
-
-	switch unitType {
-	case "organization":
-		orgMember, err := s.queries.AddOrgMember(traceCtx, AddOrgMemberParams{
-			OrgID:    arg.ID,
-			MemberID: arg.MemberID,
-		})
-		if err != nil {
-			err = databaseutil.WrapDBError(err, logger, "add org member relationship")
-			span.RecordError(err)
-			return OrgMemberWrapper{}, err
-		}
-
-		logger.Info("Added organization member",
-			zap.String("org_id", orgMember.OrgID.String()),
-			zap.String("member_id", orgMember.MemberID.String()))
-
-		return OrgMemberWrapper{orgMember}, nil
-
-	case "unit":
-		unitMember, err := s.queries.AddUnitMember(traceCtx, AddUnitMemberParams{
-			UnitID:   arg.ID,
-			MemberID: arg.MemberID,
-		})
-		if err != nil {
-			err = databaseutil.WrapDBError(err, logger, "add unit member relationship")
-			span.RecordError(err)
-			return MemberWrapper{}, err
-		}
-
-		logger.Info("Added unit member",
-			zap.String("unit_id", unitMember.UnitID.String()),
-			zap.String("member_id", unitMember.MemberID.String()))
-
-		return MemberWrapper{unitMember}, nil
-	}
-
-	logger.Error("invalid unit type: ", zap.String("unitType", unitType))
-	return MemberWrapper{}, fmt.Errorf("invalid unit type: %s", unitType)
-}
-
-// ListMembers lists all members of an organization or a unit
-func (s *Service) ListMembers(ctx context.Context, unitType string, id uuid.UUID) ([]uuid.UUID, error) {
-	mapping := map[string]string{
-		"unit":         "Unit",
-		"organization": "Org",
-	}
-
-	traceCtx, span := s.tracer.Start(ctx, fmt.Sprintf("List%sMembers", mapping[unitType]))
-	defer span.End()
-	logger := logutil.WithContext(traceCtx, s.logger)
-
-	if err := s.validateUnitExistence(traceCtx, id, logger, span); err != nil {
-		return nil, err
-	}
-
-	var members []uuid.UUID
-	var err error
-	switch unitType {
-	case "organization":
-		members, err = s.queries.ListOrgMembers(traceCtx, id)
-	case "unit":
-		members, err = s.queries.ListUnitMembers(traceCtx, id)
-	}
-
-	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, fmt.Sprintf("list %s members", unitType))
-		span.RecordError(err)
-		return nil, err
-	}
-
-	if members == nil {
-		members = []uuid.UUID{}
-	}
-
-	logger.Info(fmt.Sprintf("Listed %s members", unitType),
-		zap.String("org_id", id.String()),
-		zap.Int("count", len(members)),
-		zap.String("members", fmt.Sprintf("%v", members)))
-
-	return members, nil
-}
-
-// RemoveMember removes a member from an organization or a unit
-func (s *Service) RemoveMember(ctx context.Context, unitType string, arg RemoveMemberParams) error {
-	mapping := map[string]string{
-		"unit":         "Unit",
-		"organization": "Org",
-	}
-
-	traceCtx, span := s.tracer.Start(ctx, fmt.Sprintf("Remove%sMember", mapping[unitType]))
-	defer span.End()
-	logger := logutil.WithContext(traceCtx, s.logger)
-
-	var err error
-	switch unitType {
-	case "organization":
-		err = s.queries.RemoveOrgMember(traceCtx, RemoveOrgMemberParams{
-			OrgID:    arg.ID,
-			MemberID: arg.MemberID,
-		})
-	case "unit":
-		err = s.queries.RemoveUnitMember(traceCtx, RemoveUnitMemberParams{
-			UnitID:   arg.ID,
-			MemberID: arg.MemberID,
-		})
-	}
-
-	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, fmt.Sprintf("remove %s member", unitType))
-		span.RecordError(err)
-		return err
-	}
-
-	logger.Info(fmt.Sprintf("Removed %s member", unitType),
-		zap.String("org_id", arg.ID.String()),
-		zap.String("member_id", arg.MemberID.String()))
 
 	return nil
 }

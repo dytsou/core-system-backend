@@ -40,7 +40,7 @@ func (s *Service) Create(ctx context.Context, req Request, unitID uuid.UUID, use
 	defer span.End()
 	logger := logutil.WithContext(ctx, s.logger)
 
-	form, err := s.queries.Create(ctx, CreateParams{
+	newForm, err := s.queries.Create(ctx, CreateParams{
 		Title:       req.Title,
 		Description: pgtype.Text{String: req.Description, Valid: true},
 		UnitID:      pgtype.UUID{Bytes: unitID, Valid: true},
@@ -51,8 +51,8 @@ func (s *Service) Create(ctx context.Context, req Request, unitID uuid.UUID, use
 		span.RecordError(err)
 		return Form{}, err
 	}
-	
-	return form, nil
+
+	return newForm, nil
 }
 
 func (s *Service) Update(ctx context.Context, id uuid.UUID, request Request, userID uuid.UUID) (Form, error) {
@@ -60,7 +60,7 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, request Request, use
 	defer span.End()
 	logger := logutil.WithContext(ctx, s.logger)
 
-	form, err := s.queries.Update(ctx, UpdateParams{
+	updatedForm, err := s.queries.Update(ctx, UpdateParams{
 		ID:          id,
 		Title:       request.Title,
 		Description: pgtype.Text{String: request.Description, Valid: true},
@@ -72,7 +72,7 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, request Request, use
 		return Form{}, err
 	}
 
-	return form, nil
+	return updatedForm, nil
 }
 
 func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
@@ -94,14 +94,14 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (Form, error) {
 	defer span.End()
 	logger := logutil.WithContext(ctx, s.logger)
 
-	form, err := s.queries.GetByID(ctx, id)
+	currentForm, err := s.queries.GetByID(ctx, id)
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "get form by id")
 		span.RecordError(err)
 		return Form{}, err
 	}
 
-	return form, nil
+	return currentForm, nil
 }
 
 func (s *Service) List(ctx context.Context) ([]Form, error) {

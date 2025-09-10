@@ -8,7 +8,7 @@ INSERT INTO units (name, org_id, description, metadata)
 VALUES ($1, $2, $3, $4)
 RETURNING *;
 
--- name: CreateDefaultUnit :one
+-- name: CreateUnitWithID :one
 INSERT INTO units (id, name, org_id, description, metadata)
 VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
@@ -56,13 +56,13 @@ WHERE pc.parent_id = $1;
 -- name: ListOrgSubUnits :many
 SELECT u.* FROM units u
 JOIN parent_child pc ON u.id = pc.child_id
-WHERE pc.parent_id IS NULL AND pc.org_id = $1;
+WHERE pc.parent_id = $1;
 
 -- name: ListSubUnitIDs :many
 SELECT child_id FROM parent_child WHERE parent_id = $1;
 
 -- name: ListOrgSubUnitIDs :many
-SELECT child_id FROM parent_child WHERE parent_id IS NULL AND org_id = $1;
+SELECT child_id FROM parent_child WHERE parent_id = $1;
 
 -- name: RemoveParentChild :exec
 DELETE FROM parent_child WHERE child_id = $1;

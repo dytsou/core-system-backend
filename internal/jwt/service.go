@@ -129,7 +129,7 @@ func (s Service) NewState(ctx context.Context, service, environment, callbackURL
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	jwtID := uuid.New()
+	id := uuid.New()
 	claims := &oauthProxyClaims{
 		Service:     service,
 		Environment: environment,
@@ -137,11 +137,11 @@ func (s Service) NewState(ctx context.Context, service, environment, callbackURL
 		RedirectURL: redirectURL,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    Issuer,
-			Subject:   jwtID.String(),
+			Subject:   id.String(),
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(5 * time.Minute)),
 			NotBefore: jwt.NewNumericDate(time.Now()),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			ID:        jwtID.String(),
+			ID:        id.String(),
 		},
 	}
 
