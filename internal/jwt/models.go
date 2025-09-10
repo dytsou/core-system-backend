@@ -141,48 +141,6 @@ func (ns NullQuestionType) Value() (driver.Value, error) {
 	return string(ns.QuestionType), nil
 }
 
-type UnitType string
-
-const (
-	UnitTypeUnit         UnitType = "unit"
-	UnitTypeOrganization UnitType = "organization"
-)
-
-func (e *UnitType) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = UnitType(s)
-	case string:
-		*e = UnitType(s)
-	default:
-		return fmt.Errorf("unsupported scan type for UnitType: %T", src)
-	}
-	return nil
-}
-
-type NullUnitType struct {
-	UnitType UnitType
-	Valid    bool // Valid is true if UnitType is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullUnitType) Scan(value interface{}) error {
-	if value == nil {
-		ns.UnitType, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.UnitType.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullUnitType) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.UnitType), nil
-}
-
 type Answer struct {
 	ID         uuid.UUID
 	ResponseID uuid.UUID
@@ -238,19 +196,19 @@ type OrgMember struct {
 
 type Organization struct {
 	ID          uuid.UUID
-	OwnerID     uuid.UUID
+	OwnerID     pgtype.UUID
 	Name        pgtype.Text
 	Description pgtype.Text
 	Metadata    []byte
-	Type        UnitType
 	Slug        string
 	CreatedAt   pgtype.Timestamptz
 	UpdatedAt   pgtype.Timestamptz
 }
 
 type ParentChild struct {
-	ParentID uuid.UUID
+	ParentID pgtype.UUID
 	ChildID  uuid.UUID
+	OrgID    uuid.UUID
 }
 
 type Question struct {
@@ -284,7 +242,6 @@ type Unit struct {
 	Name        pgtype.Text
 	Description pgtype.Text
 	Metadata    []byte
-	Type        UnitType
 	CreatedAt   pgtype.Timestamptz
 	UpdatedAt   pgtype.Timestamptz
 }
