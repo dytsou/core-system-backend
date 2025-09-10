@@ -522,3 +522,142 @@ func (s *Service) RemoveParentChild(ctx context.Context, childID uuid.UUID) erro
 
 	return nil
 }
+
+// AddMember adds a member to an organization or a unit
+func (s *Service) AddMember(ctx context.Context, unitType string, arg AddMemberParams) (GenericMember, error) {
+	mapping := map[string]string{
+		"unit":         "Unit",
+		"organization": "Org",
+	}
+
+	traceCtx, span := s.tracer.Start(ctx, fmt.Sprintf("Add%sMember", mapping[unitType]))
+	defer span.End()
+	logger := logutil.WithContext(traceCtx, s.logger)
+
+	if err := s.validateMemberExistence(traceCtx, arg.MemberID, logger, span); err != nil {
+		return nil, err
+	}
+
+	if err := s.validateUnitExistence(traceCtx, arg.ID, logger, span); err != nil {
+		return nil, err
+	}
+
+	switch unitType {
+	case "organization":
+		orgMember, err := s.queries.AddOrgMember(traceCtx, AddOrgMemberParams{
+			OrgID:    arg.ID,
+			MemberID: arg.MemberID,
+		})
+		if err != nil {
+			err = databaseutil.WrapDBError(err, logger, "add org member relationship")
+			span.RecordError(err)
+			return OrgMemberWrapper{}, err
+		}
+
+		logger.Info("Added organization member",
+			zap.String("org_id", orgMember.OrgID.String()),
+			zap.String("member_id", orgMember.MemberID.String()))
+
+		return OrgMemberWrapper{orgMember}, nil
+
+	case "unit":
+		unitMember, err := s.queries.AddUnitMember(traceCtx, AddUnitMemberParams{
+			UnitID:   arg.ID,
+			MemberID: arg.MemberID,
+		})
+		if err != nil {
+			err = databaseutil.WrapDBError(err, logger, "add unit member relationship")
+			span.RecordError(err)
+			return MemberWrapper{}, err
+		}
+
+		logger.Info("Added unit member",
+			zap.String("unit_id", unitMember.UnitID.String()),
+			zap.String("member_id", unitMember.MemberID.String()))
+
+		return MemberWrapper{unitMember}, nil
+	}
+
+	logger.Error("invalid unit type: ", zap.String("unitType", unitType))
+	return MemberWrapper{}, fmt.Errorf("invalid unit type: %s", unitType)
+}
+
+// ListMembers lists all members of an organization or a unit
+func (s *Service) ListMembers(ctx context.Context, unitType string, id uuid.UUID) ([]uuid.UUID, error) {
+	mapping := map[string]string{
+		"unit":         "Unit",
+		"organization": "Org",
+	}
+
+	traceCtx, span := s.tracer.Start(ctx, fmt.Sprintf("List%sMembers", mapping[unitType]))
+	defer span.End()
+	logger := logutil.WithContext(traceCtx, s.logger)
+
+	if err := s.validateUnitExistence(traceCtx, id, logger, span); err != nil {
+		return nil, err
+	}
+
+	var members []uuid.UUID
+	var err error
+	switch unitType {
+	case "organization":
+		members, err = s.queries.ListOrgMembers(traceCtx, id)
+	case "unit":
+		members, err = s.queries.ListUnitMembers(traceCtx, id)
+	}
+
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, fmt.Sprintf("list %s members", unitType))
+		span.RecordError(err)
+		return nil, err
+	}
+
+	if members == nil {
+		members = []uuid.UUID{}
+	}
+
+	logger.Info(fmt.Sprintf("Listed %s members", unitType),
+		zap.String("org_id", id.String()),
+		zap.Int("count", len(members)),
+		zap.String("members", fmt.Sprintf("%v", members)))
+
+	return members, nil
+}
+
+// RemoveMember removes a member from an organization or a unit
+func (s *Service) RemoveMember(ctx context.Context, unitType string, arg RemoveMemberParams) error {
+	mapping := map[string]string{
+		"unit":         "Unit",
+		"organization": "Org",
+	}
+
+	traceCtx, span := s.tracer.Start(ctx, fmt.Sprintf("Remove%sMember", mapping[unitType]))
+	defer span.End()
+	logger := logutil.WithContext(traceCtx, s.logger)
+
+	var err error
+	switch unitType {
+	case "organization":
+		err = s.queries.RemoveOrgMember(traceCtx, RemoveOrgMemberParams{
+			OrgID:    arg.ID,
+			MemberID: arg.MemberID,
+		})
+	case "unit":
+		err = s.queries.RemoveUnitMember(traceCtx, RemoveUnitMemberParams{
+			UnitID:   arg.ID,
+			MemberID: arg.MemberID,
+		})
+	}
+
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, fmt.Sprintf("remove %s member", unitType))
+		span.RecordError(err)
+		return err
+	}
+
+	logger.Info(fmt.Sprintf("Removed %s member", unitType),
+		zap.String("org_id", arg.ID.String()),
+		zap.String("member_id", arg.MemberID.String()))
+
+	return nil
+}
