@@ -33,6 +33,13 @@ type Querier interface {
 
 	AddParentChild(ctx context.Context, arg AddParentChildParams) (ParentChild, error)
 	RemoveParentChild(ctx context.Context, childID uuid.UUID) error
+
+	AddOrgMember(ctx context.Context, arg AddOrgMemberParams) (OrgMember, error)
+	ListOrgMembers(ctx context.Context, orgID uuid.UUID) ([]uuid.UUID, error)
+	RemoveOrgMember(ctx context.Context, arg RemoveOrgMemberParams) error
+	AddUnitMember(ctx context.Context, arg AddUnitMemberParams) (UnitMember, error)
+	ListUnitMembers(ctx context.Context, unitID uuid.UUID) ([]uuid.UUID, error)
+	RemoveUnitMember(ctx context.Context, arg RemoveUnitMemberParams) error
 }
 
 type Service struct {
