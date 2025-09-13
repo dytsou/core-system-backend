@@ -33,9 +33,9 @@ type Store interface {
 	RemoveParentChild(ctx context.Context, childID uuid.UUID) error
 	ListSubUnits(ctx context.Context, id uuid.UUID, unitType Type) ([]Unit, error)
 	ListSubUnitIDs(ctx context.Context, id uuid.UUID, unitType Type) ([]uuid.UUID, error)
-	AddMember(ctx context.Context, unitType string, id uuid.UUID, memberID uuid.UUID) (GenericMember, error)
-	ListMembers(ctx context.Context, unitType string, id uuid.UUID) ([]uuid.UUID, error)
-	RemoveMember(ctx context.Context, unitType string, id uuid.UUID, memberID uuid.UUID) error
+	AddMember(ctx context.Context, unitType Type, id uuid.UUID, memberID uuid.UUID) (GenericMember, error)
+	ListMembers(ctx context.Context, unitType Type, id uuid.UUID) ([]uuid.UUID, error)
+	RemoveMember(ctx context.Context, unitType Type, id uuid.UUID, memberID uuid.UUID) error
 }
 
 type Handler struct {
@@ -640,7 +640,7 @@ func (h *Handler) AddOrgMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	members, err := h.store.AddMember(traceCtx, "organization", orgID, params.MemberID)
+	members, err := h.store.AddMember(traceCtx, TypeOrg, orgID, params.MemberID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to add org member: %w", err), h.logger)
 		return
@@ -674,7 +674,7 @@ func (h *Handler) AddUnitMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	member, err := h.store.AddMember(traceCtx, "unit", id, params.MemberID)
+	member, err := h.store.AddMember(traceCtx, TypeUnit, id, params.MemberID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to add unit member: %w", err), h.logger)
 		return
@@ -700,7 +700,7 @@ func (h *Handler) ListOrgMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	members, err := h.store.ListMembers(traceCtx, "organization", orgID)
+	members, err := h.store.ListMembers(traceCtx, TypeOrg, orgID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list org members: %w", err), h.logger)
 		return
@@ -721,7 +721,7 @@ func (h *Handler) ListUnitMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	members, err := h.store.ListMembers(traceCtx, "unit", id)
+	members, err := h.store.ListMembers(traceCtx, TypeUnit, id)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list unit members: %w", err), h.logger)
 		return
@@ -759,7 +759,7 @@ func (h *Handler) RemoveOrgMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.store.RemoveMember(traceCtx, "organization", orgID, mID)
+	err = h.store.RemoveMember(traceCtx, TypeOrg, orgID, mID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to remove org member: %w", err), h.logger)
 		return
@@ -792,7 +792,7 @@ func (h *Handler) RemoveUnitMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.store.RemoveMember(traceCtx, "unit", id, mID)
+	err = h.store.RemoveMember(traceCtx, TypeUnit, id, mID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to remove unit member: %w", err), h.logger)
 		return
