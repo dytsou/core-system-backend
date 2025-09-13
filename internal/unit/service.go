@@ -481,14 +481,6 @@ func (s *Service) AddMember(ctx context.Context, unitType string, unitID uuid.UU
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	if err := s.validateMemberExistence(traceCtx, memberID, logger, span); err != nil {
-		return nil, err
-	}
-
-	if err := s.validateUnitExistence(traceCtx, unitID, logger, span); err != nil {
-		return nil, err
-	}
-
 	switch unitType {
 	case "organization":
 		orgMember, err := s.queries.AddOrgMember(traceCtx, AddOrgMemberParams{
@@ -539,10 +531,6 @@ func (s *Service) ListMembers(ctx context.Context, unitType string, id uuid.UUID
 	traceCtx, span := s.tracer.Start(ctx, fmt.Sprintf("List%sMembers", mapping[unitType]))
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
-
-	if err := s.validateUnitExistence(traceCtx, id, logger, span); err != nil {
-		return nil, err
-	}
 
 	var members []uuid.UUID
 	var err error
