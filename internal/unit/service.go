@@ -471,7 +471,7 @@ func (s *Service) RemoveParentChild(ctx context.Context, childID uuid.UUID) erro
 }
 
 // AddMember adds a member to an organization or a unit
-func (s *Service) AddMember(ctx context.Context, unitType string, unitID uuid.UUID, memberID uuid.UUID) (GenericMember, error) {
+func (s *Service) AddMember(ctx context.Context, unitType string, id uuid.UUID, memberID uuid.UUID) (GenericMember, error) {
 	mapping := map[string]string{
 		"unit":         "Unit",
 		"organization": "Org",
@@ -484,8 +484,8 @@ func (s *Service) AddMember(ctx context.Context, unitType string, unitID uuid.UU
 	switch unitType {
 	case "organization":
 		orgMember, err := s.queries.AddOrgMember(traceCtx, AddOrgMemberParams{
-			OrgID:    arg.ID,
-			MemberID: arg.MemberID,
+			OrgID:    id,
+			MemberID: memberID,
 		})
 		if err != nil {
 			err = databaseutil.WrapDBError(err, logger, "add org member relationship")
@@ -501,8 +501,8 @@ func (s *Service) AddMember(ctx context.Context, unitType string, unitID uuid.UU
 
 	case "unit":
 		unitMember, err := s.queries.AddUnitMember(traceCtx, AddUnitMemberParams{
-			UnitID:   arg.ID,
-			MemberID: arg.MemberID,
+			UnitID:   id,
+			MemberID: memberID,
 		})
 		if err != nil {
 			err = databaseutil.WrapDBError(err, logger, "add unit member relationship")
@@ -560,7 +560,7 @@ func (s *Service) ListMembers(ctx context.Context, unitType string, id uuid.UUID
 }
 
 // RemoveMember removes a member from an organization or a unit
-func (s *Service) RemoveMember(ctx context.Context, unitType string, arg RemoveMemberParams) error {
+func (s *Service) RemoveMember(ctx context.Context, unitType string, id uuid.UUID, memberID uuid.UUID) error {
 	mapping := map[string]string{
 		"unit":         "Unit",
 		"organization": "Org",
@@ -574,13 +574,13 @@ func (s *Service) RemoveMember(ctx context.Context, unitType string, arg RemoveM
 	switch unitType {
 	case "organization":
 		err = s.queries.RemoveOrgMember(traceCtx, RemoveOrgMemberParams{
-			OrgID:    arg.ID,
-			MemberID: arg.MemberID,
+			OrgID:    id,
+			MemberID: memberID,
 		})
 	case "unit":
 		err = s.queries.RemoveUnitMember(traceCtx, RemoveUnitMemberParams{
-			UnitID:   arg.ID,
-			MemberID: arg.MemberID,
+			UnitID:   id,
+			MemberID: memberID,
 		})
 	}
 
@@ -591,8 +591,8 @@ func (s *Service) RemoveMember(ctx context.Context, unitType string, arg RemoveM
 	}
 
 	logger.Info(fmt.Sprintf("Removed %s member", unitType),
-		zap.String("org_id", arg.ID.String()),
-		zap.String("member_id", arg.MemberID.String()))
+		zap.String("org_id", id.String()),
+		zap.String("member_id", memberID.String()))
 
 	return nil
 }

@@ -637,10 +637,7 @@ func (h *Handler) AddOrgMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	members, err := h.store.AddMember(traceCtx, "organization", AddMemberParams{
-		ID:       orgID,
-		MemberID: params.MemberID,
-	})
+	members, err := h.store.AddMember(traceCtx, "organization", orgID, params.MemberID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to add org member: %w", err), h.logger)
 		return
@@ -674,10 +671,7 @@ func (h *Handler) AddUnitMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	member, err := h.store.AddMember(traceCtx, "unit", AddMemberParams{
-		ID:       id,
-		MemberID: params.MemberID,
-	})
+	member, err := h.store.AddMember(traceCtx, "unit", id, params.MemberID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to add unit member: %w", err), h.logger)
 		return
@@ -762,10 +756,7 @@ func (h *Handler) RemoveOrgMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.store.RemoveMember(traceCtx, "organization", RemoveMemberParams{
-		ID:       orgID,
-		MemberID: mID,
-	})
+	err = h.store.RemoveMember(traceCtx, "organization", orgID, mID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to remove org member: %w", err), h.logger)
 		return
@@ -798,10 +789,7 @@ func (h *Handler) RemoveUnitMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.store.RemoveMember(traceCtx, "unit", RemoveMemberParams{
-		ID:       id,
-		MemberID: mID,
-	})
+	err = h.store.RemoveMember(traceCtx, "unit", id, mID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to remove unit member: %w", err), h.logger)
 		return
