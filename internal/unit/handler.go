@@ -3,6 +3,7 @@ package unit
 import (
 	"NYCU-SDC/core-system-backend/internal"
 	"NYCU-SDC/core-system-backend/internal/form"
+	"NYCU-SDC/core-system-backend/internal/tenant"
 	"NYCU-SDC/core-system-backend/internal/user"
 	"context"
 	"encoding/json"
@@ -45,6 +46,7 @@ type Handler struct {
 	problemWriter *problem.HttpWriter
 	store         Store
 	formService   *form.Service
+	tenantService *tenant.Service
 }
 
 func NewHandler(
@@ -53,6 +55,7 @@ func NewHandler(
 	problemWriter *problem.HttpWriter,
 	store Store,
 	formService *form.Service,
+	tenantService *tenant.Service,
 ) *Handler {
 	return &Handler{
 		logger:        logger,
@@ -60,6 +63,7 @@ func NewHandler(
 		problemWriter: problemWriter,
 		store:         store,
 		formService:   formService,
+		tenantService: tenantService,
 		tracer:        otel.Tracer("unit/handler"),
 	}
 }
@@ -202,7 +206,13 @@ func (h *Handler) CreateOrg(w http.ResponseWriter, r *http.Request) {
 
 	createdOrg, err := h.store.CreateOrg(traceCtx, req.Name, req.Description, currentUser.ID, metadataBytes, req.Slug)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to create unit: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to create org: %w", err), h.logger)
+		return
+	}
+
+	_, err = h.tenantService.Create(traceCtx, createdOrg.ID)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to create tenant for org: %w", err), h.logger)
 		return
 	}
 

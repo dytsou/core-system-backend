@@ -1,7 +1,6 @@
 package unit
 
 import (
-	"NYCU-SDC/core-system-backend/internal/tenant"
 	"context"
 	"fmt"
 
@@ -43,10 +42,9 @@ type Querier interface {
 }
 
 type Service struct {
-	logger        *zap.Logger
-	queries       Querier
-	tracer        trace.Tracer
-	tenantService *tenant.Service
+	logger  *zap.Logger
+	queries Querier
+	tracer  trace.Tracer
 }
 
 type Base struct {
@@ -74,10 +72,9 @@ func (t Type) String() string {
 
 func NewService(logger *zap.Logger, db DBTX) *Service {
 	return &Service{
-		logger:        logger,
-		queries:       New(db),
-		tracer:        otel.Tracer("unit/service"),
-		tenantService: tenant.NewService(logger, db),
+		logger:  logger,
+		queries: New(db),
+		tracer:  otel.Tracer("unit/service"),
 	}
 }
 
@@ -138,15 +135,6 @@ func (s *Service) CreateOrg(ctx context.Context, name string, description string
 	})
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "create organization")
-		span.RecordError(err)
-		return Organization{}, err
-	}
-
-	println("Owner ID", org.OwnerID.String())
-
-	_, err = s.tenantService.Create(traceCtx, org.ID)
-	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "create tenant")
 		span.RecordError(err)
 		return Organization{}, err
 	}
