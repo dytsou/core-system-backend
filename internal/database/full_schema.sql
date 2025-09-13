@@ -2,25 +2,21 @@
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
-CREATE TABLE IF NOT EXISTS users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(255),
-    username VARCHAR(255),
-    avatar_url VARCHAR(512),
-    role VARCHAR(255)[] NOT NULL DEFAULT '{"user"}',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS auth (
+CREATE TABLE IF NOT EXISTS refresh_tokens (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    provider VARCHAR(255) NOT NULL,
-    provider_id VARCHAR(255) NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE(provider, provider_id)
+    is_active BOOLEAN DEFAULT TRUE,
+    expiration_date TIMESTAMPTZ NOT NULL
+);CREATE TYPE db_strategy AS ENUM ('shared', 'isolated');
+
+CREATE TABLE IF NOT EXISTS tenants
+(
+    id UUID PRIMARY KEY REFERENCES organizations(id) ON DELETE CASCADE,
+    db_strategy db_strategy NOT NULL,
+    owner_id UUID REFERENCES users(id) ON DELETE SET NULL
 );CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+CREATE TYPE unit_type AS ENUM ('organization', 'unit');
 
 CREATE TABLE IF NOT EXISTS organizations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -36,7 +32,8 @@ CREATE TABLE IF NOT EXISTS organizations (
 
 CREATE TABLE IF NOT EXISTS units (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    org_id UUID REFERENCES units(id),
+    type unit_type NOT NULL DEFAULT 'unit',
     name VARCHAR(255),
     description VARCHAR(255),
     metadata JSONB,
@@ -59,21 +56,8 @@ CREATE TABLE IF NOT EXISTS org_members (
 CREATE TABLE IF NOT EXISTS parent_child (
     parent_id UUID REFERENCES units(id) ON DELETE SET NULL,
     child_id UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE,
-    org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    org_id UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE,
     PRIMARY KEY (child_id, org_id)
-);CREATE TYPE db_strategy AS ENUM ('shared', 'isolated');
-
-CREATE TABLE IF NOT EXISTS tenants
-(
-    id UUID PRIMARY KEY REFERENCES organizations(id) ON DELETE CASCADE,
-    db_strategy db_strategy NOT NULL
-);CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
-CREATE TABLE IF NOT EXISTS refresh_tokens (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    is_active BOOLEAN DEFAULT TRUE,
-    expiration_date TIMESTAMPTZ NOT NULL
 );CREATE TABLE IF NOT EXISTS form_responses (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     form_id UUID NOT NULL REFERENCES forms(id) ON DELETE CASCADE,
@@ -142,4 +126,24 @@ CREATE TABLE IF NOT EXISTS user_inbox_messages (
     is_read boolean NOT NULL DEFAULT false,
     is_starred boolean NOT NULL DEFAULT false,
     is_archived boolean NOT NULL DEFAULT false
+);CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+CREATE TABLE IF NOT EXISTS users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255),
+    username VARCHAR(255),
+    avatar_url VARCHAR(512),
+    role VARCHAR(255)[] NOT NULL DEFAULT '{"user"}',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS auth (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    provider VARCHAR(255) NOT NULL,
+    provider_id VARCHAR(255) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE(provider, provider_id)
 );

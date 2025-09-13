@@ -47,7 +47,7 @@ func (s *Service) Get(ctx context.Context, id uuid.UUID) (Tenant, error) {
 	return tenant, nil
 }
 
-func (s *Service) Create(ctx context.Context, id uuid.UUID) (Tenant, error) {
+func (s *Service) Create(ctx context.Context, id uuid.UUID, ownerID uuid.UUID) (Tenant, error) {
 	traceCtx, span := s.tracer.Start(ctx, "Create")
 	defer span.End()
 	logger := internal.WithContext(traceCtx, s.logger)
