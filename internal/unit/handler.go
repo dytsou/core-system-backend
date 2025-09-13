@@ -33,7 +33,6 @@ type Store interface {
 	RemoveParentChild(ctx context.Context, childID uuid.UUID) error
 	ListSubUnits(ctx context.Context, id uuid.UUID, unitType Type) ([]Unit, error)
 	ListSubUnitIDs(ctx context.Context, id uuid.UUID, unitType Type) ([]uuid.UUID, error)
-	AddMember(ctx context.Context, entity string, params AddMemberParams) (Member, error)
 }
 
 type Handler struct {

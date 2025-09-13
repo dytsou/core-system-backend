@@ -14,59 +14,6 @@ import (
 	"go.uber.org/zap"
 )
 
-type GenericUnit interface {
-	Base() Base
-	SetBase(Base)
-	Instance() any
-}
-
-type Wrapper struct {
-	Unit Unit
-}
-
-func (u Wrapper) Base() Base {
-	return Base{
-		ID:          u.Unit.ID,
-		Name:        u.Unit.Name.String,
-		Description: u.Unit.Description.String,
-		Metadata:    u.Unit.Metadata,
-	}
-}
-
-func (u Wrapper) Instance() any {
-	return u.Unit
-}
-
-func (u Wrapper) SetBase(base Base) {
-	u.Unit.ID = base.ID
-	u.Unit.Name = pgtype.Text{String: base.Name, Valid: base.Name != ""}
-	u.Unit.Description = pgtype.Text{String: base.Description, Valid: base.Description != ""}
-	u.Unit.Metadata = base.Metadata
-}
-
-type OrgWrapper struct {
-	Organization Organization
-}
-
-func (o OrgWrapper) Base() Base {
-	return Base{
-		ID:          o.Organization.ID,
-		Name:        o.Organization.Name.String,
-		Description: o.Organization.Description.String,
-		Metadata:    o.Organization.Metadata,
-	}
-}
-
-func (o OrgWrapper) Instance() any {
-	return o.Organization
-}
-
-func (o OrgWrapper) SetBase(base Base) {
-	o.Organization.Name = pgtype.Text{String: base.Name, Valid: base.Name != ""}
-	o.Organization.Description = pgtype.Text{String: base.Description, Valid: base.Description != ""}
-	o.Organization.Metadata = base.Metadata
-}
-
 type Querier interface {
 	CreateUnit(ctx context.Context, arg CreateUnitParams) (Unit, error)
 	CreateUnitWithID(ctx context.Context, arg CreateUnitWithIDParams) (Unit, error)
@@ -524,7 +471,7 @@ func (s *Service) RemoveParentChild(ctx context.Context, childID uuid.UUID) erro
 }
 
 // AddMember adds a member to an organization or a unit
-func (s *Service) AddMember(ctx context.Context, unitType string, arg AddMemberParams) (GenericMember, error) {
+func (s *Service) AddMember(ctx context.Context, unitType string, unitID uuid.UUID, memberID uuid.UUID) (GenericMember, error) {
 	mapping := map[string]string{
 		"unit":         "Unit",
 		"organization": "Org",
@@ -534,11 +481,11 @@ func (s *Service) AddMember(ctx context.Context, unitType string, arg AddMemberP
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	if err := s.validateMemberExistence(traceCtx, arg.MemberID, logger, span); err != nil {
+	if err := s.validateMemberExistence(traceCtx, memberID, logger, span); err != nil {
 		return nil, err
 	}
 
-	if err := s.validateUnitExistence(traceCtx, arg.ID, logger, span); err != nil {
+	if err := s.validateUnitExistence(traceCtx, unitID, logger, span); err != nil {
 		return nil, err
 	}
 
