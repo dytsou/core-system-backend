@@ -10,18 +10,13 @@ import (
 )
 
 // AddMember adds a member to an organization or a unit
-func (s *Service) AddMember(ctx context.Context, unitType string, id uuid.UUID, memberID uuid.UUID) (GenericMember, error) {
-	mapping := map[string]string{
-		"unit":         "Unit",
-		"organization": "Org",
-	}
-
-	traceCtx, span := s.tracer.Start(ctx, fmt.Sprintf("Add%sMember", mapping[unitType]))
+func (s *Service) AddMember(ctx context.Context, unitType Type, id uuid.UUID, memberID uuid.UUID) (GenericMember, error) {
+	traceCtx, span := s.tracer.Start(ctx, fmt.Sprintf("Add%sMember", unitType.String()))
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
 	switch unitType {
-	case "organization":
+	case TypeOrg:
 		orgMember, err := s.queries.AddOrgMember(traceCtx, AddOrgMemberParams{
 			OrgID:    id,
 			MemberID: memberID,
@@ -38,7 +33,7 @@ func (s *Service) AddMember(ctx context.Context, unitType string, id uuid.UUID, 
 
 		return OrgMemberWrapper{orgMember}, nil
 
-	case "unit":
+	case TypeUnit:
 		unitMember, err := s.queries.AddUnitMember(traceCtx, AddUnitMemberParams{
 			UnitID:   id,
 			MemberID: memberID,
@@ -56,27 +51,22 @@ func (s *Service) AddMember(ctx context.Context, unitType string, id uuid.UUID, 
 		return MemberWrapper{unitMember}, nil
 	}
 
-	logger.Error("invalid unit type: ", zap.String("unitType", unitType))
+	logger.Error("invalid unit type: ", zap.String("unitType", unitType.String()))
 	return MemberWrapper{}, fmt.Errorf("invalid unit type: %s", unitType)
 }
 
 // ListMembers lists all members of an organization or a unit
-func (s *Service) ListMembers(ctx context.Context, unitType string, id uuid.UUID) ([]uuid.UUID, error) {
-	mapping := map[string]string{
-		"unit":         "Unit",
-		"organization": "Org",
-	}
-
-	traceCtx, span := s.tracer.Start(ctx, fmt.Sprintf("List%sMembers", mapping[unitType]))
+func (s *Service) ListMembers(ctx context.Context, unitType Type, id uuid.UUID) ([]uuid.UUID, error) {
+	traceCtx, span := s.tracer.Start(ctx, fmt.Sprintf("List%sMembers", unitType.String()))
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
 	var members []uuid.UUID
 	var err error
 	switch unitType {
-	case "organization":
+	case TypeOrg:
 		members, err = s.queries.ListOrgMembers(traceCtx, id)
-	case "unit":
+	case TypeUnit:
 		members, err = s.queries.ListUnitMembers(traceCtx, id)
 	}
 
@@ -90,7 +80,7 @@ func (s *Service) ListMembers(ctx context.Context, unitType string, id uuid.UUID
 		members = []uuid.UUID{}
 	}
 
-	logger.Info(fmt.Sprintf("Listed %s members", unitType),
+	logger.Info(fmt.Sprintf("Listed %s members", unitType.String()),
 		zap.String("org_id", id.String()),
 		zap.Int("count", len(members)),
 		zap.String("members", fmt.Sprintf("%v", members)))
@@ -98,25 +88,63 @@ func (s *Service) ListMembers(ctx context.Context, unitType string, id uuid.UUID
 	return members, nil
 }
 
+//
+//func (s *Service) ListMultiUnitMembers(ctx context.Context, unitIDs []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error) {
+//	traceCtx, span := s.tracer.Start(ctx, "ListMultiUnitMembers")
+//	defer span.End()
+//	logger := logutil.WithContext(traceCtx, s.logger)
+//
+//	membersMap := make(map[uuid.UUID][]uuid.UUID)
+//	if len(unitIDs) == 0 {
+//		return membersMap, nil
+//	}
+//
+//	rows, err := s.queries.ListMultiUnitMembers(traceCtx, unitIDs)
+//	if err != nil {
+//		err = databaseutil.WrapDBError(err, logger, "list multi unit members")
+//		span.RecordError(err)
+//		return nil, err
+//	}
+//	defer rows.Close()
+//
+//	for rows.Next() {
+//		var unitID uuid.UUID
+//		var memberID uuid.UUID
+//		if err := rows.Scan(&unitID, &memberID); err != nil {
+//			err = databaseutil.WrapDBError(err, logger, "scan multi unit members")
+//			span.RecordError(err)
+//			return nil, err
+//		}
+//		membersMap[unitID] = append(membersMap[unitID], memberID)
+//	}
+//
+//	if err := rows.Err(); err != nil {
+//		err = databaseutil.WrapDBError(err, logger, "iterate multi unit members")
+//		span.RecordError(err)
+//		return nil, err
+//	}
+//
+//	logger.Info("Listed multi unit members",
+//		zap.Int("unit_count", len(membersMap)),
+//	)
+//
+//	return membersMap, nil
+//}
+
 // RemoveMember removes a member from an organization or a unit
 func (s *Service) RemoveMember(ctx context.Context, unitType Type, id uuid.UUID, memberID uuid.UUID) error {
-	mapping := map[string]string{
-		"unit":         "Unit",
-		"organization": "Org",
-	}
-
-	traceCtx, span := s.tracer.Start(ctx, fmt.Sprintf("Remove%sMember", mapping[unitType]))
+	traceCtx, span := s.tracer.Start(ctx, fmt.Sprintf("Remove%sMember", unitType.String()))
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
 	var err error
 	switch unitType {
-	case "organization":
+	case TypeOrg:
 		err = s.queries.RemoveOrgMember(traceCtx, RemoveOrgMemberParams{
 			OrgID:    id,
 			MemberID: memberID,
 		})
-	case "unit":
+	case TypeUnit:
 		err = s.queries.RemoveUnitMember(traceCtx, RemoveUnitMemberParams{
 			UnitID:   id,
 			MemberID: memberID,
@@ -124,12 +152,12 @@ func (s *Service) RemoveMember(ctx context.Context, unitType Type, id uuid.UUID,
 	}
 
 	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, fmt.Sprintf("remove %s member", unitType))
+		err = databaseutil.WrapDBError(err, logger, fmt.Sprintf("remove %s member", unitType.String()))
 		span.RecordError(err)
 		return err
 	}
 
-	logger.Info(fmt.Sprintf("Removed %s member", unitType),
+	logger.Info(fmt.Sprintf("Removed %s member", unitType.String()),
 		zap.String("org_id", id.String()),
 		zap.String("member_id", memberID.String()))
 
