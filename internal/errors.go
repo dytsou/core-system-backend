@@ -22,8 +22,8 @@ var (
 	ErrNotFound             = errors.New("not found")
 
 	// JWT Authentication Errors
-	ErrMissingAuthHeader       = errors.New("missing access token cookie")
-	ErrInvalidAuthHeaderFormat = errors.New("invalid access token cookie")
+	ErrMissingAuthHeader       = errors.New("missing access token")
+	ErrInvalidAuthHeaderFormat = errors.New("invalid access token")
 	ErrInvalidJWTToken         = errors.New("invalid JWT token")
 	ErrInvalidAuthUser         = errors.New("invalid authenticated user")
 
@@ -66,9 +66,9 @@ func ErrorHandler(err error) problem.Problem {
 		return problem.NewNotFoundProblem("not found")
 	// JWT Authentication Errors
 	case errors.Is(err, ErrMissingAuthHeader):
-		return problem.NewUnauthorizedProblem("missing access token cookie")
+		return problem.NewUnauthorizedProblem("missing access token")
 	case errors.Is(err, ErrInvalidAuthHeaderFormat):
-		return problem.NewUnauthorizedProblem("invalid access token cookie")
+		return problem.NewUnauthorizedProblem("invalid access token")
 	case errors.Is(err, ErrInvalidJWTToken):
 		return problem.NewUnauthorizedProblem("invalid JWT token")
 	case errors.Is(err, ErrInvalidAuthUser):
