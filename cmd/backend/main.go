@@ -4,12 +4,14 @@ import (
 	"NYCU-SDC/core-system-backend/internal"
 	"NYCU-SDC/core-system-backend/internal/auth"
 	"NYCU-SDC/core-system-backend/internal/config"
+	"NYCU-SDC/core-system-backend/internal/distribute"
 	"NYCU-SDC/core-system-backend/internal/form"
 	"NYCU-SDC/core-system-backend/internal/form/question"
 	"NYCU-SDC/core-system-backend/internal/form/response"
 	"NYCU-SDC/core-system-backend/internal/form/submit"
 	"NYCU-SDC/core-system-backend/internal/inbox"
 	"NYCU-SDC/core-system-backend/internal/jwt"
+	"NYCU-SDC/core-system-backend/internal/publish"
 	"NYCU-SDC/core-system-backend/internal/tenant"
 	"NYCU-SDC/core-system-backend/internal/unit"
 
@@ -129,11 +131,13 @@ func main() {
 	jwtService := jwt.NewService(logger, dbPool, cfg.Secret, cfg.OauthProxySecret, cfg.AccessTokenExpiration, cfg.RefreshTokenExpiration)
 	tenantService := tenant.NewService(logger, dbPool)
 	unitService := unit.NewService(logger, dbPool)
+	distributeService := distribute.NewService(logger, unitService)
 	formService := form.NewService(logger, dbPool)
 	questionService := question.NewService(logger, dbPool)
 	inboxService := inbox.NewService(logger, dbPool)
 	responseService := response.NewService(logger, dbPool)
 	submitService := submit.NewService(logger, questionService, responseService)
+	_ = publish.NewService(logger, distributeService, formService, inboxService)
 
 	// Handler
 	authHandler := auth.NewHandler(logger, validator, problemWriter, userService, jwtService, jwtService, cfg.BaseURL, cfg.OauthProxyBaseURL, Environment, cfg.AccessTokenExpiration, cfg.RefreshTokenExpiration, cfg.GoogleOauth)
@@ -219,6 +223,7 @@ func main() {
 	mux.Handle("GET /api/forms/{id}", authMiddleware.HandlerFunc(formHandler.GetHandler))
 	mux.Handle("PUT /api/forms/{id}", authMiddleware.HandlerFunc(formHandler.UpdateHandler))
 	mux.Handle("DELETE /api/forms/{id}", authMiddleware.HandlerFunc(formHandler.DeleteHandler))
+	//mux.Handle("POST /api/forms/recipients/preview", authMiddleware.HandlerFunc(formHandler.PreviewRecipients))
 
 	// Question routes
 	mux.Handle("GET /api/forms/{formId}/questions", authMiddleware.HandlerFunc(questionHandler.ListHandler))

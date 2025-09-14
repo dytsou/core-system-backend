@@ -18,10 +18,6 @@ type UnitStore interface {
 	ListUnitsMembers(ctx context.Context, unitIDs []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error)
 }
 
-type Distributor interface {
-	GetRecipients(ctx context.Context, orgIDs, unitIDs []uuid.UUID) ([]uuid.UUID, error)
-}
-
 type Service struct {
 	logger *zap.Logger
 	tracer trace.Tracer
