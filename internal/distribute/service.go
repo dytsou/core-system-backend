@@ -1,8 +1,10 @@
 package distribute
 
 import (
+	"NYCU-SDC/core-system-backend/internal"
+	"NYCU-SDC/core-system-backend/internal/unit"
 	"context"
-	"fmt"
+
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/google/uuid"
@@ -12,8 +14,8 @@ import (
 )
 
 type UnitStore interface {
-	UsersByOrg(ctx context.Context, orgID uuid.UUID) ([]uuid.UUID, error)
-	UsersByUnit(ctx context.Context, unitIDs uuid.UUID) ([]uuid.UUID, error)
+	ListMembers(ctx context.Context, unitType unit.Type, id uuid.UUID) ([]uuid.UUID, error)
+	ListUnitsMembers(ctx context.Context, unitIDs []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error)
 }
 
 type Distributor interface {
@@ -34,34 +36,42 @@ func NewService(logger *zap.Logger, store UnitStore) *Service {
 	}
 }
 
-func (s *Service) GetRecipients(ctx context.Context, orgIDs, unitIDs []uuid.UUID) ([]uuid.UUID, error) {
+func (s *Service) GetOrgRecipients(ctx context.Context, orgID uuid.UUID) ([]uuid.UUID, error) {
+	traceCtx, span := s.tracer.Start(ctx, "GetOrgRecipients")
+	defer span.End()
+	logger := internal.WithContext(traceCtx, s.logger)
+
+	recipients, err := s.store.ListMembers(traceCtx, unit.TypeOrg, orgID)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debug("Organization recipients resolved",
+		zap.String("org_id", orgID.String()),
+		zap.Int("recipients_count", len(recipients)),
+	)
+
+	return recipients, nil
+}
+
+func (s *Service) GetRecipients(ctx context.Context, unitIDs []uuid.UUID) ([]uuid.UUID, error) {
 	ctx, span := s.tracer.Start(ctx, "GetRecipients")
 	defer span.End()
 	logger := logutil.WithContext(ctx, s.logger)
 
-	all := make([]uuid.UUID, 0, len(orgIDs)+len(unitIDs))
+	all := make([]uuid.UUID, 0)
 
-	for _, orgID := range orgIDs {
-		ids, err := s.store.UsersByOrg(ctx, orgID)
-		if err != nil {
-			err = databaseutil.WrapDBError(err, logger, fmt.Sprintf("list org members (org_id=%s)", orgID))
-			span.RecordError(err)
-			return nil, err
-		}
-		all = append(all, ids...)
+	memberMap, err := s.store.ListUnitsMembers(ctx, unitIDs)
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "list units members")
+		span.RecordError(err)
+		return nil, err
 	}
 
-	for _, unitID := range unitIDs {
-		ids, err := s.store.UsersByUnit(ctx, unitID)
-		if err != nil {
-			err = databaseutil.WrapDBError(err, logger, fmt.Sprintf("list unit members (unit_id=%s)", unitID))
-			span.RecordError(err)
-			return nil, err
-		}
-		all = append(all, ids...)
+	for _, ms := range memberMap {
+		all = append(all, ms...)
 	}
 
-	//remove duplicated
 	seen := make(map[uuid.UUID]struct{}, len(all))
 	uniq := make([]uuid.UUID, 0, len(all))
 	for _, id := range all {
@@ -72,8 +82,7 @@ func (s *Service) GetRecipients(ctx context.Context, orgIDs, unitIDs []uuid.UUID
 		uniq = append(uniq, id)
 	}
 
-	logger.Info("Recipients resolved",
-		zap.Int("org_count", len(orgIDs)),
+	logger.Debug("Recipients resolved",
 		zap.Int("unit_count", len(unitIDs)),
 		zap.Int("unique_recipients", len(uniq)),
 	)
