@@ -1,7 +1,6 @@
 package unit
 
 import (
-	"NYCU-SDC/core-system-backend/internal/tenant"
 	"context"
 	"fmt"
 
@@ -13,59 +12,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
-
-type GenericUnit interface {
-	Base() Base
-	SetBase(Base)
-	Instance() any
-}
-
-type Wrapper struct {
-	Unit Unit
-}
-
-func (u Wrapper) Base() Base {
-	return Base{
-		ID:          u.Unit.ID,
-		Name:        u.Unit.Name.String,
-		Description: u.Unit.Description.String,
-		Metadata:    u.Unit.Metadata,
-	}
-}
-
-func (u Wrapper) Instance() any {
-	return u.Unit
-}
-
-func (u Wrapper) SetBase(base Base) {
-	u.Unit.ID = base.ID
-	u.Unit.Name = pgtype.Text{String: base.Name, Valid: base.Name != ""}
-	u.Unit.Description = pgtype.Text{String: base.Description, Valid: base.Description != ""}
-	u.Unit.Metadata = base.Metadata
-}
-
-type OrgWrapper struct {
-	Organization Organization
-}
-
-func (o OrgWrapper) Base() Base {
-	return Base{
-		ID:          o.Organization.ID,
-		Name:        o.Organization.Name.String,
-		Description: o.Organization.Description.String,
-		Metadata:    o.Organization.Metadata,
-	}
-}
-
-func (o OrgWrapper) Instance() any {
-	return o.Organization
-}
-
-func (o OrgWrapper) SetBase(base Base) {
-	o.Organization.Name = pgtype.Text{String: base.Name, Valid: base.Name != ""}
-	o.Organization.Description = pgtype.Text{String: base.Description, Valid: base.Description != ""}
-	o.Organization.Metadata = base.Metadata
-}
 
 type Querier interface {
 	CreateUnit(ctx context.Context, arg CreateUnitParams) (Unit, error)
@@ -86,13 +32,20 @@ type Querier interface {
 
 	AddParentChild(ctx context.Context, arg AddParentChildParams) (ParentChild, error)
 	RemoveParentChild(ctx context.Context, childID uuid.UUID) error
+
+	AddOrgMember(ctx context.Context, arg AddOrgMemberParams) (OrgMember, error)
+	ListOrgMembers(ctx context.Context, orgID uuid.UUID) ([]uuid.UUID, error)
+	RemoveOrgMember(ctx context.Context, arg RemoveOrgMemberParams) error
+	AddUnitMember(ctx context.Context, arg AddUnitMemberParams) (UnitMember, error)
+	ListUnitMembers(ctx context.Context, unitID uuid.UUID) ([]uuid.UUID, error)
+	ListUnitsMembers(ctx context.Context, unitIDs []uuid.UUID) ([]UnitMember, error)
+	RemoveUnitMember(ctx context.Context, arg RemoveUnitMemberParams) error
 }
 
 type Service struct {
-	logger        *zap.Logger
-	queries       Querier
-	tracer        trace.Tracer
-	tenantService *tenant.Service
+	logger  *zap.Logger
+	queries Querier
+	tracer  trace.Tracer
 }
 
 type Base struct {
@@ -120,10 +73,9 @@ func (t Type) String() string {
 
 func NewService(logger *zap.Logger, db DBTX) *Service {
 	return &Service{
-		logger:        logger,
-		queries:       New(db),
-		tracer:        otel.Tracer("unit/service"),
-		tenantService: tenant.NewService(logger, db),
+		logger:  logger,
+		queries: New(db),
+		tracer:  otel.Tracer("unit/service"),
 	}
 }
 
@@ -135,7 +87,7 @@ func (s *Service) CreateUnit(ctx context.Context, name string, orgID uuid.UUID, 
 
 	unit, err := s.queries.CreateUnit(traceCtx, CreateUnitParams{
 		Name:        pgtype.Text{String: name, Valid: name != ""},
-		OrgID:       orgID,
+		OrgID:       pgtype.UUID{Bytes: orgID, Valid: orgID != uuid.Nil},
 		Description: pgtype.Text{String: description, Valid: true},
 		Metadata:    metadata,
 	})
@@ -188,15 +140,6 @@ func (s *Service) CreateOrg(ctx context.Context, name string, description string
 		return Organization{}, err
 	}
 
-	println("Owner ID", org.OwnerID.String())
-
-	_, err = s.tenantService.Create(traceCtx, org.ID)
-	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "create tenant")
-		span.RecordError(err)
-		return Organization{}, err
-	}
-
 	logger.Info("Created organization",
 		zap.String("org_id", org.ID.String()),
 		zap.String("org_owner_id", org.OwnerID.String()),
@@ -210,7 +153,7 @@ func (s *Service) CreateOrg(ctx context.Context, name string, description string
 			String: "Default Unit",
 			Valid:  true,
 		},
-		OrgID: org.ID,
+		OrgID: pgtype.UUID{Bytes: org.ID, Valid: org.ID != uuid.Nil},
 	})
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "create default unit after creating organization")
@@ -452,7 +395,7 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID, unitType Type) error
 			return err
 		}
 
-		if unit.ID == unit.OrgID {
+		if unit.ID.String() == unit.OrgID.String() {
 			err = fmt.Errorf("cannot delete default unit with ID %s", id.String())
 			span.RecordError(err)
 			logger.Error("Attempted to delete default unit", zap.String("unit_id", id.String()))

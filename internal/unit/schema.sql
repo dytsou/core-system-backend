@@ -1,5 +1,7 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+CREATE TYPE unit_type AS ENUM ('organization', 'unit');
+
 CREATE TABLE IF NOT EXISTS organizations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     owner_id UUID REFERENCES users(id) ON DELETE SET NULL,
@@ -10,11 +12,12 @@ CREATE TABLE IF NOT EXISTS organizations (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE(slug)
-    );
+);
 
 CREATE TABLE IF NOT EXISTS units (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    org_id UUID REFERENCES units(id),
+    type unit_type NOT NULL DEFAULT 'unit',
     name VARCHAR(255),
     description VARCHAR(255),
     metadata JSONB,
@@ -37,6 +40,6 @@ CREATE TABLE IF NOT EXISTS org_members (
 CREATE TABLE IF NOT EXISTS parent_child (
     parent_id UUID REFERENCES units(id) ON DELETE SET NULL,
     child_id UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE,
-    org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    org_id UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE,
     PRIMARY KEY (child_id, org_id)
 );

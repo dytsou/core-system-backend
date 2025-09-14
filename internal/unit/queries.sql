@@ -66,3 +66,30 @@ SELECT child_id FROM parent_child WHERE parent_id = $1;
 
 -- name: RemoveParentChild :exec
 DELETE FROM parent_child WHERE child_id = $1;
+
+-- name: AddOrgMember :one
+INSERT INTO org_members (org_id, member_id)
+VALUES ($1, $2)
+RETURNING *;
+
+-- name: ListOrgMembers :many
+SELECT member_id FROM org_members WHERE org_id = $1;
+
+-- name: RemoveOrgMember :exec
+DELETE FROM org_members WHERE org_id = $1 AND member_id = $2;
+
+-- name: AddUnitMember :one
+INSERT INTO unit_members (unit_id, member_id)
+VALUES ($1, $2)
+RETURNING *;
+
+-- name: ListUnitMembers :many
+SELECT member_id FROM unit_members WHERE unit_id = $1;
+
+-- name: ListUnitsMembers :many
+SELECT unit_id, member_id
+FROM unit_members
+WHERE unit_id = ANY($1::uuid[]);
+
+-- name: RemoveUnitMember :exec
+DELETE FROM unit_members WHERE unit_id = $1 AND member_id = $2;

@@ -1,3 +1,3 @@
 DROP TABLE IF EXISTS answers;
-DROP TABLE IF EXISTS responses;
+DROP TABLE IF EXISTS form_responses;
 DROP TYPE IF EXISTS answer_type;
