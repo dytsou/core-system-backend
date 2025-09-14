@@ -38,6 +38,7 @@ type Querier interface {
 	RemoveOrgMember(ctx context.Context, arg RemoveOrgMemberParams) error
 	AddUnitMember(ctx context.Context, arg AddUnitMemberParams) (UnitMember, error)
 	ListUnitMembers(ctx context.Context, unitID uuid.UUID) ([]uuid.UUID, error)
+	ListUnitsMembers(ctx context.Context, unitIDs []uuid.UUID) ([]UnitMember, error)
 	RemoveUnitMember(ctx context.Context, arg RemoveUnitMemberParams) error
 }
 

@@ -441,6 +441,32 @@ func (q *Queries) ListUnitMembers(ctx context.Context, unitID uuid.UUID) ([]uuid
 	return items, nil
 }
 
+const listUnitsMembers = `-- name: ListUnitsMembers :many
+SELECT unit_id, member_id
+FROM unit_members
+WHERE unit_id = ANY($1::uuid[])
+`
+
+func (q *Queries) ListUnitsMembers(ctx context.Context, dollar_1 []uuid.UUID) ([]UnitMember, error) {
+	rows, err := q.db.Query(ctx, listUnitsMembers, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UnitMember
+	for rows.Next() {
+		var i UnitMember
+		if err := rows.Scan(&i.UnitID, &i.MemberID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const removeOrgMember = `-- name: RemoveOrgMember :exec
 DELETE FROM org_members WHERE org_id = $1 AND member_id = $2
 `
