@@ -6,8 +6,6 @@ CREATE TYPE content_type AS ENUM(
 CREATE TABLE IF NOT EXISTS inbox_message(
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     posted_by UUID references units(id) ON DELETE CASCADE,
-    title varchar(255) NOT NULL,
-    subtitle varchar(255),
     type content_type NOT NULL,
     content_id UUID,
     created_at TIMESTAMP NOT NULL DEFAULT now(),

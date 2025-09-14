@@ -12,6 +12,8 @@ import (
 )
 
 type Querier interface {
+	CreateMessage(ctx context.Context, arg CreateMessageParams) (InboxMessage, error)
+	CreateUserInboxBulk(ctx context.Context, arg CreateUserInboxBulkParams) ([]UserInboxMessage, error)
 	List(ctx context.Context, userID uuid.UUID) ([]ListRow, error)
 	GetByID(ctx context.Context, arg GetByIDParams) (GetByIDRow, error)
 	UpdateByID(ctx context.Context, arg UpdateByIDParams) (UpdateByIDRow, error)
@@ -29,6 +31,45 @@ func NewService(logger *zap.Logger, db DBTX) *Service {
 		queries: New(db),
 		tracer:  otel.Tracer("inbox/service"),
 	}
+}
+
+// Create registers a new inbox message and delivers it to the given set of users.
+//
+// The purpose of this function is to provide a single entry point for creating
+// a message entity and ensuring it is visible in the inbox of all target users.
+// On success, it returns the unique identifier of the created message.
+func (s *Service) Create(ctx context.Context, contentType ContentType, contentID uuid.UUID, userIDs []uuid.UUID, postByUnitID uuid.UUID) (uuid.UUID, error) {
+	traceCtx, span := s.tracer.Start(ctx, "List")
+	defer span.End()
+	logger := logutil.WithContext(traceCtx, s.logger)
+
+	message, err := s.queries.CreateMessage(traceCtx, CreateMessageParams{
+		Type:      contentType,
+		ContentID: contentID,
+		PostedBy:  postByUnitID,
+	})
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "create inbox message")
+		span.RecordError(err)
+		return uuid.Nil, err
+	}
+
+	_, err = s.queries.CreateUserInboxBulk(traceCtx, CreateUserInboxBulkParams{
+		Column1: userIDs,
+		Column2: message.ID,
+	})
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "create user inbox messages in bulk")
+		span.RecordError(err)
+		return uuid.Nil, err
+	}
+
+	logger.Info("Created inbox message",
+		zap.String("message_id", message.ID.String()),
+		zap.Int("recipients", len(userIDs)),
+	)
+
+	return message.ID, nil
 }
 
 func (s *Service) List(ctx context.Context, userID uuid.UUID) ([]ListRow, error) {

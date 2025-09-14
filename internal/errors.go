@@ -2,6 +2,7 @@ package internal
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/NYCU-SDC/summer/pkg/problem"
 )
@@ -34,6 +35,9 @@ var (
 	ErrOrgSlugNotFound      = errors.New("org slug not found")
 	ErrOrgSlugAlreadyExists = errors.New("org slug already exists")
 	ErrUnitNotFound         = errors.New("unit not found")
+
+	// Publish Errors
+	ErrFormNotDraft = fmt.Errorf("form is not in draft status")
 )
 
 func NewProblemWriter() *problem.HttpWriter {
@@ -82,6 +86,10 @@ func ErrorHandler(err error) problem.Problem {
 		return problem.NewValidateProblem("org slug already exists")
 	case errors.Is(err, ErrUnitNotFound):
 		return problem.NewNotFoundProblem("unit not found")
+
+	// Publish Errors
+	case errors.Is(err, ErrFormNotDraft):
+		return problem.NewValidateProblem("form is not in draft status")
 	}
 	return problem.Problem{}
 }
