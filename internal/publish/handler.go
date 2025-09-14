@@ -25,7 +25,7 @@ type PreviewResponse struct {
 	Recipients []uuid.UUID `json:"recipients"`
 }
 
-type PublishRequest struct {
+type Request struct {
 	RecipientIDs []uuid.UUID `json:"recipientIds"`
 }
 
@@ -88,7 +88,7 @@ func (h *Handler) PublishForm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req PublishRequest
+	var req Request
 	if err := handlerutil.ParseAndValidateRequestBody(ctx, h.validator, r, &req); err != nil {
 		h.problemWriter.WriteError(ctx, w, err, logger)
 		return
