@@ -1,3 +1,13 @@
+-- name: CreateMessage :one
+INSERT INTO inbox_message (posted_by, type, content_id)
+VALUES ($1, $2, $3)
+RETURNING *;
+
+-- name: CreateUserInboxBulk :many
+INSERT INTO user_inbox_messages (user_id, message_id)
+SELECT unnest($1::uuid[]), $2::uuid
+RETURNING *;
+
 -- name: GetByID :one
 SELECT *
 FROM user_inbox_messages uim

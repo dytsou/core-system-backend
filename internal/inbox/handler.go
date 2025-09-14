@@ -91,8 +91,6 @@ func mapToResponse(message ListRow) Response {
 		Message: MessageResponse{
 			ID:        message.MessageID.String(),
 			PostedBy:  message.PostedBy.String(),
-			Title:     message.Title,
-			Subtitle:  message.Subtitle.String,
 			Type:      message.Type,
 			ContentID: message.ContentID.String(),
 			CreatedAt: message.CreatedAt.Time.Format(time.RFC3339),
@@ -200,8 +198,6 @@ func (h *Handler) GetHandler(w http.ResponseWriter, r *http.Request) {
 		Message: MessageResponse{
 			ID:        message.MessageID.String(),
 			PostedBy:  message.PostedBy.String(),
-			Title:     message.Title,
-			Subtitle:  message.Subtitle.String,
 			Type:      message.Type,
 			ContentID: message.ContentID.String(),
 			CreatedAt: message.CreatedAt.Time.Format(time.RFC3339),
@@ -258,8 +254,6 @@ func (h *Handler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 		Message: MessageResponse{
 			ID:        message.MessageID.String(),
 			PostedBy:  message.PostedBy.String(),
-			Title:     message.Title,
-			Subtitle:  message.Subtitle.String,
 			Type:      message.Type,
 			ContentID: message.ContentID.String(),
 			CreatedAt: message.CreatedAt.Time.Format(time.RFC3339),

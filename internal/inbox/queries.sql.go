@@ -12,8 +12,72 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createMessage = `-- name: CreateMessage :one
+INSERT INTO inbox_message (posted_by, type, content_id)
+VALUES ($1, $2, $3)
+RETURNING id, posted_by, type, content_id, created_at, updated_at
+`
+
+type CreateMessageParams struct {
+	PostedBy  uuid.UUID
+	Type      ContentType
+	ContentID uuid.UUID
+}
+
+func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (InboxMessage, error) {
+	row := q.db.QueryRow(ctx, createMessage, arg.PostedBy, arg.Type, arg.ContentID)
+	var i InboxMessage
+	err := row.Scan(
+		&i.ID,
+		&i.PostedBy,
+		&i.Type,
+		&i.ContentID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const createUserInboxBulk = `-- name: CreateUserInboxBulk :many
+INSERT INTO user_inbox_messages (user_id, message_id)
+SELECT unnest($1::uuid[]), $2::uuid
+RETURNING id, user_id, message_id, is_read, is_starred, is_archived
+`
+
+type CreateUserInboxBulkParams struct {
+	Column1 []uuid.UUID
+	Column2 uuid.UUID
+}
+
+func (q *Queries) CreateUserInboxBulk(ctx context.Context, arg CreateUserInboxBulkParams) ([]UserInboxMessage, error) {
+	rows, err := q.db.Query(ctx, createUserInboxBulk, arg.Column1, arg.Column2)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UserInboxMessage
+	for rows.Next() {
+		var i UserInboxMessage
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.MessageID,
+			&i.IsRead,
+			&i.IsStarred,
+			&i.IsArchived,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getByID = `-- name: GetByID :one
-SELECT uim.id, user_id, message_id, is_read, is_starred, is_archived, im.id, posted_by, title, subtitle, type, content_id, created_at, updated_at
+SELECT uim.id, user_id, message_id, is_read, is_starred, is_archived, im.id, posted_by, type, content_id, created_at, updated_at
 FROM user_inbox_messages uim
 JOIN inbox_message im ON uim.message_id = im.id
 WHERE uim.id = $1 AND uim.user_id = $2
@@ -33,10 +97,8 @@ type GetByIDRow struct {
 	IsArchived bool
 	ID_2       uuid.UUID
 	PostedBy   uuid.UUID
-	Title      string
-	Subtitle   pgtype.Text
 	Type       ContentType
-	ContentID  pgtype.UUID
+	ContentID  uuid.UUID
 	CreatedAt  pgtype.Timestamp
 	UpdatedAt  pgtype.Timestamp
 }
@@ -53,8 +115,6 @@ func (q *Queries) GetByID(ctx context.Context, arg GetByIDParams) (GetByIDRow, e
 		&i.IsArchived,
 		&i.ID_2,
 		&i.PostedBy,
-		&i.Title,
-		&i.Subtitle,
 		&i.Type,
 		&i.ContentID,
 		&i.CreatedAt,
@@ -64,7 +124,7 @@ func (q *Queries) GetByID(ctx context.Context, arg GetByIDParams) (GetByIDRow, e
 }
 
 const list = `-- name: List :many
-SELECT uim.id, user_id, message_id, is_read, is_starred, is_archived, im.id, posted_by, title, subtitle, type, content_id, created_at, updated_at
+SELECT uim.id, user_id, message_id, is_read, is_starred, is_archived, im.id, posted_by, type, content_id, created_at, updated_at
 FROM user_inbox_messages uim
 JOIN inbox_message im ON uim.message_id = im.id
 WHERE uim.user_id = $1
@@ -79,10 +139,8 @@ type ListRow struct {
 	IsArchived bool
 	ID_2       uuid.UUID
 	PostedBy   uuid.UUID
-	Title      string
-	Subtitle   pgtype.Text
 	Type       ContentType
-	ContentID  pgtype.UUID
+	ContentID  uuid.UUID
 	CreatedAt  pgtype.Timestamp
 	UpdatedAt  pgtype.Timestamp
 }
@@ -105,8 +163,6 @@ func (q *Queries) List(ctx context.Context, userID uuid.UUID) ([]ListRow, error)
 			&i.IsArchived,
 			&i.ID_2,
 			&i.PostedBy,
-			&i.Title,
-			&i.Subtitle,
 			&i.Type,
 			&i.ContentID,
 			&i.CreatedAt,
@@ -127,7 +183,7 @@ UPDATE user_inbox_messages AS uim
 SET is_read = $3, is_starred = $4, is_archived = $5
 FROM inbox_message AS im
 WHERE uim.message_id = im.id AND uim.id = $1 AND uim.user_id = $2
-RETURNING im.id, posted_by, title, subtitle, type, content_id, created_at, updated_at, uim.id, user_id, message_id, is_read, is_starred, is_archived
+RETURNING im.id, posted_by, type, content_id, created_at, updated_at, uim.id, user_id, message_id, is_read, is_starred, is_archived
 `
 
 type UpdateByIDParams struct {
@@ -141,10 +197,8 @@ type UpdateByIDParams struct {
 type UpdateByIDRow struct {
 	ID         uuid.UUID
 	PostedBy   uuid.UUID
-	Title      string
-	Subtitle   pgtype.Text
 	Type       ContentType
-	ContentID  pgtype.UUID
+	ContentID  uuid.UUID
 	CreatedAt  pgtype.Timestamp
 	UpdatedAt  pgtype.Timestamp
 	ID_2       uuid.UUID
@@ -167,8 +221,6 @@ func (q *Queries) UpdateByID(ctx context.Context, arg UpdateByIDParams) (UpdateB
 	err := row.Scan(
 		&i.ID,
 		&i.PostedBy,
-		&i.Title,
-		&i.Subtitle,
 		&i.Type,
 		&i.ContentID,
 		&i.CreatedAt,
