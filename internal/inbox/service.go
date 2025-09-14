@@ -38,7 +38,7 @@ func NewService(logger *zap.Logger, db DBTX) *Service {
 // The purpose of this function is to provide a single entry point for creating
 // a message entity and ensuring it is visible in the inbox of all target users.
 // On success, it returns the unique identifier of the created message.
-func (s *Service) Create(ctx context.Context, contentType ContentType, contentID uuid.UUID, userIDs []uuid.UUID) (uuid.UUID, error) {
+func (s *Service) Create(ctx context.Context, contentType ContentType, contentID uuid.UUID, userIDs []uuid.UUID, postByUnitID uuid.UUID) (uuid.UUID, error) {
 	traceCtx, span := s.tracer.Start(ctx, "List")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
@@ -46,6 +46,7 @@ func (s *Service) Create(ctx context.Context, contentType ContentType, contentID
 	message, err := s.queries.CreateMessage(traceCtx, CreateMessageParams{
 		Type:      contentType,
 		ContentID: contentID,
+		PostedBy:  postByUnitID,
 	})
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "create inbox message")
@@ -62,6 +63,11 @@ func (s *Service) Create(ctx context.Context, contentType ContentType, contentID
 		span.RecordError(err)
 		return uuid.Nil, err
 	}
+
+	logger.Info("Created inbox message",
+		zap.String("message_id", message.ID.String()),
+		zap.Int("recipients", len(userIDs)),
+	)
 
 	return message.ID, nil
 }

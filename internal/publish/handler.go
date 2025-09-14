@@ -53,8 +53,8 @@ func NewHandler(
 	}
 }
 
-func (h *Handler) SelectRecipient(w http.ResponseWriter, r *http.Request) {
-	ctx, span := h.tracer.Start(r.Context(), "SelectRecipient")
+func (h *Handler) PreviewForm(w http.ResponseWriter, r *http.Request) {
+	ctx, span := h.tracer.Start(r.Context(), "PreviewForm")
 	defer span.End()
 	logger := logutil.WithContext(ctx, h.logger)
 
