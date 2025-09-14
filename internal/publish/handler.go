@@ -60,10 +60,7 @@ func (h *Handler) PreviewForm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	list, err := h.service.GetRecipients(ctx, Selection{
-		OrgID:   req.OrgID,
-		UnitIDs: req.UnitIDs,
-	})
+	list, err := h.service.GetRecipients(ctx, Selection(req))
 	if err != nil {
 		h.problemWriter.WriteError(ctx, w, err, logger)
 		return
