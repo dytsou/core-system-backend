@@ -94,7 +94,7 @@ type orgResponse struct {
 
 type Response struct {
 	ID          uuid.UUID         `json:"id"`
-	OrgID       uuid.UUID         `json:"org_id"`
+	OrgID       string            `json:"org_id"`
 	Name        string            `json:"name"`
 	Description string            `json:"description"`
 	Metadata    map[string]string `json:"metadata"`
@@ -107,9 +107,10 @@ func convertResponse(u Unit) Response {
 	if err := json.Unmarshal(u.Metadata, &meta); err != nil {
 		meta = make(map[string]string)
 	}
+
 	return Response{
 		ID:          u.ID,
-		OrgID:       u.OrgID,
+		OrgID:       u.OrgID.String(),
 		Name:        u.Name.String,
 		Description: u.Description.String,
 		Metadata:    meta,

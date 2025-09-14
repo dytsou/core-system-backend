@@ -86,7 +86,7 @@ func (s *Service) CreateUnit(ctx context.Context, name string, orgID uuid.UUID, 
 
 	unit, err := s.queries.CreateUnit(traceCtx, CreateUnitParams{
 		Name:        pgtype.Text{String: name, Valid: name != ""},
-		OrgID:       orgID,
+		OrgID:       pgtype.UUID{Bytes: orgID, Valid: orgID != uuid.Nil},
 		Description: pgtype.Text{String: description, Valid: true},
 		Metadata:    metadata,
 	})
@@ -152,7 +152,7 @@ func (s *Service) CreateOrg(ctx context.Context, name string, description string
 			String: "Default Unit",
 			Valid:  true,
 		},
-		OrgID: org.ID,
+		OrgID: pgtype.UUID{Bytes: org.ID, Valid: org.ID != uuid.Nil},
 	})
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "create default unit after creating organization")
@@ -394,7 +394,7 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID, unitType Type) error
 			return err
 		}
 
-		if unit.ID == unit.OrgID {
+		if unit.ID.String() == unit.OrgID.String() {
 			err = fmt.Errorf("cannot delete default unit with ID %s", id.String())
 			span.RecordError(err)
 			logger.Error("Attempted to delete default unit", zap.String("unit_id", id.String()))
