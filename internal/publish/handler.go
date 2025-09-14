@@ -17,7 +17,7 @@ import (
 )
 
 type PreviewRequest struct {
-	OrgIDs  []uuid.UUID `json:"orgIds"`
+	OrgID   uuid.UUID   `json:"orgId"`
 	UnitIDs []uuid.UUID `json:"unitIds"`
 }
 
@@ -64,8 +64,8 @@ func (h *Handler) SelectRecipient(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	list, err := h.service.PreviewRecipients(ctx, Selection{
-		OrgID:   req.OrgIDs,
+	list, err := h.service.GetRecipients(ctx, Selection{
+		OrgID:   req.OrgID,
 		UnitIDs: req.UnitIDs,
 	})
 	if err != nil {

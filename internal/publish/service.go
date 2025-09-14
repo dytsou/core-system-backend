@@ -1,7 +1,10 @@
 package publish
 
 import (
+	"NYCU-SDC/core-system-backend/internal"
+	"NYCU-SDC/core-system-backend/internal/inbox"
 	"context"
+	"fmt"
 
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
@@ -15,20 +18,21 @@ import (
 )
 
 type Distributor interface {
-	GetRecipients(ctx context.Context, orgID, unitIDs []uuid.UUID) ([]uuid.UUID, error)
+	GetOrgRecipients(ctx context.Context, orgID uuid.UUID) ([]uuid.UUID, error)
+	GetRecipients(ctx context.Context, unitIDs []uuid.UUID) ([]uuid.UUID, error)
 }
 
 type FormStore interface {
 	GetByID(ctx context.Context, id uuid.UUID) (form.Form, error)
-	SetStatus(ctx context.Context, id uuid.UUID, status string, editor uuid.UUID) error
+	SetStatus(ctx context.Context, id uuid.UUID, status form.Status, userID uuid.UUID) (form.Form, error)
 }
 
 type InboxPort interface {
-	CreateOrUpdateThread(ctx context.Context, f form.Form, users []uuid.UUID)
+	Create(ctx context.Context, contentType inbox.ContentType, contentID uuid.UUID, userIDs []uuid.UUID) (uuid.UUID, error)
 }
 
 type Selection struct {
-	OrgID   []uuid.UUID
+	OrgID   uuid.UUID
 	UnitIDs []uuid.UUID
 }
 
@@ -55,16 +59,28 @@ func NewService(
 	}
 }
 
-func (s *Service) PreviewRecipients(ctx context.Context, sel Selection) ([]uuid.UUID, error) {
-	ctx, span := s.tracer.Start(ctx, "PreviewRecipients")
+func (s *Service) GetRecipients(ctx context.Context, selection Selection) ([]uuid.UUID, error) {
+	ctx, span := s.tracer.Start(ctx, "GetRecipients")
 	defer span.End()
 	logger := logutil.WithContext(ctx, s.logger)
 
-	users, err := s.distributor.GetRecipients(ctx, sel.OrgID, sel.UnitIDs)
-	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "getting recipients")
-		span.RecordError(err)
-		return nil, err
+	var users []uuid.UUID
+	if selection.OrgID != uuid.Nil {
+		orgUsers, err := s.distributor.GetOrgRecipients(ctx, selection.OrgID)
+		if err != nil {
+			err = databaseutil.WrapDBError(err, logger, "getting org recipients")
+			span.RecordError(err)
+			return nil, err
+		}
+		users = append(users, orgUsers...)
+	} else if len(selection.UnitIDs) > 0 {
+		unitUsers, err := s.distributor.GetRecipients(ctx, selection.UnitIDs)
+		if err != nil {
+			err = databaseutil.WrapDBError(err, logger, "getting unit recipients")
+			span.RecordError(err)
+			return nil, err
+		}
+		users = append(users, unitUsers...)
 	}
 
 	// can add some verify method here
@@ -78,30 +94,36 @@ func (s *Service) PublishForm(ctx context.Context, formID uuid.UUID, recipientID
 	defer span.End()
 	logger := logutil.WithContext(ctx, s.logger)
 
-	// get form
-	f, err := s.store.GetByID(ctx, formID)
+	// check form existence and status
+	targetForm, err := s.store.GetByID(ctx, formID)
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "getting form by id")
 		span.RecordError(err)
 		return err
 	}
 
-	// set status
-	if err := s.store.SetStatus(ctx, f.ID, "published", editor); err != nil {
+	if targetForm.Status != form.StatusDraft {
+		err = internal.ErrFormNotDraft
+		span.RecordError(err)
+		return err
+	}
+
+	_, err = s.store.SetStatus(ctx, formID, form.StatusPublished, editor)
+	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "setting form status = published")
 		span.RecordError(err)
 		return err
 	}
 
-	// update inbox thread
-	if err := s.inbox.CreateOrUpdateThread(ctx, f, recipientIDs); err != nil {
-		err = databaseutil.WrapDBError(err, logger, "creating/update inbox thread")
+	_, err = s.inbox.Create(ctx, inbox.ContentTypeForm, formID, recipientIDs)
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "creating inbox messages for published form")
 		span.RecordError(err)
-		return err
+		return fmt.Errorf("failed to create inbox messages for published form: %w", err)
 	}
 
 	logger.Info("Form published",
-		zap.String("form_id", f.ID.String()),
+		zap.String("form_id", formID.String()),
 		zap.Int("recipients", len(recipientIDs)),
 		zap.String("editor", editor.String()),
 	)

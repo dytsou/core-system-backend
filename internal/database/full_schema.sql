@@ -138,10 +138,8 @@ CREATE TABLE IF NOT EXISTS questions(
 CREATE TABLE IF NOT EXISTS inbox_message(
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     posted_by UUID NOT NULL references units(id),
-    title varchar(255) NOT NULL,
-    subtitle varchar(255),
     type content_type NOT NULL,
-    content_id UUID,
+    content_id UUID NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT now(),
     updated_at TIMESTAMP NOT NULL DEFAULT now()
 );

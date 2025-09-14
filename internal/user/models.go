@@ -266,10 +266,8 @@ type FormResponse struct {
 type InboxMessage struct {
 	ID        uuid.UUID
 	PostedBy  uuid.UUID
-	Title     string
-	Subtitle  pgtype.Text
 	Type      ContentType
-	ContentID pgtype.UUID
+	ContentID uuid.UUID
 	CreatedAt pgtype.Timestamp
 	UpdatedAt pgtype.Timestamp
 }
