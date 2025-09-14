@@ -16,17 +16,13 @@ import (
 	"go.uber.org/zap"
 )
 
-type PreviewRequest struct {
-	OrgID   uuid.UUID   `json:"orgId"`
-	UnitIDs []uuid.UUID `json:"unitIds"`
-}
-
 type PreviewResponse struct {
 	Recipients []uuid.UUID `json:"recipients"`
 }
 
 type Request struct {
-	RecipientIDs []uuid.UUID `json:"recipientIds"`
+	OrgID   uuid.UUID   `json:"orgId"`
+	UnitIDs []uuid.UUID `json:"unitIds"`
 }
 
 type Handler struct {
@@ -58,7 +54,7 @@ func (h *Handler) PreviewForm(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	logger := logutil.WithContext(ctx, h.logger)
 
-	var req PreviewRequest
+	var req Request
 	if err := handlerutil.ParseAndValidateRequestBody(ctx, h.validator, r, &req); err != nil {
 		h.problemWriter.WriteError(ctx, w, err, logger)
 		return
@@ -100,7 +96,7 @@ func (h *Handler) PublishForm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.service.PublishForm(ctx, formID, req.RecipientIDs, currentUser.ID); err != nil {
+	if err := h.service.PublishForm(ctx, formID, req.UnitIDs, currentUser.ID); err != nil {
 		h.problemWriter.WriteError(ctx, w, err, logger)
 		return
 	}
