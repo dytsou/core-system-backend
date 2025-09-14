@@ -135,14 +135,14 @@ func (s *Service) ListByUnit(ctx context.Context, unitID uuid.UUID) ([]Form, err
 	return forms, nil
 }
 
-func (s *Service) SetStatus(ctx context.Context, id uuid.UUID, status string, userID uuid.UUID) (Form, error) {
+func (s *Service) SetStatus(ctx context.Context, id uuid.UUID, status Status, userID uuid.UUID) (Form, error) {
 	ctx, span := s.tracer.Start(ctx, "SetStatus")
 	defer span.End()
 	logger := logutil.WithContext(ctx, s.logger)
 
 	updated, err := s.queries.SetStatus(ctx, SetStatusParams{
 		ID:         id,
-		Status:     Status(status),
+		Status:     status,
 		LastEditor: userID,
 	})
 	if err != nil {
