@@ -15,7 +15,7 @@ import (
 const create = `-- name: Create :one
 INSERT INTO forms (title, description, unit_id, last_editor)
 VALUES ($1, $2, $3, $4)
-RETURNING id, title, description, unit_id, last_editor, created_at, updated_at
+RETURNING id, title, description, status, unit_id, last_editor, created_at, updated_at
 `
 
 type CreateParams struct {
@@ -37,6 +37,7 @@ func (q *Queries) Create(ctx context.Context, arg CreateParams) (Form, error) {
 		&i.ID,
 		&i.Title,
 		&i.Description,
+		&i.Status,
 		&i.UnitID,
 		&i.LastEditor,
 		&i.CreatedAt,
@@ -55,7 +56,7 @@ func (q *Queries) Delete(ctx context.Context, id uuid.UUID) error {
 }
 
 const getByID = `-- name: GetByID :one
-SELECT id, title, description, unit_id, last_editor, created_at, updated_at FROM forms WHERE id = $1
+SELECT id, title, description, status, unit_id, last_editor, created_at, updated_at FROM forms WHERE id = $1
 `
 
 func (q *Queries) GetByID(ctx context.Context, id uuid.UUID) (Form, error) {
@@ -65,6 +66,7 @@ func (q *Queries) GetByID(ctx context.Context, id uuid.UUID) (Form, error) {
 		&i.ID,
 		&i.Title,
 		&i.Description,
+		&i.Status,
 		&i.UnitID,
 		&i.LastEditor,
 		&i.CreatedAt,
@@ -74,7 +76,7 @@ func (q *Queries) GetByID(ctx context.Context, id uuid.UUID) (Form, error) {
 }
 
 const list = `-- name: List :many
-SELECT id, title, description, unit_id, last_editor, created_at, updated_at FROM forms ORDER BY updated_at DESC
+SELECT id, title, description, status, unit_id, last_editor, created_at, updated_at FROM forms ORDER BY updated_at DESC
 `
 
 func (q *Queries) List(ctx context.Context) ([]Form, error) {
@@ -90,6 +92,7 @@ func (q *Queries) List(ctx context.Context) ([]Form, error) {
 			&i.ID,
 			&i.Title,
 			&i.Description,
+			&i.Status,
 			&i.UnitID,
 			&i.LastEditor,
 			&i.CreatedAt,
@@ -106,7 +109,7 @@ func (q *Queries) List(ctx context.Context) ([]Form, error) {
 }
 
 const listByUnit = `-- name: ListByUnit :many
-SELECT id, title, description, unit_id, last_editor, created_at, updated_at FROM forms
+SELECT id, title, description, status, unit_id, last_editor, created_at, updated_at FROM forms
 WHERE unit_id = $1
 ORDER BY updated_at DESC
 `
@@ -124,6 +127,7 @@ func (q *Queries) ListByUnit(ctx context.Context, unitID pgtype.UUID) ([]Form, e
 			&i.ID,
 			&i.Title,
 			&i.Description,
+			&i.Status,
 			&i.UnitID,
 			&i.LastEditor,
 			&i.CreatedAt,
@@ -139,11 +143,40 @@ func (q *Queries) ListByUnit(ctx context.Context, unitID pgtype.UUID) ([]Form, e
 	return items, nil
 }
 
+const setStatus = `-- name: SetStatus :one
+UPDATE forms
+SET status = $2, last_editor = $3, updated_at = now()
+WHERE id = $1
+RETURNING id, title, description, status, unit_id, last_editor, created_at, updated_at
+`
+
+type SetStatusParams struct {
+	ID         uuid.UUID
+	Status     Status
+	LastEditor uuid.UUID
+}
+
+func (q *Queries) SetStatus(ctx context.Context, arg SetStatusParams) (Form, error) {
+	row := q.db.QueryRow(ctx, setStatus, arg.ID, arg.Status, arg.LastEditor)
+	var i Form
+	err := row.Scan(
+		&i.ID,
+		&i.Title,
+		&i.Description,
+		&i.Status,
+		&i.UnitID,
+		&i.LastEditor,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const update = `-- name: Update :one
 UPDATE forms
 SET title = $2, description = $3, last_editor = $4, updated_at = now()
 WHERE id = $1
-RETURNING id, title, description, unit_id, last_editor, created_at, updated_at
+RETURNING id, title, description, status, unit_id, last_editor, created_at, updated_at
 `
 
 type UpdateParams struct {
@@ -165,6 +198,7 @@ func (q *Queries) Update(ctx context.Context, arg UpdateParams) (Form, error) {
 		&i.ID,
 		&i.Title,
 		&i.Description,
+		&i.Status,
 		&i.UnitID,
 		&i.LastEditor,
 		&i.CreatedAt,

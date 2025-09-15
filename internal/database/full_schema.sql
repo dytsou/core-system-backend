@@ -29,6 +29,8 @@ CREATE TABLE IF NOT EXISTS auth (
     UNIQUE(provider, provider_id)
 );CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+CREATE TYPE unit_type AS ENUM ('organization', 'unit');
+
 CREATE TABLE IF NOT EXISTS organizations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     owner_id UUID REFERENCES users(id) ON DELETE SET NULL,
@@ -39,11 +41,12 @@ CREATE TABLE IF NOT EXISTS organizations (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE(slug)
-    );
+);
 
 CREATE TABLE IF NOT EXISTS units (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    org_id UUID REFERENCES units(id),
+    type unit_type NOT NULL DEFAULT 'unit',
     name VARCHAR(255),
     description VARCHAR(255),
     metadata JSONB,
@@ -66,14 +69,16 @@ CREATE TABLE IF NOT EXISTS org_members (
 CREATE TABLE IF NOT EXISTS parent_child (
     parent_id UUID REFERENCES units(id) ON DELETE SET NULL,
     child_id UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE,
-    org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    org_id UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE,
     PRIMARY KEY (child_id, org_id)
-);CREATE TYPE db_strategy AS ENUM ('shared', 'isolated');
+);
+CREATE TYPE db_strategy AS ENUM ('shared', 'isolated');
 
 CREATE TABLE IF NOT EXISTS tenants
 (
     id UUID PRIMARY KEY REFERENCES organizations(id) ON DELETE CASCADE,
-    db_strategy db_strategy NOT NULL
+    db_strategy db_strategy NOT NULL,
+    owner_id UUID REFERENCES users(id) ON DELETE SET NULL
 );CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE TABLE IF NOT EXISTS refresh_tokens (
@@ -97,7 +102,24 @@ CREATE TABLE IF NOT EXISTS answers (
     value TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);CREATE TYPE question_type AS ENUM(
+
+);CREATE TYPE status AS ENUM(
+    'draft',
+    'published'
+);
+
+CREATE TABLE IF NOT EXISTS forms (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title TEXT NOT NULL,
+    description TEXT,
+    status status NOT NULL DEFAULT 'draft',
+    unit_id UUID REFERENCES units(id) ON DELETE CASCADE,
+    last_editor UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TYPE question_type AS ENUM(
     'short_text',
     'long_text',
     'single_choice',
@@ -142,10 +164,8 @@ CREATE TYPE content_type AS ENUM(
 CREATE TABLE IF NOT EXISTS inbox_message(
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     posted_by UUID NOT NULL references units(id),
-    title varchar(255) NOT NULL,
-    subtitle varchar(255),
     type content_type NOT NULL,
-    content_id UUID,
+    content_id UUID NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT now(),
     updated_at TIMESTAMP NOT NULL DEFAULT now()
 );

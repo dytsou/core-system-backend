@@ -141,6 +141,90 @@ func (ns NullQuestionType) Value() (driver.Value, error) {
 	return string(ns.QuestionType), nil
 }
 
+type Status string
+
+const (
+	StatusDraft     Status = "draft"
+	StatusPublished Status = "published"
+)
+
+func (e *Status) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = Status(s)
+	case string:
+		*e = Status(s)
+	default:
+		return fmt.Errorf("unsupported scan type for Status: %T", src)
+	}
+	return nil
+}
+
+type NullStatus struct {
+	Status Status
+	Valid  bool // Valid is true if Status is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.Status, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.Status.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.Status), nil
+}
+
+type UnitType string
+
+const (
+	UnitTypeOrganization UnitType = "organization"
+	UnitTypeUnit         UnitType = "unit"
+)
+
+func (e *UnitType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = UnitType(s)
+	case string:
+		*e = UnitType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for UnitType: %T", src)
+	}
+	return nil
+}
+
+type NullUnitType struct {
+	UnitType UnitType
+	Valid    bool // Valid is true if UnitType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullUnitType) Scan(value interface{}) error {
+	if value == nil {
+		ns.UnitType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.UnitType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullUnitType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.UnitType), nil
+}
+
 type Answer struct {
 	ID         uuid.UUID
 	ResponseID uuid.UUID
@@ -164,6 +248,7 @@ type Form struct {
 	ID          uuid.UUID
 	Title       string
 	Description pgtype.Text
+	Status      Status
 	UnitID      pgtype.UUID
 	LastEditor  uuid.UUID
 	CreatedAt   pgtype.Timestamptz
@@ -181,10 +266,8 @@ type FormResponse struct {
 type InboxMessage struct {
 	ID        uuid.UUID
 	PostedBy  uuid.UUID
-	Title     string
-	Subtitle  pgtype.Text
 	Type      ContentType
-	ContentID pgtype.UUID
+	ContentID uuid.UUID
 	CreatedAt pgtype.Timestamp
 	UpdatedAt pgtype.Timestamp
 }
@@ -234,11 +317,13 @@ type RefreshToken struct {
 type Tenant struct {
 	ID         uuid.UUID
 	DbStrategy DbStrategy
+	OwnerID    pgtype.UUID
 }
 
 type Unit struct {
 	ID          uuid.UUID
-	OrgID       uuid.UUID
+	OrgID       pgtype.UUID
+	Type        UnitType
 	Name        pgtype.Text
 	Description pgtype.Text
 	Metadata    []byte

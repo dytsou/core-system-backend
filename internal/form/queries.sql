@@ -22,3 +22,9 @@ SELECT * FROM forms ORDER BY updated_at DESC;
 SELECT * FROM forms
 WHERE unit_id = $1
 ORDER BY updated_at DESC;
+
+-- name: SetStatus :one
+UPDATE forms
+SET status = $2, last_editor = $3, updated_at = now()
+WHERE id = $1
+RETURNING *;

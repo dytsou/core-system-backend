@@ -199,8 +199,6 @@ func (s Service) Parse(ctx context.Context, tokenString string) (user.User, erro
 		}
 	}
 
-	logger.Debug("Successfully parsed JWT token", zap.String("id", tokenClaims.ID.String()), zap.String("username", tokenClaims.Username), zap.String("role", strings.Join(tokenClaims.Role, ",")))
-
 	// Parse user ID from subject
 	userID, err := uuid.Parse(tokenClaims.Subject)
 	if err != nil {

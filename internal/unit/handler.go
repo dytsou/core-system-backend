@@ -3,10 +3,14 @@ package unit
 import (
 	"NYCU-SDC/core-system-backend/internal"
 	"NYCU-SDC/core-system-backend/internal/form"
+	"NYCU-SDC/core-system-backend/internal/tenant"
 	"NYCU-SDC/core-system-backend/internal/user"
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"time"
+
 	handlerutil "github.com/NYCU-SDC/summer/pkg/handler"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/NYCU-SDC/summer/pkg/problem"
@@ -15,8 +19,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
-	"net/http"
-	"time"
 )
 
 type Store interface {
@@ -32,6 +34,9 @@ type Store interface {
 	RemoveParentChild(ctx context.Context, childID uuid.UUID) error
 	ListSubUnits(ctx context.Context, id uuid.UUID, unitType Type) ([]Unit, error)
 	ListSubUnitIDs(ctx context.Context, id uuid.UUID, unitType Type) ([]uuid.UUID, error)
+	AddMember(ctx context.Context, unitType Type, id uuid.UUID, memberID uuid.UUID) (GenericMember, error)
+	ListMembers(ctx context.Context, unitType Type, id uuid.UUID) ([]uuid.UUID, error)
+	RemoveMember(ctx context.Context, unitType Type, id uuid.UUID, memberID uuid.UUID) error
 }
 
 type Handler struct {
@@ -41,6 +46,7 @@ type Handler struct {
 	problemWriter *problem.HttpWriter
 	store         Store
 	formService   *form.Service
+	tenantService *tenant.Service
 }
 
 func NewHandler(
@@ -49,6 +55,7 @@ func NewHandler(
 	problemWriter *problem.HttpWriter,
 	store Store,
 	formService *form.Service,
+	tenantService *tenant.Service,
 ) *Handler {
 	return &Handler{
 		logger:        logger,
@@ -56,6 +63,7 @@ func NewHandler(
 		problemWriter: problemWriter,
 		store:         store,
 		formService:   formService,
+		tenantService: tenantService,
 		tracer:        otel.Tracer("unit/handler"),
 	}
 }
@@ -86,7 +94,7 @@ type orgResponse struct {
 
 type Response struct {
 	ID          uuid.UUID         `json:"id"`
-	OrgID       uuid.UUID         `json:"org_id"`
+	OrgID       string            `json:"org_id"`
 	Name        string            `json:"name"`
 	Description string            `json:"description"`
 	Metadata    map[string]string `json:"metadata"`
@@ -99,9 +107,10 @@ func convertResponse(u Unit) Response {
 	if err := json.Unmarshal(u.Metadata, &meta); err != nil {
 		meta = make(map[string]string)
 	}
+
 	return Response{
 		ID:          u.ID,
-		OrgID:       u.OrgID,
+		OrgID:       u.OrgID.String(),
 		Name:        u.Name.String,
 		Description: u.Description.String,
 		Metadata:    meta,
@@ -198,7 +207,13 @@ func (h *Handler) CreateOrg(w http.ResponseWriter, r *http.Request) {
 
 	createdOrg, err := h.store.CreateOrg(traceCtx, req.Name, req.Description, currentUser.ID, metadataBytes, req.Slug)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to create unit: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to create org: %w", err), h.logger)
+		return
+	}
+
+	_, err = h.tenantService.Create(traceCtx, createdOrg.ID)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to create tenant for org: %w", err), h.logger)
 		return
 	}
 
@@ -603,4 +618,196 @@ func (h *Handler) ListFormsByUnit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, forms)
+}
+
+func (h *Handler) AddOrgMember(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "AddOrgMember")
+	defer span.End()
+	h.logger = logutil.WithContext(traceCtx, h.logger)
+
+	slug, err := internal.GetSlugFromContext(traceCtx)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org slug from context: %w", err), h.logger)
+		return
+	}
+
+	orgID, err := h.store.GetOrgIDBySlug(traceCtx, slug)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
+		return
+	}
+
+	// Get MemberID from request body
+	var params struct {
+		MemberID uuid.UUID `json:"member_id"`
+	}
+	if err := handlerutil.ParseAndValidateRequestBody(traceCtx, h.validator, r, &params); err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid request body: %w", err), h.logger)
+		return
+	}
+
+	if orgID == uuid.Nil || params.MemberID == uuid.Nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("org ID or member ID cannot be empty"), h.logger)
+		return
+	}
+
+	members, err := h.store.AddMember(traceCtx, TypeOrg, orgID, params.MemberID)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to add org member: %w", err), h.logger)
+		return
+	}
+
+	handlerutil.WriteJSONResponse(w, http.StatusNoContent, members)
+}
+
+func (h *Handler) AddUnitMember(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "AddUnitMember")
+	defer span.End()
+	h.logger = logutil.WithContext(traceCtx, h.logger)
+
+	idStr := r.PathValue("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid unit ID: %w", err), h.logger)
+		return
+	}
+
+	var params struct {
+		MemberID uuid.UUID `json:"member_id"`
+	}
+	if err := handlerutil.ParseAndValidateRequestBody(traceCtx, h.validator, r, &params); err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid request body: %w", err), h.logger)
+		return
+	}
+
+	if params.MemberID == uuid.Nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("member ID cannot be empty"), h.logger)
+		return
+	}
+
+	member, err := h.store.AddMember(traceCtx, TypeUnit, id, params.MemberID)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to add unit member: %w", err), h.logger)
+		return
+	}
+
+	handlerutil.WriteJSONResponse(w, http.StatusNoContent, member)
+}
+
+func (h *Handler) ListOrgMembers(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "ListOrgMembers")
+	defer span.End()
+	h.logger = logutil.WithContext(traceCtx, h.logger)
+
+	slug, err := internal.GetSlugFromContext(traceCtx)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org slug from context: %w", err), h.logger)
+		return
+	}
+
+	orgID, err := h.store.GetOrgIDBySlug(traceCtx, slug)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
+		return
+	}
+
+	members, err := h.store.ListMembers(traceCtx, TypeOrg, orgID)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list org members: %w", err), h.logger)
+		return
+	}
+
+	handlerutil.WriteJSONResponse(w, http.StatusOK, members)
+}
+
+func (h *Handler) ListUnitMembers(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "ListUnitMembers")
+	defer span.End()
+	h.logger = logutil.WithContext(traceCtx, h.logger)
+
+	idStr := r.PathValue("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid unit ID: %w", err), h.logger)
+		return
+	}
+
+	members, err := h.store.ListMembers(traceCtx, TypeUnit, id)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list unit members: %w", err), h.logger)
+		return
+	}
+
+	handlerutil.WriteJSONResponse(w, http.StatusOK, members)
+}
+
+func (h *Handler) RemoveOrgMember(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "RemoveOrgMember")
+	defer span.End()
+	h.logger = logutil.WithContext(traceCtx, h.logger)
+
+	slug, err := internal.GetSlugFromContext(traceCtx)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org slug from context: %w", err), h.logger)
+		return
+	}
+
+	orgID, err := h.store.GetOrgIDBySlug(traceCtx, slug)
+	if err != nil || orgID == uuid.Nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
+		return
+	}
+
+	mIDStr := r.PathValue("member_id")
+
+	if mIDStr == "" {
+		http.Error(w, "member ID not provided", http.StatusBadRequest)
+		return
+	}
+	mID, err := uuid.Parse(mIDStr)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid member ID: %w", err), h.logger)
+		return
+	}
+
+	err = h.store.RemoveMember(traceCtx, TypeOrg, orgID, mID)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to remove org member: %w", err), h.logger)
+		return
+	}
+
+	handlerutil.WriteJSONResponse(w, http.StatusNoContent, nil)
+}
+
+func (h *Handler) RemoveUnitMember(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "RemoveUnitMember")
+	defer span.End()
+	h.logger = logutil.WithContext(traceCtx, h.logger)
+
+	idStr := r.PathValue("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid unit ID: %w", err), h.logger)
+		return
+	}
+
+	mIDStr := r.PathValue("member_id")
+	if mIDStr == "" {
+		http.Error(w, "member ID not provided", http.StatusBadRequest)
+		return
+	}
+
+	mID, err := uuid.Parse(mIDStr)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid member ID: %w", err), h.logger)
+		return
+	}
+
+	err = h.store.RemoveMember(traceCtx, TypeUnit, id, mID)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to remove unit member: %w", err), h.logger)
+		return
+	}
+
+	handlerutil.WriteJSONResponse(w, http.StatusNoContent, nil)
 }

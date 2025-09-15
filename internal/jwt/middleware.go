@@ -4,6 +4,7 @@ import (
 	"NYCU-SDC/core-system-backend/internal"
 	"context"
 	"net/http"
+	"strings"
 
 	"go.uber.org/zap"
 
@@ -43,17 +44,25 @@ func (m *Middleware) AuthenticateMiddleware(handler http.HandlerFunc) http.Handl
 		traceCtx, span := m.tracer.Start(r.Context(), "AuthenticateMiddleware")
 		defer span.End()
 
-		// Extract access token from cookie
-		accessTokenCookie, err := r.Cookie("access_token")
-		if err != nil {
-			m.problemWriter.WriteError(traceCtx, w, internal.ErrMissingAuthHeader, m.logger)
-			return
-		}
+		var tokenString string
 
-		tokenString := accessTokenCookie.Value
-		if tokenString == "" {
-			m.problemWriter.WriteError(traceCtx, w, internal.ErrInvalidAuthHeaderFormat, m.logger)
-			return
+		// Extract access token from cookie
+		if accessTokenCookie, err := r.Cookie("access_token"); err == nil && accessTokenCookie.Value != "" {
+			tokenString = accessTokenCookie.Value
+		} else {
+			// Fallback to Authorization header
+			authHeader := r.Header.Get("Authorization")
+			if authHeader == "" {
+				m.problemWriter.WriteError(traceCtx, w, internal.ErrMissingAuthHeader, m.logger)
+				return
+			}
+
+			fields := strings.Fields(authHeader)
+			if len(fields) != 2 || !strings.EqualFold(fields[0], "Bearer") {
+				m.problemWriter.WriteError(traceCtx, w, internal.ErrInvalidAuthHeaderFormat, m.logger)
+				return
+			}
+			tokenString = fields[1]
 		}
 
 		// Parse and validate JWT token

@@ -2,6 +2,7 @@ package internal
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/NYCU-SDC/summer/pkg/problem"
 )
@@ -21,14 +22,22 @@ var (
 	ErrNotFound             = errors.New("not found")
 
 	// JWT Authentication Errors
-	ErrMissingAuthHeader       = errors.New("missing access token cookie")
-	ErrInvalidAuthHeaderFormat = errors.New("invalid access token cookie")
+	ErrMissingAuthHeader       = errors.New("missing access token")
+	ErrInvalidAuthHeaderFormat = errors.New("invalid access token")
 	ErrInvalidJWTToken         = errors.New("invalid JWT token")
 	ErrInvalidAuthUser         = errors.New("invalid authenticated user")
 
 	// User Errors
 	ErrUserNotFound    = errors.New("user not found")
 	ErrNoUserInContext = errors.New("no user found in request context")
+
+	// Unit Errors
+	ErrOrgSlugNotFound      = errors.New("org slug not found")
+	ErrOrgSlugAlreadyExists = errors.New("org slug already exists")
+	ErrUnitNotFound         = errors.New("unit not found")
+
+	// Publish Errors
+	ErrFormNotDraft = fmt.Errorf("form is not in draft status")
 )
 
 func NewProblemWriter() *problem.HttpWriter {
@@ -57,9 +66,9 @@ func ErrorHandler(err error) problem.Problem {
 		return problem.NewNotFoundProblem("not found")
 	// JWT Authentication Errors
 	case errors.Is(err, ErrMissingAuthHeader):
-		return problem.NewUnauthorizedProblem("missing access token cookie")
+		return problem.NewUnauthorizedProblem("missing access token")
 	case errors.Is(err, ErrInvalidAuthHeaderFormat):
-		return problem.NewUnauthorizedProblem("invalid access token cookie")
+		return problem.NewUnauthorizedProblem("invalid access token")
 	case errors.Is(err, ErrInvalidJWTToken):
 		return problem.NewUnauthorizedProblem("invalid JWT token")
 	case errors.Is(err, ErrInvalidAuthUser):
@@ -69,6 +78,18 @@ func ErrorHandler(err error) problem.Problem {
 		return problem.NewNotFoundProblem("user not found")
 	case errors.Is(err, ErrNoUserInContext):
 		return problem.NewUnauthorizedProblem("no user found in request context")
+
+	// Unit Errors
+	case errors.Is(err, ErrOrgSlugNotFound):
+		return problem.NewNotFoundProblem("org slug not found")
+	case errors.Is(err, ErrOrgSlugAlreadyExists):
+		return problem.NewValidateProblem("org slug already exists")
+	case errors.Is(err, ErrUnitNotFound):
+		return problem.NewNotFoundProblem("unit not found")
+
+	// Publish Errors
+	case errors.Is(err, ErrFormNotDraft):
+		return problem.NewValidateProblem("form is not in draft status")
 	}
 	return problem.Problem{}
 }
