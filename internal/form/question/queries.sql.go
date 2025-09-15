@@ -13,8 +13,8 @@ import (
 )
 
 const create = `-- name: Create :one
-INSERT INTO questions (form_id, required, type, title, description, "order")
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO questions (form_id, required, type, title, description, metadata, "order")
+VALUES ($1, $2, $3, $4, $5, $6, $7)
     RETURNING id, form_id, required, type, title, description, metadata, "order", created_at, updated_at
 `
 
@@ -24,6 +24,7 @@ type CreateParams struct {
 	Type        QuestionType
 	Title       pgtype.Text
 	Description pgtype.Text
+	Metadata    []byte
 	Order       int32
 }
 
@@ -34,6 +35,7 @@ func (q *Queries) Create(ctx context.Context, arg CreateParams) (Question, error
 		arg.Type,
 		arg.Title,
 		arg.Description,
+		arg.Metadata,
 		arg.Order,
 	)
 	var i Question
@@ -125,7 +127,7 @@ func (q *Queries) ListByFormID(ctx context.Context, formID uuid.UUID) ([]Questio
 
 const update = `-- name: Update :one
 UPDATE questions
-SET required = $3, type = $4, title = $5, description = $6, "order" = $7, updated_at = now()
+SET required = $3, type = $4, title = $5, description = $6, metadata = $7, "order" = $8, updated_at = now()
 WHERE form_id = $1 AND id = $2
     RETURNING id, form_id, required, type, title, description, metadata, "order", created_at, updated_at
 `
@@ -137,6 +139,7 @@ type UpdateParams struct {
 	Type        QuestionType
 	Title       pgtype.Text
 	Description pgtype.Text
+	Metadata    []byte
 	Order       int32
 }
 
@@ -148,6 +151,7 @@ func (q *Queries) Update(ctx context.Context, arg UpdateParams) (Question, error
 		arg.Type,
 		arg.Title,
 		arg.Description,
+		arg.Metadata,
 		arg.Order,
 	)
 	var i Question

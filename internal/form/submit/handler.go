@@ -70,8 +70,8 @@ func (h *Handler) SubmitHandler(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
-	formIdStr := r.PathValue("formId")
-	formId, err := internal.ParseUUID(formIdStr)
+	formIDStr := r.PathValue("formId")
+	formID, err := internal.ParseUUID(formIDStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
@@ -95,7 +95,7 @@ func (h *Handler) SubmitHandler(w http.ResponseWriter, r *http.Request) {
 		answerParams[i] = answer.ToAnswerParam()
 	}
 
-	newResponse, errs := h.operator.Submit(traceCtx, formId, currentUser.ID, answerParams)
+	newResponse, errs := h.operator.Submit(traceCtx, formID, currentUser.ID, answerParams)
 	if errs != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
@@ -108,5 +108,5 @@ func (h *Handler) SubmitHandler(w http.ResponseWriter, r *http.Request) {
 		UpdatedAt: newResponse.UpdatedAt.Time,
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusOK, submitResponse)
+	handlerutil.WriteJSONResponse(w, http.StatusCreated, submitResponse)
 }

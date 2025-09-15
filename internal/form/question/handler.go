@@ -17,11 +17,12 @@ import (
 )
 
 type Request struct {
-	Required    bool   `json:"required" validate:"required"`
-	Type        string `json:"type" validate:"required,oneof=short_text long_text single_choice multiple_choice date"`
-	Title       string `json:"title" validate:"required"`
-	Description string `json:"description"`
-	Order       int32  `json:"order" validate:"required"`
+	Required    bool           `json:"required" validate:"required"`
+	Type        string         `json:"type" validate:"required,oneof=short_text long_text single_choice multiple_choice date"`
+	Title       string         `json:"title" validate:"required"`
+	Description string         `json:"description"`
+	Order       int32          `json:"order" validate:"required"`
+	Choices     []ChoiceOption `json:"choices,omitempty" validate:"omitempty,dive"`
 }
 
 type Response struct {
@@ -32,14 +33,15 @@ type Response struct {
 	Label       string    `json:"label"`
 	Description string    `json:"description"`
 	Order       int32     `json:"order"`
+	Choices     []Choice  `json:"choices,omitempty"`
 	CreatedAt   time.Time `json:"createdAt"`
 	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
-func ToResponse(answerable Answerable) Response {
+func ToResponse(answerable Answerable) (Response, error) {
 	q := answerable.Question()
 
-	return Response{
+	response := Response{
 		ID:          q.ID,
 		FormID:      q.FormID,
 		Required:    q.Required,
@@ -50,6 +52,21 @@ func ToResponse(answerable Answerable) Response {
 		CreatedAt:   q.CreatedAt.Time,
 		UpdatedAt:   q.UpdatedAt.Time,
 	}
+
+	// Add choices for choice-based questions
+	if q.Type == QuestionTypeSingleChoice || q.Type == QuestionTypeMultipleChoice {
+		choices, err := ExtractChoices(q.Metadata)
+		if err != nil {
+			return response, ErrInvalidChoices{
+				QuestionID: q.ID.String(),
+				RawData:    q.Metadata,
+				Message:    err.Error(),
+			}
+		}
+		response.Choices = choices
+	}
+
+	return response, nil
 }
 
 type Store interface {
@@ -102,6 +119,13 @@ func (h *Handler) AddHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Generate and validate metadata for choice-based questions
+	metadata, err := GenerateMetadata(req.Type, req.Choices)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, err, logger)
+		return
+	}
+
 	request := CreateParams{
 		FormID:      formID,
 		Required:    req.Required,
@@ -109,6 +133,7 @@ func (h *Handler) AddHandler(w http.ResponseWriter, r *http.Request) {
 		Title:       pgtype.Text{String: req.Title, Valid: true},
 		Description: pgtype.Text{String: req.Description, Valid: true},
 		Order:       req.Order,
+		Metadata:    metadata,
 	}
 
 	createdQuestion, err := h.store.Create(r.Context(), request)
@@ -117,7 +142,11 @@ func (h *Handler) AddHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := ToResponse(createdQuestion)
+	response, err := ToResponse(createdQuestion)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, err, logger)
+		return
+	}
 
 	handlerutil.WriteJSONResponse(w, http.StatusCreated, response)
 }
@@ -127,7 +156,7 @@ func (h *Handler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
-	idStr := r.PathValue("id")
+	idStr := r.PathValue("questionId")
 	id, err := handlerutil.ParseUUID(idStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
@@ -147,6 +176,13 @@ func (h *Handler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Generate and validate metadata for choice-based questions
+	metadata, err := GenerateMetadata(req.Type, req.Choices)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, err, logger)
+		return
+	}
+
 	request := UpdateParams{
 		ID:          id,
 		FormID:      formID,
@@ -155,6 +191,7 @@ func (h *Handler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 		Title:       pgtype.Text{String: req.Title, Valid: true},
 		Description: pgtype.Text{String: req.Description, Valid: true},
 		Order:       req.Order,
+		Metadata:    metadata,
 	}
 
 	updatedQuestion, err := h.store.Update(traceCtx, request)
@@ -163,7 +200,11 @@ func (h *Handler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := ToResponse(updatedQuestion)
+	response, err := ToResponse(updatedQuestion)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, err, logger)
+		return
+	}
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
 }
@@ -180,7 +221,7 @@ func (h *Handler) DeleteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	idStr := r.PathValue("id")
+	idStr := r.PathValue("questionId")
 	id, err := handlerutil.ParseUUID(idStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
@@ -216,7 +257,12 @@ func (h *Handler) ListHandler(w http.ResponseWriter, r *http.Request) {
 
 	responses := make([]Response, len(questions))
 	for i, q := range questions {
-		responses[i] = ToResponse(q)
+		response, err := ToResponse(q)
+		if err != nil {
+			h.problemWriter.WriteError(traceCtx, w, err, logger)
+			return
+		}
+		responses[i] = response
 	}
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, responses)
