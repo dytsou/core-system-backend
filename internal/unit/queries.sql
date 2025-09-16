@@ -70,8 +70,8 @@ DELETE FROM parent_child WHERE child_id = $1;
 -- name: AddOrgMember :one
 INSERT INTO org_members (org_id, member_id)
 VALUES ($1, $2)
-    ON CONFLICT (org_id, member_id) DO UPDATE
-SET org_id = EXCLUDED.org_id
+ON CONFLICT (org_id, member_id) DO UPDATE
+    SET org_id = EXCLUDED.org_id
 RETURNING *;
 
 -- name: ListOrgMembers :many
@@ -80,7 +80,7 @@ SELECT m.member_id,
        u.username,
        u.avatar_url
 FROM org_members m
-         JOIN users u ON u.id = m.member_id
+JOIN users u ON u.id = m.member_id
 WHERE m.org_id = $1;
 
 -- name: RemoveOrgMember :exec
@@ -89,6 +89,8 @@ DELETE FROM org_members WHERE org_id = $1 AND member_id = $2;
 -- name: AddUnitMember :one
 INSERT INTO unit_members (unit_id, member_id)
 VALUES ($1, $2)
+ON CONFLICT (unit_id, member_id) DO UPDATE
+    SET unit_id = EXCLUDED.unit_id
 RETURNING *;
 
 -- name: ListUnitMembers :many
@@ -97,7 +99,7 @@ SELECT m.member_id,
        u.username,
        u.avatar_url
 FROM unit_members m
-         JOIN users u ON u.id = m.member_id
+JOIN users u ON u.id = m.member_id
 WHERE m.unit_id = $1;
 
 -- name: ListUnitsMembers :many
@@ -107,7 +109,7 @@ SELECT m.unit_id,
        u.username,
        u.avatar_url
 FROM unit_members m
-         JOIN users u ON u.id = m.member_id
+JOIN users u ON u.id = m.member_id
 WHERE m.unit_id = ANY($1::uuid[]);
 
 -- name: RemoveUnitMember :exec
