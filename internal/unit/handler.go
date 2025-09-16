@@ -726,12 +726,7 @@ func (h *Handler) ListOrgMembers(w http.ResponseWriter, r *http.Request) {
 
 	response := make([]SimpleUserResponse, 0, len(members))
 	for _, m := range members {
-		response = append(response, SimpleUserResponse{
-			ID:        m.ID,
-			Name:      m.Name,
-			Username:  m.Username,
-			AvatarURL: m.AvatarURL,
-		})
+		response = append(response, SimpleUserResponse(m))
 	}
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
@@ -757,12 +752,7 @@ func (h *Handler) ListUnitMembers(w http.ResponseWriter, r *http.Request) {
 
 	response := make([]SimpleUserResponse, 0, len(members))
 	for _, m := range members {
-		response = append(response, SimpleUserResponse{
-			ID:        m.ID,
-			Name:      m.Name,
-			Username:  m.Username,
-			AvatarURL: m.AvatarURL,
-		})
+		response = append(response, SimpleUserResponse(m))
 	}
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
