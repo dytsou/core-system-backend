@@ -56,6 +56,25 @@ func (s *Service) AddMember(ctx context.Context, unitType Type, id uuid.UUID, me
 			zap.String("unit_id", unitMember.UnitID.String()),
 			zap.String("member_id", unitMember.MemberID.String()))
 
+		unit, err := s.queries.GetUnitByID(traceCtx, id)
+		if err != nil {
+			err = databaseutil.WrapDBError(err, logger, "get unit by id when adding member to unit")
+			span.RecordError(err)
+			return MemberWrapper{}, err
+		}
+
+		uid, err := uuid.Parse(unit.OrgID.String())
+		if err != nil {
+			logger.Error("failed to parse org id when adding member to unit", zap.Error(err))
+			return nil, err
+		}
+
+		_, err = s.AddMember(ctx, TypeOrg, uid, memberID)
+		if err != nil {
+			logger.Error("failed to add member to organization when adding to unit", zap.Error(err))
+			return nil, err
+		}
+
 		return MemberWrapper{unitMember}, nil
 	}
 
@@ -96,6 +115,8 @@ func (s *Service) ListMembers(ctx context.Context, unitType Type, id uuid.UUID) 
 			span.RecordError(err)
 			return nil, err
 		}
+
+		fmt.Println(len(members))
 
 		simpleUsers = make([]SimpleUser, len(members))
 		for i, member := range members {

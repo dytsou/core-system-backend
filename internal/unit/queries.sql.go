@@ -15,6 +15,8 @@ import (
 const addOrgMember = `-- name: AddOrgMember :one
 INSERT INTO org_members (org_id, member_id)
 VALUES ($1, $2)
+ON CONFLICT (org_id, member_id) DO UPDATE
+    SET org_id = EXCLUDED.org_id
 RETURNING org_id, member_id
 `
 
@@ -52,6 +54,8 @@ func (q *Queries) AddParentChild(ctx context.Context, arg AddParentChildParams) 
 const addUnitMember = `-- name: AddUnitMember :one
 INSERT INTO unit_members (unit_id, member_id)
 VALUES ($1, $2)
+ON CONFLICT (unit_id, member_id) DO UPDATE
+    SET unit_id = EXCLUDED.unit_id
 RETURNING unit_id, member_id
 `
 
@@ -281,7 +285,7 @@ SELECT m.member_id,
        u.username,
        u.avatar_url
 FROM org_members m
-         JOIN users u ON u.id = m.member_id
+JOIN users u ON u.id = m.member_id
 WHERE m.org_id = $1
 `
 
@@ -441,7 +445,7 @@ SELECT m.member_id,
        u.username,
        u.avatar_url
 FROM unit_members m
-         JOIN users u ON u.id = m.member_id
+JOIN users u ON u.id = m.member_id
 WHERE m.unit_id = $1
 `
 
@@ -484,7 +488,7 @@ SELECT m.unit_id,
        u.username,
        u.avatar_url
 FROM unit_members m
-         JOIN users u ON u.id = m.member_id
+JOIN users u ON u.id = m.member_id
 WHERE m.unit_id = ANY($1::uuid[])
 `
 
