@@ -18,6 +18,7 @@ services:
       OTEL_COLLECTOR_URL: 10.140.0.3:4317
       GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID}
       GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET}
+      ALLOW_ORIGINS: "*"
     labels:
       - "vector.enable=true"
       - "traefik.enable=true"

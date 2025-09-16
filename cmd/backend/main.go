@@ -4,6 +4,7 @@ import (
 	"NYCU-SDC/core-system-backend/internal"
 	"NYCU-SDC/core-system-backend/internal/auth"
 	"NYCU-SDC/core-system-backend/internal/config"
+	"NYCU-SDC/core-system-backend/internal/cors"
 	"NYCU-SDC/core-system-backend/internal/distribute"
 	"NYCU-SDC/core-system-backend/internal/form"
 	"NYCU-SDC/core-system-backend/internal/form/question"
@@ -152,6 +153,7 @@ func main() {
 
 	// Middleware
 	traceMiddleware := trace.NewMiddleware(logger, cfg.Debug)
+	corsMiddleware := cors.NewMiddleware(logger, cfg.AllowOrigins)
 	jwtMiddleware := jwt.NewMiddleware(logger, validator, problemWriter, jwtService)
 	tenantMiddleware := tenant.NewMiddleware(logger, dbPool, tenantService, unitService)
 
@@ -249,9 +251,12 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	// CORS and Entry Point
+	entrypoint := corsMiddleware.HandlerFunc(mux.ServeHTTP)
+
 	srv := &http.Server{
 		Addr:    cfg.Host + ":" + cfg.Port,
-		Handler: mux,
+		Handler: entrypoint,
 	}
 
 	go func() {
