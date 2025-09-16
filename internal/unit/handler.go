@@ -755,7 +755,17 @@ func (h *Handler) ListUnitMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusOK, members)
+	response := make([]SimpleUserResponse, 0, len(members))
+	for _, m := range members {
+		response = append(response, SimpleUserResponse{
+			ID:        m.ID,
+			Name:      m.Name,
+			Username:  m.Username,
+			AvatarURL: m.AvatarURL,
+		})
+	}
+
+	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
 }
 
 func (h *Handler) RemoveOrgMember(w http.ResponseWriter, r *http.Request) {

@@ -70,6 +70,8 @@ DELETE FROM parent_child WHERE child_id = $1;
 -- name: AddOrgMember :one
 INSERT INTO org_members (org_id, member_id)
 VALUES ($1, $2)
+    ON CONFLICT (org_id, member_id) DO UPDATE
+SET org_id = EXCLUDED.org_id
 RETURNING *;
 
 -- name: ListOrgMembers :many
