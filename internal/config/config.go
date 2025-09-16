@@ -5,13 +5,15 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"os"
+	"strings"
+	"time"
+
 	configutil "github.com/NYCU-SDC/summer/pkg/config"
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
-	"os"
-	"time"
 )
 
 const DefaultSecret = "default-secret"
@@ -31,6 +33,7 @@ type Config struct {
 	AccessTokenExpirationStr  string                  `yaml:"access_token_expiration" envconfig:"ACCESS_TOKEN_EXPIRATION"`
 	RefreshTokenExpirationStr string                  `yaml:"refresh_token_expiration" envconfig:"REFRESH_TOKEN_EXPIRATION"`
 	OtelCollectorUrl          string                  `yaml:"otel_collector_url" envconfig:"OTEL_COLLECTOR_URL"`
+	AllowOrigins              []string                `yaml:"allow_origins"      envconfig:"ALLOW_ORIGINS"`
 	GoogleOauth               googleOauth.GoogleOauth `yaml:"google_oauth"`
 
 	AccessTokenExpiration  time.Duration `yaml:"-"`
@@ -176,6 +179,12 @@ func FromEnv(config *Config, logger *LogBuffer) (*Config, error) {
 		} else {
 			return nil, err
 		}
+	}
+
+	// Allow origins
+	allowOrigins := os.Getenv("ALLOW_ORIGINS")
+	if allowOrigins != "" {
+		config.AllowOrigins = strings.Split(allowOrigins, ",")
 	}
 
 	envConfig := &Config{
