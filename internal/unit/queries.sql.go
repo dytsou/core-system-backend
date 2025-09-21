@@ -147,6 +147,30 @@ func (q *Queries) GetByID(ctx context.Context, id uuid.UUID) (Unit, error) {
 	return i, err
 }
 
+const listMembers = `-- name: ListMembers :many
+SELECT member_id FROM unit_members WHERE unit_id = $1
+`
+
+func (q *Queries) ListMembers(ctx context.Context, unitID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listMembers, unitID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var member_id uuid.UUID
+		if err := rows.Scan(&member_id); err != nil {
+			return nil, err
+		}
+		items = append(items, member_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSubUnitIDs = `-- name: ListSubUnitIDs :many
 SELECT child_id FROM parent_child WHERE parent_id = $1
 `

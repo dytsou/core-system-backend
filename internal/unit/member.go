@@ -32,38 +32,30 @@ func (s *Service) AddMember(ctx context.Context, unitType Type, id uuid.UUID, me
 	return member, nil
 }
 
-//// ListMembers lists all members of an organization or a unit
-//func (s *Service) ListMembers(ctx context.Context, unitType Type, id uuid.UUID) ([]uuid.UUID, error) {
-//	traceCtx, span := s.tracer.Start(ctx, fmt.Sprintf("List%sMembers", unitType.String()))
-//	defer span.End()
-//	logger := logutil.WithContext(traceCtx, s.logger)
-//
-//	var members []uuid.UUID
-//	var err error
-//	switch unitType {
-//	case TypeOrg:
-//		members, err = s.queries.ListOrgMembers(traceCtx, id)
-//	case TypeUnit:
-//		members, err = s.queries.ListUnitMembers(traceCtx, id)
-//	}
-//
-//	if err != nil {
-//		err = databaseutil.WrapDBError(err, logger, fmt.Sprintf("list %s members", unitType))
-//		span.RecordError(err)
-//		return nil, err
-//	}
-//
-//	if members == nil {
-//		members = []uuid.UUID{}
-//	}
-//
-//	logger.Info(fmt.Sprintf("Listed %s members", unitType.String()),
-//		zap.String("org_id", id.String()),
-//		zap.Int("count", len(members)),
-//		zap.String("members", fmt.Sprintf("%v", members)))
-//
-//	return members, nil
-//}
+// ListMembers lists all members of an organization or a unit
+func (s *Service) ListMembers(ctx context.Context, unitType Type, id uuid.UUID) ([]uuid.UUID, error) {
+	traceCtx, span := s.tracer.Start(ctx, fmt.Sprintf("List%sMembers", unitType.String()))
+	defer span.End()
+	logger := logutil.WithContext(traceCtx, s.logger)
+
+	members, err := s.queries.ListMembers(traceCtx, id)
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, fmt.Sprintf("list %s members", unitType))
+		span.RecordError(err)
+		return nil, err
+	}
+
+	if members == nil {
+		members = []uuid.UUID{}
+	}
+
+	logger.Info(fmt.Sprintf("Listed %s members", unitType.String()),
+		zap.String("org_id", id.String()),
+		zap.Int("count", len(members)),
+		zap.String("members", fmt.Sprintf("%v", members)))
+
+	return members, nil
+}
 
 // ListUnitsMembers lists members for multiple units at once
 func (s *Service) ListUnitsMembers(ctx context.Context, unitIDs []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error) {

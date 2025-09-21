@@ -38,10 +38,10 @@ DELETE FROM parent_child WHERE child_id = $1;
 INSERT INTO unit_members (unit_id, member_id)
 VALUES ($1, $2)
 RETURNING *;
---
--- -- name: ListOrgMembers :many
--- SELECT member_id FROM org_members WHERE org_id = $1;
---
+
+-- name: ListMembers :many
+SELECT member_id FROM unit_members WHERE unit_id = $1;
+
 -- -- name: RemoveOrgMember :exec
 -- DELETE FROM org_members WHERE org_id = $1 AND member_id = $2;
 --

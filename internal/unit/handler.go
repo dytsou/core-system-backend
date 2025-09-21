@@ -34,7 +34,7 @@ type Store interface {
 	ListSubUnits(ctx context.Context, id uuid.UUID, unitType Type) ([]Unit, error)
 	ListSubUnitIDs(ctx context.Context, id uuid.UUID, unitType Type) ([]uuid.UUID, error)
 	AddMember(ctx context.Context, unitType Type, id uuid.UUID, memberID uuid.UUID) (UnitMember, error)
-	//ListMembers(ctx context.Context, unitType Type, id uuid.UUID) ([]uuid.UUID, error)
+	ListMembers(ctx context.Context, unitType Type, id uuid.UUID) ([]uuid.UUID, error)
 	//RemoveMember(ctx context.Context, unitType Type, id uuid.UUID, memberID uuid.UUID) error
 }
 
@@ -705,54 +705,53 @@ func (h *Handler) AddUnitMember(w http.ResponseWriter, r *http.Request) {
 	handlerutil.WriteJSONResponse(w, http.StatusNoContent, member)
 }
 
-//
-//func (h *Handler) ListOrgMembers(w http.ResponseWriter, r *http.Request) {
-//	traceCtx, span := h.tracer.Start(r.Context(), "ListOrgMembers")
-//	defer span.End()
-//	h.logger = logutil.WithContext(traceCtx, h.logger)
-//
-//	slug, err := internal.GetSlugFromContext(traceCtx)
-//	if err != nil {
-//		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org slug from context: %w", err), h.logger)
-//		return
-//	}
-//
-//	orgTenant, err := h.tenantService.GetBySlug(traceCtx, slug)
-//	if err != nil {
-//		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
-//		return
-//	}
-//
-//	members, err := h.store.ListMembers(traceCtx, TypeOrg, orgTenant.ID)
-//	if err != nil {
-//		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list org members: %w", err), h.logger)
-//		return
-//	}
-//
-//	handlerutil.WriteJSONResponse(w, http.StatusOK, members)
-//}
-//
-//func (h *Handler) ListUnitMembers(w http.ResponseWriter, r *http.Request) {
-//	traceCtx, span := h.tracer.Start(r.Context(), "ListUnitMembers")
-//	defer span.End()
-//	h.logger = logutil.WithContext(traceCtx, h.logger)
-//
-//	idStr := r.PathValue("id")
-//	id, err := uuid.Parse(idStr)
-//	if err != nil {
-//		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid unit ID: %w", err), h.logger)
-//		return
-//	}
-//
-//	members, err := h.store.ListMembers(traceCtx, TypeUnit, id)
-//	if err != nil {
-//		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list unit members: %w", err), h.logger)
-//		return
-//	}
-//
-//	handlerutil.WriteJSONResponse(w, http.StatusOK, members)
-//}
-//
+func (h *Handler) ListOrgMembers(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "ListOrgMembers")
+	defer span.End()
+	h.logger = logutil.WithContext(traceCtx, h.logger)
+
+	slug, err := internal.GetSlugFromContext(traceCtx)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org slug from context: %w", err), h.logger)
+		return
+	}
+
+	orgTenant, err := h.tenantService.GetBySlug(traceCtx, slug)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
+		return
+	}
+
+	members, err := h.store.ListMembers(traceCtx, TypeOrg, orgTenant.ID)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list org members: %w", err), h.logger)
+		return
+	}
+
+	handlerutil.WriteJSONResponse(w, http.StatusOK, members)
+}
+
+func (h *Handler) ListUnitMembers(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "ListUnitMembers")
+	defer span.End()
+	h.logger = logutil.WithContext(traceCtx, h.logger)
+
+	idStr := r.PathValue("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid unit ID: %w", err), h.logger)
+		return
+	}
+
+	members, err := h.store.ListMembers(traceCtx, TypeUnit, id)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list unit members: %w", err), h.logger)
+		return
+	}
+
+	handlerutil.WriteJSONResponse(w, http.StatusOK, members)
+}
+
 //func (h *Handler) RemoveOrgMember(w http.ResponseWriter, r *http.Request) {
 //	traceCtx, span := h.tracer.Start(r.Context(), "RemoveOrgMember")
 //	defer span.End()

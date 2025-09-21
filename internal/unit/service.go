@@ -26,7 +26,7 @@ type Querier interface {
 	RemoveParentChild(ctx context.Context, childID uuid.UUID) error
 
 	AddMember(ctx context.Context, arg AddMemberParams) (UnitMember, error)
-	//ListOrgMembers(ctx context.Context, orgID uuid.UUID) ([]uuid.UUID, error)
+	ListMembers(ctx context.Context, orgID uuid.UUID) ([]uuid.UUID, error)
 	//RemoveOrgMember(ctx context.Context, arg RemoveOrgMemberParams) error
 	//AddUnitMember(ctx context.Context, arg AddUnitMemberParams) (UnitMember, error)
 	//ListUnitMembers(ctx context.Context, unitID uuid.UUID) ([]uuid.UUID, error)
