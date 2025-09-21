@@ -272,22 +272,6 @@ type InboxMessage struct {
 	UpdatedAt pgtype.Timestamp
 }
 
-type OrgMember struct {
-	OrgID    uuid.UUID
-	MemberID uuid.UUID
-}
-
-type Organization struct {
-	ID          uuid.UUID
-	OwnerID     pgtype.UUID
-	Name        pgtype.Text
-	Description pgtype.Text
-	Metadata    []byte
-	Slug        string
-	CreatedAt   pgtype.Timestamptz
-	UpdatedAt   pgtype.Timestamptz
-}
-
 type ParentChild struct {
 	ParentID pgtype.UUID
 	ChildID  uuid.UUID
