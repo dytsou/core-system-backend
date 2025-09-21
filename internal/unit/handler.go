@@ -35,7 +35,7 @@ type Store interface {
 	ListSubUnitIDs(ctx context.Context, id uuid.UUID, unitType Type) ([]uuid.UUID, error)
 	AddMember(ctx context.Context, unitType Type, id uuid.UUID, memberID uuid.UUID) (UnitMember, error)
 	ListMembers(ctx context.Context, unitType Type, id uuid.UUID) ([]uuid.UUID, error)
-	//RemoveMember(ctx context.Context, unitType Type, id uuid.UUID, memberID uuid.UUID) error
+	RemoveMember(ctx context.Context, unitType Type, id uuid.UUID, memberID uuid.UUID) error
 }
 
 type Handler struct {
@@ -752,73 +752,73 @@ func (h *Handler) ListUnitMembers(w http.ResponseWriter, r *http.Request) {
 	handlerutil.WriteJSONResponse(w, http.StatusOK, members)
 }
 
-//func (h *Handler) RemoveOrgMember(w http.ResponseWriter, r *http.Request) {
-//	traceCtx, span := h.tracer.Start(r.Context(), "RemoveOrgMember")
-//	defer span.End()
-//	h.logger = logutil.WithContext(traceCtx, h.logger)
-//
-//	slug, err := internal.GetSlugFromContext(traceCtx)
-//	if err != nil {
-//		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org slug from context: %w", err), h.logger)
-//		return
-//	}
-//
-//	orgTenant, err := h.tenantService.GetBySlug(traceCtx, slug)
-//	if err != nil || orgTenant.ID == uuid.Nil {
-//		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
-//		return
-//	}
-//
-//	mIDStr := r.PathValue("member_id")
-//
-//	if mIDStr == "" {
-//		http.Error(w, "member ID not provided", http.StatusBadRequest)
-//		return
-//	}
-//	mID, err := uuid.Parse(mIDStr)
-//	if err != nil {
-//		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid member ID: %w", err), h.logger)
-//		return
-//	}
-//
-//	err = h.store.RemoveMember(traceCtx, TypeOrg, orgTenant.ID, mID)
-//	if err != nil {
-//		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to remove org member: %w", err), h.logger)
-//		return
-//	}
-//
-//	handlerutil.WriteJSONResponse(w, http.StatusNoContent, nil)
-//}
-//
-//func (h *Handler) RemoveUnitMember(w http.ResponseWriter, r *http.Request) {
-//	traceCtx, span := h.tracer.Start(r.Context(), "RemoveUnitMember")
-//	defer span.End()
-//	h.logger = logutil.WithContext(traceCtx, h.logger)
-//
-//	idStr := r.PathValue("id")
-//	id, err := uuid.Parse(idStr)
-//	if err != nil {
-//		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid unit ID: %w", err), h.logger)
-//		return
-//	}
-//
-//	mIDStr := r.PathValue("member_id")
-//	if mIDStr == "" {
-//		http.Error(w, "member ID not provided", http.StatusBadRequest)
-//		return
-//	}
-//
-//	mID, err := uuid.Parse(mIDStr)
-//	if err != nil {
-//		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid member ID: %w", err), h.logger)
-//		return
-//	}
-//
-//	err = h.store.RemoveMember(traceCtx, TypeUnit, id, mID)
-//	if err != nil {
-//		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to remove unit member: %w", err), h.logger)
-//		return
-//	}
-//
-//	handlerutil.WriteJSONResponse(w, http.StatusNoContent, nil)
-//}
+func (h *Handler) RemoveOrgMember(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "RemoveOrgMember")
+	defer span.End()
+	h.logger = logutil.WithContext(traceCtx, h.logger)
+
+	slug, err := internal.GetSlugFromContext(traceCtx)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org slug from context: %w", err), h.logger)
+		return
+	}
+
+	orgTenant, err := h.tenantService.GetBySlug(traceCtx, slug)
+	if err != nil || orgTenant.ID == uuid.Nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
+		return
+	}
+
+	mIDStr := r.PathValue("member_id")
+
+	if mIDStr == "" {
+		http.Error(w, "member ID not provided", http.StatusBadRequest)
+		return
+	}
+	mID, err := uuid.Parse(mIDStr)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid member ID: %w", err), h.logger)
+		return
+	}
+
+	err = h.store.RemoveMember(traceCtx, TypeOrg, orgTenant.ID, mID)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to remove org member: %w", err), h.logger)
+		return
+	}
+
+	handlerutil.WriteJSONResponse(w, http.StatusNoContent, nil)
+}
+
+func (h *Handler) RemoveUnitMember(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "RemoveUnitMember")
+	defer span.End()
+	h.logger = logutil.WithContext(traceCtx, h.logger)
+
+	idStr := r.PathValue("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid unit ID: %w", err), h.logger)
+		return
+	}
+
+	mIDStr := r.PathValue("member_id")
+	if mIDStr == "" {
+		http.Error(w, "member ID not provided", http.StatusBadRequest)
+		return
+	}
+
+	mID, err := uuid.Parse(mIDStr)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid member ID: %w", err), h.logger)
+		return
+	}
+
+	err = h.store.RemoveMember(traceCtx, TypeUnit, id, mID)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to remove unit member: %w", err), h.logger)
+		return
+	}
+
+	handlerutil.WriteJSONResponse(w, http.StatusNoContent, nil)
+}

@@ -27,11 +27,8 @@ type Querier interface {
 
 	AddMember(ctx context.Context, arg AddMemberParams) (UnitMember, error)
 	ListMembers(ctx context.Context, orgID uuid.UUID) ([]uuid.UUID, error)
-	//RemoveOrgMember(ctx context.Context, arg RemoveOrgMemberParams) error
-	//AddUnitMember(ctx context.Context, arg AddUnitMemberParams) (UnitMember, error)
-	//ListUnitMembers(ctx context.Context, unitID uuid.UUID) ([]uuid.UUID, error)
 	ListUnitsMembers(ctx context.Context, unitIDs []uuid.UUID) ([]UnitMember, error)
-	//RemoveUnitMember(ctx context.Context, arg RemoveUnitMemberParams) error
+	RemoveMember(ctx context.Context, arg RemoveMemberParams) error
 }
 
 type Service struct {

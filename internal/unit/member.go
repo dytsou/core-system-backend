@@ -86,35 +86,25 @@ func (s *Service) ListUnitsMembers(ctx context.Context, unitIDs []uuid.UUID) (ma
 	return membersMap, nil
 }
 
-//// RemoveMember removes a member from an organization or a unit
-//func (s *Service) RemoveMember(ctx context.Context, unitType Type, id uuid.UUID, memberID uuid.UUID) error {
-//	traceCtx, span := s.tracer.Start(ctx, fmt.Sprintf("Remove%sMember", unitType.String()))
-//	defer span.End()
-//	logger := logutil.WithContext(traceCtx, s.logger)
-//
-//	var err error
-//	switch unitType {
-//	case TypeOrg:
-//		err = s.queries.RemoveOrgMember(traceCtx, RemoveOrgMemberParams{
-//			OrgID:    id,
-//			MemberID: memberID,
-//		})
-//	case TypeUnit:
-//		err = s.queries.RemoveUnitMember(traceCtx, RemoveUnitMemberParams{
-//			UnitID:   id,
-//			MemberID: memberID,
-//		})
-//	}
-//
-//	if err != nil {
-//		err = databaseutil.WrapDBError(err, logger, fmt.Sprintf("remove %s member", unitType.String()))
-//		span.RecordError(err)
-//		return err
-//	}
-//
-//	logger.Info(fmt.Sprintf("Removed %s member", unitType.String()),
-//		zap.String("org_id", id.String()),
-//		zap.String("member_id", memberID.String()))
-//
-//	return nil
-//}
+// RemoveMember removes a member from an organization or a unit
+func (s *Service) RemoveMember(ctx context.Context, unitType Type, id uuid.UUID, memberID uuid.UUID) error {
+	traceCtx, span := s.tracer.Start(ctx, fmt.Sprintf("Remove%sMember", unitType.String()))
+	defer span.End()
+	logger := logutil.WithContext(traceCtx, s.logger)
+
+	err := s.queries.RemoveMember(traceCtx, RemoveMemberParams{
+		UnitID:   id,
+		MemberID: memberID,
+	})
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, fmt.Sprintf("remove %s member", unitType.String()))
+		span.RecordError(err)
+		return err
+	}
+
+	logger.Info(fmt.Sprintf("Removed %s member", unitType.String()),
+		zap.String("org_id", id.String()),
+		zap.String("member_id", memberID.String()))
+
+	return nil
+}

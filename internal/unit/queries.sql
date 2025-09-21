@@ -42,16 +42,10 @@ RETURNING *;
 -- name: ListMembers :many
 SELECT member_id FROM unit_members WHERE unit_id = $1;
 
--- -- name: RemoveOrgMember :exec
--- DELETE FROM org_members WHERE org_id = $1 AND member_id = $2;
---
--- -- name: ListUnitMembers :many
--- SELECT member_id FROM unit_members WHERE unit_id = $1;
-
 -- name: ListUnitsMembers :many
 SELECT unit_id, member_id
 FROM unit_members
 WHERE unit_id = ANY($1::uuid[]);
 
--- -- name: RemoveUnitMember :exec
--- DELETE FROM unit_members WHERE unit_id = $1 AND member_id = $2;
+-- name: RemoveMember :exec
+DELETE FROM unit_members WHERE unit_id = $1 AND member_id = $2;
