@@ -12,6 +12,24 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const addMember = `-- name: AddMember :one
+INSERT INTO unit_members (unit_id, member_id)
+VALUES ($1, $2)
+RETURNING unit_id, member_id
+`
+
+type AddMemberParams struct {
+	UnitID   uuid.UUID
+	MemberID uuid.UUID
+}
+
+func (q *Queries) AddMember(ctx context.Context, arg AddMemberParams) (UnitMember, error) {
+	row := q.db.QueryRow(ctx, addMember, arg.UnitID, arg.MemberID)
+	var i UnitMember
+	err := row.Scan(&i.UnitID, &i.MemberID)
+	return i, err
+}
+
 const addParentChild = `-- name: AddParentChild :one
 INSERT INTO parent_child (parent_id, child_id, org_id)
 VALUES ($1, $2, $3)

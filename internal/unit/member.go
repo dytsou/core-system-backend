@@ -10,52 +10,28 @@ import (
 	"golang.org/x/net/context"
 )
 
-//// AddMember adds a member to an organization or a unit
-//func (s *Service) AddMember(ctx context.Context, unitType Type, id uuid.UUID, memberID uuid.UUID) (GenericMember, error) {
-//	traceCtx, span := s.tracer.Start(ctx, fmt.Sprintf("Add%sMember", unitType.String()))
-//	defer span.End()
-//	logger := logutil.WithContext(traceCtx, s.logger)
-//
-//	switch unitType {
-//	case TypeOrg:
-//		orgMember, err := s.queries.AddOrgMember(traceCtx, AddOrgMemberParams{
-//			OrgID:    id,
-//			MemberID: memberID,
-//		})
-//		if err != nil {
-//			err = databaseutil.WrapDBError(err, logger, "add org member relationship")
-//			span.RecordError(err)
-//			return OrgMemberWrapper{}, err
-//		}
-//
-//		logger.Info("Added organization member",
-//			zap.String("org_id", orgMember.OrgID.String()),
-//			zap.String("member_id", orgMember.MemberID.String()))
-//
-//		return OrgMemberWrapper{orgMember}, nil
-//
-//	case TypeUnit:
-//		unitMember, err := s.queries.AddUnitMember(traceCtx, AddUnitMemberParams{
-//			UnitID:   id,
-//			MemberID: memberID,
-//		})
-//		if err != nil {
-//			err = databaseutil.WrapDBError(err, logger, "add unit member relationship")
-//			span.RecordError(err)
-//			return MemberWrapper{}, err
-//		}
-//
-//		logger.Info("Added unit member",
-//			zap.String("unit_id", unitMember.UnitID.String()),
-//			zap.String("member_id", unitMember.MemberID.String()))
-//
-//		return MemberWrapper{unitMember}, nil
-//	}
-//
-//	logger.Error("invalid unit type: ", zap.String("unitType", unitType.String()))
-//	return MemberWrapper{}, fmt.Errorf("invalid unit type: %s", unitType)
-//}
-//
+// AddMember adds a member to an organization or a unit
+func (s *Service) AddMember(ctx context.Context, unitType Type, id uuid.UUID, memberID uuid.UUID) (UnitMember, error) {
+	traceCtx, span := s.tracer.Start(ctx, fmt.Sprintf("Add%sMember", unitType.String()))
+	defer span.End()
+	logger := logutil.WithContext(traceCtx, s.logger)
+	member, err := s.queries.AddMember(traceCtx, AddMemberParams{
+		UnitID:   id,
+		MemberID: memberID,
+	})
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "add member relationship")
+		span.RecordError(err)
+		return UnitMember{}, err
+	}
+
+	logger.Info(fmt.Sprintf("Added %s member", unitType.String()),
+		zap.String("unit_id", member.UnitID.String()),
+		zap.String("member_id", member.MemberID.String()))
+
+	return member, nil
+}
+
 //// ListMembers lists all members of an organization or a unit
 //func (s *Service) ListMembers(ctx context.Context, unitType Type, id uuid.UUID) ([]uuid.UUID, error) {
 //	traceCtx, span := s.tracer.Start(ctx, fmt.Sprintf("List%sMembers", unitType.String()))
