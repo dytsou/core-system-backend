@@ -159,11 +159,11 @@ func main() {
 
 	// Basic Middleware (Tracing and Recovery)
 	basicMiddleware := middleware.NewSet(traceMiddleware.RecoverMiddleware)
-	basicMiddleware = basicMiddleware.Append(traceMiddleware.TraceMiddleWare)
+	basicMiddleware = basicMiddleware.Append(traceMiddleware.TraceMiddleware)
 
 	// Auth Middleware
 	authMiddleware := middleware.NewSet(traceMiddleware.RecoverMiddleware)
-	authMiddleware = authMiddleware.Append(traceMiddleware.TraceMiddleWare)
+	authMiddleware = authMiddleware.Append(traceMiddleware.TraceMiddleware)
 	authMiddleware = authMiddleware.Append(jwtMiddleware.AuthenticateMiddleware)
 
 	// HTTP Server
