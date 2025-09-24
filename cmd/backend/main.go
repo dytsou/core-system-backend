@@ -166,6 +166,10 @@ func main() {
 	authMiddleware = authMiddleware.Append(traceMiddleware.TraceMiddleware)
 	authMiddleware = authMiddleware.Append(jwtMiddleware.AuthenticateMiddleware)
 
+	// Tenant-aware Middleware
+	tenantBasicMiddleware := basicMiddleware.Append(tenantMiddleware.Middleware)
+	tenantAuthMiddleware := authMiddleware.Append(tenantMiddleware.Middleware)
+
 	// HTTP Server
 	mux := http.NewServeMux()
 
@@ -195,30 +199,30 @@ func main() {
 	mux.Handle("GET /api/users/me", authMiddleware.HandlerFunc(userHandler.GetMe))
 
 	// Unit routes
-	mux.Handle("POST /api/orgs", jwtMiddleware.AuthenticateMiddleware(unitHandler.CreateOrg))
-	mux.Handle("POST /api/orgs/{slug}/units", tenantMiddleware.Middleware(unitHandler.CreateUnit))
-	mux.Handle("GET /api/orgs/{slug}", tenantMiddleware.Middleware(unitHandler.GetOrgByID))
+	mux.Handle("POST /api/orgs", authMiddleware.HandlerFunc(unitHandler.CreateOrg))
+	mux.Handle("POST /api/orgs/{slug}/units", tenantAuthMiddleware.HandlerFunc(unitHandler.CreateUnit))
+	mux.Handle("GET /api/orgs/{slug}", tenantBasicMiddleware.HandlerFunc(unitHandler.GetOrgByID))
 	mux.Handle("GET /api/orgs", basicMiddleware.HandlerFunc(unitHandler.GetAllOrganizations))
-	mux.Handle("GET /api/orgs/{slug}/units/{id}", tenantMiddleware.Middleware(unitHandler.GetUnitByID))
+	mux.Handle("GET /api/orgs/{slug}/units/{id}", tenantBasicMiddleware.HandlerFunc(unitHandler.GetUnitByID))
 	mux.Handle("POST /api/orgs/relations", basicMiddleware.HandlerFunc(unitHandler.AddParentChild))
-	mux.Handle("PUT /api/orgs/{slug}", tenantMiddleware.Middleware(unitHandler.UpdateOrg))
-	mux.Handle("PUT /api/orgs/{slug}/units/{id}", tenantMiddleware.Middleware(unitHandler.UpdateUnit))
-	mux.Handle("DELETE /api/orgs/{slug}", tenantMiddleware.Middleware(unitHandler.DeleteOrg))
-	mux.Handle("DELETE /api/orgs/{slug}/units/{id}", tenantMiddleware.Middleware(unitHandler.DeleteUnit))
-	mux.Handle("POST /api/orgs/{slug}/units/{unitId}/forms", jwtMiddleware.AuthenticateMiddleware(unitHandler.CreateFormUnderUnit))
-	mux.Handle("GET /api/orgs/{slug}/units/{unitId}/forms", jwtMiddleware.AuthenticateMiddleware(unitHandler.ListFormsByUnit))
-	mux.Handle("POST /api/orgs/{slug}/members", tenantMiddleware.Middleware(unitHandler.AddOrgMember))
-	mux.Handle("GET /api/orgs/{slug}/members", tenantMiddleware.Middleware(unitHandler.ListOrgMembers))
-	mux.Handle("DELETE /api/orgs/{slug}/members/{member_id}", tenantMiddleware.Middleware(unitHandler.RemoveOrgMember))
-	mux.Handle("POST /api/orgs/{slug}/units/{id}/members", tenantMiddleware.Middleware(unitHandler.AddUnitMember))
-	mux.Handle("GET /api/orgs/{slug}/units/{id}/members", tenantMiddleware.Middleware(unitHandler.ListUnitMembers))
-	mux.Handle("DELETE /api/orgs/{slug}/units/{id}/members/{member_id}", tenantMiddleware.Middleware(unitHandler.RemoveUnitMember))
+	mux.Handle("PUT /api/orgs/{slug}", tenantAuthMiddleware.HandlerFunc(unitHandler.UpdateOrg))
+	mux.Handle("PUT /api/orgs/{slug}/units/{id}", tenantAuthMiddleware.HandlerFunc(unitHandler.UpdateUnit))
+	mux.Handle("DELETE /api/orgs/{slug}", tenantAuthMiddleware.HandlerFunc(unitHandler.DeleteOrg))
+	mux.Handle("DELETE /api/orgs/{slug}/units/{id}", tenantAuthMiddleware.HandlerFunc(unitHandler.DeleteUnit))
+	mux.Handle("POST /api/orgs/{slug}/units/{unitId}/forms", authMiddleware.HandlerFunc(unitHandler.CreateFormUnderUnit))
+	mux.Handle("GET /api/orgs/{slug}/units/{unitId}/forms", authMiddleware.HandlerFunc(unitHandler.ListFormsByUnit))
+	mux.Handle("POST /api/orgs/{slug}/members", tenantAuthMiddleware.HandlerFunc(unitHandler.AddOrgMember))
+	mux.Handle("GET /api/orgs/{slug}/members", tenantBasicMiddleware.HandlerFunc(unitHandler.ListOrgMembers))
+	mux.Handle("DELETE /api/orgs/{slug}/members/{member_id}", tenantAuthMiddleware.HandlerFunc(unitHandler.RemoveOrgMember))
+	mux.Handle("POST /api/orgs/{slug}/units/{id}/members", tenantAuthMiddleware.HandlerFunc(unitHandler.AddUnitMember))
+	mux.Handle("GET /api/orgs/{slug}/units/{id}/members", tenantBasicMiddleware.HandlerFunc(unitHandler.ListUnitMembers))
+	mux.Handle("DELETE /api/orgs/{slug}/units/{id}/members/{member_id}", tenantAuthMiddleware.HandlerFunc(unitHandler.RemoveUnitMember))
 
 	// List sub-units
-	mux.Handle("GET /api/orgs/{slug}/units", tenantMiddleware.Middleware(unitHandler.ListOrgSubUnits))
-	mux.Handle("GET /api/orgs/{slug}/units/{id}/subunits", tenantMiddleware.Middleware(unitHandler.ListUnitSubUnits))
-	mux.Handle("GET /api/orgs/{slug}/unit-ids", tenantMiddleware.Middleware(unitHandler.ListOrgSubUnitIDs))
-	mux.Handle("GET /api/orgs/{slug}/units/{id}/subunit-ids", tenantMiddleware.Middleware(unitHandler.ListUnitSubUnitIDs))
+	mux.Handle("GET /api/orgs/{slug}/units", tenantBasicMiddleware.HandlerFunc(unitHandler.ListOrgSubUnits))
+	mux.Handle("GET /api/orgs/{slug}/units/{id}/subunits", tenantBasicMiddleware.HandlerFunc(unitHandler.ListUnitSubUnits))
+	mux.Handle("GET /api/orgs/{slug}/unit-ids", tenantBasicMiddleware.HandlerFunc(unitHandler.ListOrgSubUnitIDs))
+	mux.Handle("GET /api/orgs/{slug}/units/{id}/subunit-ids", tenantBasicMiddleware.HandlerFunc(unitHandler.ListUnitSubUnitIDs))
 	mux.Handle("DELETE /api/orgs/relations/child-id/{child_id}", basicMiddleware.HandlerFunc(unitHandler.RemoveParentChild))
 
 	// Form routes
