@@ -27,6 +27,8 @@ func (f *fakeUnitStore) ListMembers(ctx context.Context, unitType unit.Type, id 
 			for _, u := range users {
 				simpleUsers = append(simpleUsers, unit.SimpleUser{ID: u})
 			}
+
+			return simpleUsers, nil
 		}
 		return []unit.SimpleUser{}, nil
 	case unit.TypeUnit:
@@ -35,6 +37,8 @@ func (f *fakeUnitStore) ListMembers(ctx context.Context, unitType unit.Type, id 
 			for _, u := range users {
 				simpleUsers = append(simpleUsers, unit.SimpleUser{ID: u})
 			}
+
+			return simpleUsers, nil
 		}
 		return []unit.SimpleUser{}, nil
 	default:
