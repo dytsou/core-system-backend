@@ -204,7 +204,7 @@ func main() {
 	mux.Handle("GET /api/orgs/{slug}", tenantBasicMiddleware.HandlerFunc(unitHandler.GetOrgByID))
 	mux.Handle("GET /api/orgs", basicMiddleware.HandlerFunc(unitHandler.GetAllOrganizations))
 	mux.Handle("GET /api/orgs/{slug}/units/{id}", tenantBasicMiddleware.HandlerFunc(unitHandler.GetUnitByID))
-	mux.Handle("POST /api/orgs/relations", basicMiddleware.HandlerFunc(unitHandler.AddParentChild))
+	mux.Handle("POST /api/orgs/relations", authMiddleware.HandlerFunc(unitHandler.AddParentChild))
 	mux.Handle("PUT /api/orgs/{slug}", tenantAuthMiddleware.HandlerFunc(unitHandler.UpdateOrg))
 	mux.Handle("PUT /api/orgs/{slug}/units/{id}", tenantAuthMiddleware.HandlerFunc(unitHandler.UpdateUnit))
 	mux.Handle("DELETE /api/orgs/{slug}", tenantAuthMiddleware.HandlerFunc(unitHandler.DeleteOrg))
@@ -223,7 +223,7 @@ func main() {
 	mux.Handle("GET /api/orgs/{slug}/units/{id}/subunits", tenantBasicMiddleware.HandlerFunc(unitHandler.ListUnitSubUnits))
 	mux.Handle("GET /api/orgs/{slug}/unit-ids", tenantBasicMiddleware.HandlerFunc(unitHandler.ListOrgSubUnitIDs))
 	mux.Handle("GET /api/orgs/{slug}/units/{id}/subunit-ids", tenantBasicMiddleware.HandlerFunc(unitHandler.ListUnitSubUnitIDs))
-	mux.Handle("DELETE /api/orgs/relations/child-id/{child_id}", basicMiddleware.HandlerFunc(unitHandler.RemoveParentChild))
+	mux.Handle("DELETE /api/orgs/relations/child-id/{child_id}", authMiddleware.HandlerFunc(unitHandler.RemoveParentChild))
 
 	// Form routes
 	mux.Handle("GET /api/forms", authMiddleware.HandlerFunc(formHandler.ListHandler))
