@@ -67,6 +67,7 @@ type Handler struct {
 	baseURL           string
 	oauthProxyBaseURL string
 	environment       string
+	devMode           bool
 
 	validator     *validator.Validate
 	problemWriter *problem.HttpWriter
@@ -91,6 +92,7 @@ func NewHandler(
 	baseURL string,
 	oauthProxyBaseURL string,
 	environment string,
+	devMode bool,
 
 	accessTokenExpiration time.Duration,
 	refreshTokenExpiration time.Duration,
@@ -112,6 +114,7 @@ func NewHandler(
 		baseURL:           baseURL,
 		oauthProxyBaseURL: oauthProxyBaseURL,
 		environment:       environment,
+		devMode:           devMode,
 
 		validator:     validator,
 		problemWriter: problemWriter,
@@ -404,12 +407,19 @@ func (h *Handler) InternalAPITokenLogin(w http.ResponseWriter, r *http.Request) 
 
 // setAccessAndRefreshCookies sets the access/refresh cookies with HTTP-only and secure flags
 func (h *Handler) setAccessAndRefreshCookies(w http.ResponseWriter, domain, accessTokenID, refreshTokenID string) {
+	var sameSite http.SameSite
+	if h.devMode {
+		sameSite = http.SameSiteNoneMode
+	} else {
+		sameSite = http.SameSiteStrictMode
+	}
+
 	http.SetCookie(w, &http.Cookie{
 		Name:     AccessTokenCookieName,
 		Value:    accessTokenID,
 		HttpOnly: true,
 		Secure:   true,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: sameSite,
 		Path:     "/",
 		MaxAge:   int(h.accessTokenExpiration.Seconds()),
 		Domain:   domain,
@@ -420,7 +430,7 @@ func (h *Handler) setAccessAndRefreshCookies(w http.ResponseWriter, domain, acce
 		Value:    refreshTokenID,
 		HttpOnly: true,
 		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: sameSite,
 		Path:     "/api/auth/refresh",
 		MaxAge:   int(h.refreshTokenExpiration.Seconds()),
 		Domain:   domain,
