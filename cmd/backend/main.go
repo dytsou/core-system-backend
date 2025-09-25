@@ -99,6 +99,10 @@ func main() {
 
 	cfgLog.FlushToZap(logger)
 
+	if cfg.Dev {
+		logger.Warn("Running in development mode, make sure to disable it in production")
+	}
+
 	if cfg.Secret == config.DefaultSecret && !cfg.Debug {
 		logger.Warn("Default secret detected in production environment, replace it with a secure random string")
 		cfg.Secret = uuid.New().String()
@@ -141,7 +145,7 @@ func main() {
 	publishService := publish.NewService(logger, distributeService, formService, inboxService)
 
 	// Handler
-	authHandler := auth.NewHandler(logger, validator, problemWriter, userService, jwtService, jwtService, cfg.BaseURL, cfg.OauthProxyBaseURL, Environment, cfg.AccessTokenExpiration, cfg.RefreshTokenExpiration, cfg.GoogleOauth)
+	authHandler := auth.NewHandler(logger, validator, problemWriter, userService, jwtService, jwtService, cfg.BaseURL, cfg.OauthProxyBaseURL, Environment, cfg.Dev, cfg.AccessTokenExpiration, cfg.RefreshTokenExpiration, cfg.GoogleOauth)
 	userHandler := user.NewHandler(logger, validator, problemWriter, userService)
 	formHandler := form.NewHandler(logger, validator, problemWriter, formService)
 	questionHandler := question.NewHandler(logger, validator, problemWriter, questionService)

@@ -10,6 +10,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      DEV: "true"
       ENV: "dev"
       HOST: "0.0.0.0"
       BASE_URL: "https://dev.core-system.sdc.nycu.club"
