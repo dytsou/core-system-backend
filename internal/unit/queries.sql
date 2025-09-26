@@ -37,7 +37,9 @@ SELECT id FROM units WHERE parent_id = $1;
 -- name: AddMember :one
 INSERT INTO unit_members (unit_id, member_id)
 VALUES ($1, $2)
-    RETURNING *;
+ON CONFLICT (unit_id, member_id) DO UPDATE
+    SET member_id = EXCLUDED.member_id
+RETURNING *;
 
 -- name: ListMembers :many
 SELECT member_id FROM unit_members WHERE unit_id = $1;

@@ -15,7 +15,9 @@ import (
 const addMember = `-- name: AddMember :one
 INSERT INTO unit_members (unit_id, member_id)
 VALUES ($1, $2)
-    RETURNING unit_id, member_id
+ON CONFLICT (unit_id, member_id) DO UPDATE
+    SET member_id = EXCLUDED.member_id
+RETURNING unit_id, member_id
 `
 
 type AddMemberParams struct {
@@ -30,7 +32,7 @@ func (q *Queries) AddMember(ctx context.Context, arg AddMemberParams) (UnitMembe
 	return i, err
 }
 
-const create = `-- name: CreateUnit :one
+const create = `-- name: Create :one
 INSERT INTO units (name, org_id, description, metadata, type, parent_id)
 VALUES ($1, $2, $3, $4, $5, $6)
     RETURNING id, org_id, parent_id, type, name, description, metadata, created_at, updated_at
