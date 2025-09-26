@@ -603,7 +603,8 @@ func (h *Handler) CreateFormUnderUnit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusCreated, newForm)
+	response := form.ToResponse(newForm)
+	handlerutil.WriteJSONResponse(w, http.StatusCreated, response)
 }
 
 func (h *Handler) ListFormsByUnit(w http.ResponseWriter, r *http.Request) {
@@ -624,7 +625,12 @@ func (h *Handler) ListFormsByUnit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusOK, forms)
+	responses := make([]form.Response, len(forms))
+	for i, currentForm := range forms {
+		responses[i] = form.ToResponse(currentForm)
+	}
+
+	handlerutil.WriteJSONResponse(w, http.StatusOK, responses)
 }
 
 func (h *Handler) AddOrgMember(w http.ResponseWriter, r *http.Request) {

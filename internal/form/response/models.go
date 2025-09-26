@@ -251,6 +251,7 @@ type Form struct {
 	Status      Status
 	UnitID      pgtype.UUID
 	LastEditor  uuid.UUID
+	Deadline    pgtype.Timestamptz
 	CreatedAt   pgtype.Timestamptz
 	UpdatedAt   pgtype.Timestamptz
 }
