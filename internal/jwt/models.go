@@ -272,12 +272,6 @@ type InboxMessage struct {
 	UpdatedAt pgtype.Timestamp
 }
 
-type ParentChild struct {
-	ParentID pgtype.UUID
-	ChildID  uuid.UUID
-	OrgID    uuid.UUID
-}
-
 type Question struct {
 	ID          uuid.UUID
 	FormID      uuid.UUID
@@ -308,6 +302,7 @@ type Tenant struct {
 type Unit struct {
 	ID          uuid.UUID
 	OrgID       pgtype.UUID
+	ParentID    pgtype.UUID
 	Type        UnitType
 	Name        pgtype.Text
 	Description pgtype.Text

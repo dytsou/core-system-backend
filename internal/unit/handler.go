@@ -8,10 +8,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/jackc/pgx/v5/pgtype"
 	"net/http"
 	"regexp"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
 
 	handlerutil "github.com/NYCU-SDC/summer/pkg/handler"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
@@ -24,13 +25,13 @@ import (
 )
 
 type Store interface {
-	Create(ctx context.Context, name string, orgID pgtype.UUID, desc string, metadata []byte, unitType Type) (Unit, error)
+	CreateOrganization(ctx context.Context, name string, description string, metadata []byte) (Unit, error)
+	CreateUnit(ctx context.Context, name string, orgID pgtype.UUID, desc string, metadata []byte) (Unit, error)
 	GetByID(ctx context.Context, id uuid.UUID, unitType Type) (Unit, error)
 	GetAllOrganizations(ctx context.Context) ([]Unit, error)
 	Update(ctx context.Context, id uuid.UUID, name string, description string, metadata []byte) (Unit, error)
 	Delete(ctx context.Context, id uuid.UUID, unitType Type) error
-	AddParentChild(ctx context.Context, parentID uuid.UUID, childID uuid.UUID, orgID uuid.UUID) (ParentChild, error)
-	RemoveParentChild(ctx context.Context, childID uuid.UUID) error
+	AddParent(ctx context.Context, id uuid.UUID, parentID uuid.UUID) (Unit, error)
 	ListSubUnits(ctx context.Context, id uuid.UUID, unitType Type) ([]Unit, error)
 	ListSubUnitIDs(ctx context.Context, id uuid.UUID, unitType Type) ([]uuid.UUID, error)
 	AddMember(ctx context.Context, unitType Type, id uuid.UUID, memberID uuid.UUID) (UnitMember, error)
@@ -146,7 +147,7 @@ func (h *Handler) CreateUnit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	createdUnit, err := h.store.Create(traceCtx, req.Name, pgtype.UUID{Bytes: orgTenant.ID, Valid: true}, req.Description, metadataBytes, TypeUnit)
+	createdUnit, err := h.store.CreateUnit(traceCtx, req.Name, pgtype.UUID{Bytes: orgTenant.ID, Valid: true}, req.Description, metadataBytes)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to create unit: %w", err), h.logger)
 		return
@@ -195,7 +196,7 @@ func (h *Handler) CreateOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	createdOrg, err := h.store.Create(traceCtx, req.Name, pgtype.UUID{Valid: false}, req.Description, metadataBytes, TypeOrg)
+	createdOrg, err := h.store.CreateOrganization(traceCtx, req.Name, req.Description, metadataBytes)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to create org: %w", err), h.logger)
 		return
@@ -430,7 +431,7 @@ func (h *Handler) DeleteUnit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) AddParentChild(w http.ResponseWriter, r *http.Request) {
-	traceCtx, span := h.tracer.Start(r.Context(), "AddParentChild")
+	traceCtx, span := h.tracer.Start(r.Context(), "AddParent")
 	defer span.End()
 	h.logger = logutil.WithContext(traceCtx, h.logger)
 
@@ -440,38 +441,13 @@ func (h *Handler) AddParentChild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pc, err := h.store.AddParentChild(traceCtx, req.ParentID, req.ChildID, req.OrgID)
+	pc, err := h.store.AddParent(traceCtx, req.ParentID, req.ChildID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to add parent-child relationship: %w", err), h.logger)
 		return
 	}
 
 	handlerutil.WriteJSONResponse(w, http.StatusCreated, pc)
-}
-
-func (h *Handler) RemoveParentChild(w http.ResponseWriter, r *http.Request) {
-	traceCtx, span := h.tracer.Start(r.Context(), "RemoveParentChild")
-	defer span.End()
-	h.logger = logutil.WithContext(traceCtx, h.logger)
-
-	cIDStr := r.PathValue("child_id")
-	if cIDStr == "" {
-		http.Error(w, "parent or child ID not provided", http.StatusBadRequest)
-		return
-	}
-	cID, err := internal.ParseUUID(cIDStr)
-	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, err, h.logger)
-		return
-	}
-
-	err = h.store.RemoveParentChild(traceCtx, cID)
-	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to remove parent-child relationship: %w", err), h.logger)
-		return
-	}
-
-	handlerutil.WriteJSONResponse(w, http.StatusNoContent, nil)
 }
 
 func (h *Handler) ListOrgSubUnits(w http.ResponseWriter, r *http.Request) {

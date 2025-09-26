@@ -20,10 +20,8 @@ type Querier interface {
 	ListSubUnits(ctx context.Context, parentID pgtype.UUID) ([]Unit, error)
 	ListSubUnitIDs(ctx context.Context, parentID pgtype.UUID) ([]uuid.UUID, error)
 	Update(ctx context.Context, arg UpdateParams) (Unit, error)
+	UpdateParent(ctx context.Context, arg UpdateParentParams) (Unit, error)
 	Delete(ctx context.Context, id uuid.UUID) error
-
-	AddParentChild(ctx context.Context, arg AddParentChildParams) (ParentChild, error)
-	RemoveParentChild(ctx context.Context, childID uuid.UUID) error
 
 	AddMember(ctx context.Context, arg AddMemberParams) (UnitMember, error)
 	ListMembers(ctx context.Context, orgID uuid.UUID) ([]uuid.UUID, error)
@@ -68,8 +66,35 @@ func NewService(logger *zap.Logger, db DBTX) *Service {
 	}
 }
 
-// Create creates a new unit or organization
-func (s *Service) Create(ctx context.Context, name string, orgID pgtype.UUID, description string, metadata []byte, unitType Type) (Unit, error) {
+func (s *Service) CreateOrganization(ctx context.Context, name string, description string, metadata []byte) (Unit, error) {
+	traceCtx, span := s.tracer.Start(ctx, "CreateOrganization")
+	defer span.End()
+	logger := logutil.WithContext(traceCtx, s.logger)
+
+	org, err := s.queries.Create(traceCtx, CreateParams{
+		Name:        pgtype.Text{String: name, Valid: name != ""},
+		OrgID:       pgtype.UUID{Valid: false},
+		Description: pgtype.Text{String: description, Valid: true},
+		Metadata:    metadata,
+		Type:        UnitTypeOrganization,
+	})
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "create organization")
+		span.RecordError(err)
+		return Unit{}, err
+	}
+
+	logger.Info("Created organization",
+		zap.String("org_id", org.ID.String()),
+		zap.String("name", org.Name.String),
+		zap.String("description", org.Description.String),
+		zap.String("metadata", string(org.Metadata)))
+
+	return org, nil
+}
+
+// CreateUnit creates a new unit or organization
+func (s *Service) CreateUnit(ctx context.Context, name string, orgID pgtype.UUID, description string, metadata []byte) (Unit, error) {
 	traceCtx, span := s.tracer.Start(ctx, "CreateUnit")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
@@ -77,28 +102,15 @@ func (s *Service) Create(ctx context.Context, name string, orgID pgtype.UUID, de
 	unit, err := s.queries.Create(traceCtx, CreateParams{
 		Name:        pgtype.Text{String: name, Valid: name != ""},
 		OrgID:       orgID,
+		ParentID:    pgtype.UUID{Valid: true, Bytes: orgID.Bytes},
 		Description: pgtype.Text{String: description, Valid: true},
 		Metadata:    metadata,
-		Type:        UnitType(unitType.String()),
+		Type:        UnitTypeUnit,
 	})
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "create unit")
 		span.RecordError(err)
 		return Unit{}, err
-	}
-
-	// Only unit (not organization) need to add parent-child relationship
-	if orgID.Valid {
-		_, err = s.queries.AddParentChild(traceCtx, AddParentChildParams{
-			ParentID: orgID,
-			ChildID:  unit.ID,
-			OrgID:    orgID.Bytes,
-		})
-		if err != nil {
-			err = databaseutil.WrapDBError(err, logger, "add parent-child relationship for created unit")
-			span.RecordError(err)
-			return Unit{}, err
-		}
 	}
 
 	logger.Info(fmt.Sprintf("Created %s", unit.Type),
@@ -233,9 +245,9 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID, unitType Type) error
 	return nil
 }
 
-// AddParentChild adds a parent-child relationship between two units
-func (s *Service) AddParentChild(ctx context.Context, parentID uuid.UUID, childID uuid.UUID, orgID uuid.UUID) (ParentChild, error) {
-	traceCtx, span := s.tracer.Start(ctx, "AddParentChild")
+// AddParent adds a parent-child relationship between two units
+func (s *Service) AddParent(ctx context.Context, id uuid.UUID, parentID uuid.UUID) (Unit, error) {
+	traceCtx, span := s.tracer.Start(ctx, "AddParent")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
@@ -244,36 +256,17 @@ func (s *Service) AddParentChild(ctx context.Context, parentID uuid.UUID, childI
 		pgParentID = pgtype.UUID{Bytes: parentID, Valid: true}
 	}
 
-	parentChild, err := s.queries.AddParentChild(traceCtx, AddParentChildParams{
+	result, err := s.queries.UpdateParent(traceCtx, UpdateParentParams{
+		ID:       id,
 		ParentID: pgParentID,
-		ChildID:  childID,
-		OrgID:    orgID,
 	})
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "add parent-child relationship")
 		span.RecordError(err)
-		return ParentChild{}, err
+		return Unit{}, err
 	}
 
-	logger.Info("Added parent-child relationship", zap.String("parentID", parentID.String()), zap.String("childID", childID.String()))
+	logger.Info("Added parent-child relationship", zap.String("parentID", parentID.String()), zap.String("id", id.String()))
 
-	return parentChild, nil
-}
-
-// RemoveParentChild removes a parent-child relationship between two units
-func (s *Service) RemoveParentChild(ctx context.Context, childID uuid.UUID) error {
-	traceCtx, span := s.tracer.Start(ctx, "RemoveParentChild")
-	defer span.End()
-	logger := logutil.WithContext(traceCtx, s.logger)
-
-	err := s.queries.RemoveParentChild(traceCtx, childID)
-	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "remove parent-child relationship")
-		span.RecordError(err)
-		return err
-	}
-
-	logger.Info("Removed parent-child relationship", zap.String("childID", childID.String()))
-
-	return nil
+	return result, nil
 }
