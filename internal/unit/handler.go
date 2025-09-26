@@ -664,7 +664,7 @@ func (h *Handler) AddOrgMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusNoContent, members)
+	handlerutil.WriteJSONResponse(w, http.StatusCreated, members)
 }
 
 func (h *Handler) AddUnitMember(w http.ResponseWriter, r *http.Request) {
@@ -698,7 +698,7 @@ func (h *Handler) AddUnitMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusNoContent, member)
+	handlerutil.WriteJSONResponse(w, http.StatusCreated, member)
 }
 
 func (h *Handler) ListOrgMembers(w http.ResponseWriter, r *http.Request) {
