@@ -21,7 +21,7 @@ func NewTestLogger() (*zap.Logger, error) {
 	case "error":
 		cfg.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
 	default:
-		cfg.Level = zap.NewAtomicLevelAt(zap.WarnLevel)
+		cfg.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
 	}
 
 	cfg.EncoderConfig.TimeKey = ""

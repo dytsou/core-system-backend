@@ -6,12 +6,32 @@ import (
 	"NYCU-SDC/core-system-backend/test/testdata/dbbuilder"
 	unitbuilder "NYCU-SDC/core-system-backend/test/testdata/dbbuilder/unit"
 	"context"
+	"os"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/require"
 )
+
+func TestMain(m *testing.M) {
+	resourceManager, _, err := integration.GetOrInitResource()
+	if err != nil {
+		panic(err)
+	}
+
+	_, rollback, err := resourceManager.SetupPostgres()
+	if err != nil {
+		panic(err)
+	}
+
+	code := m.Run()
+
+	rollback()
+	resourceManager.Cleanup()
+
+	os.Exit(code)
+}
 
 func TestUnitService_Create(t *testing.T) {
 	type params struct {
@@ -91,7 +111,6 @@ func TestUnitService_Create(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get resource manager: %v", err)
 	}
-	defer resourceManager.Cleanup()
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -216,7 +235,6 @@ func TestUnitService_ListSubUnits(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get resource manager: %v", err)
 	}
-	defer resourceManager.Cleanup()
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -300,7 +318,6 @@ func TestUnitService_ListSubUnitIDs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get resource manager: %v", err)
 	}
-	defer resourceManager.Cleanup()
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {

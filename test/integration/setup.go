@@ -14,6 +14,11 @@ func GetOrInitResource() (*setup.ResourceManager, *zap.Logger, error) {
 		return nil, nil, err
 	}
 
+	if resourceManager != nil {
+		logger.Info("resource manager already initialized")
+		return resourceManager, logger, nil
+	}
+
 	resourceManager, err = setup.NewResourceManager(logger)
 	if err != nil {
 		return nil, nil, err
