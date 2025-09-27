@@ -84,7 +84,7 @@ func TestUnitService_AddMember(t *testing.T) {
 				require.NoError(t, listErr)
 				require.Len(t, members, len(params.memberIDs))
 				for _, stored := range members {
-					_, ok := seen[stored]
+					_, ok := seen[stored.MemberID]
 					require.True(t, ok, "unexpected member %s", stored)
 				}
 			},
@@ -166,7 +166,6 @@ func TestUnitService_AddMember(t *testing.T) {
 
 func TestUnitService_ListMembers(t *testing.T) {
 	type params struct {
-		unitType unit.Type
 		unitID   uuid.UUID
 		expected []uuid.UUID
 	}
@@ -177,7 +176,7 @@ func TestUnitService_ListMembers(t *testing.T) {
 	}{
 		{
 			name:   "Return members for organization",
-			params: params{unitType: unit.TypeOrg},
+			params: params{},
 			setup: func(t *testing.T, params *params, db dbbuilder.DBTX) context.Context {
 				unitB := unitbuilder.New(t, db)
 				userB := userbuilder.New(t, db)
@@ -195,7 +194,7 @@ func TestUnitService_ListMembers(t *testing.T) {
 		},
 		{
 			name:   "Return empty when no members",
-			params: params{unitType: unit.TypeUnit},
+			params: params{},
 			setup: func(t *testing.T, params *params, db dbbuilder.DBTX) context.Context {
 				unitB := unitbuilder.New(t, db)
 				org := unitB.Create(unit.UnitTypeOrganization, unitbuilder.WithName("empty-org"))
@@ -231,10 +230,15 @@ func TestUnitService_ListMembers(t *testing.T) {
 			}
 
 			service := unit.NewService(logger, db)
-			members, err := service.ListMembers(ctx, params.unitType, params.unitID)
+			members, err := service.ListMembers(ctx, params.unitID)
+
+			memberIDs := make([]uuid.UUID, len(members))
+			for i, member := range members {
+				memberIDs[i] = member.ID
+			}
 
 			require.NoError(t, err)
-			require.ElementsMatch(t, params.expected, members)
+			require.ElementsMatch(t, params.expected, memberIDs)
 		})
 	}
 }

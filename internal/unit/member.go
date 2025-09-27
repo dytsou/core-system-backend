@@ -40,52 +40,31 @@ func (s *Service) AddMember(ctx context.Context, unitType Type, id uuid.UUID, me
 }
 
 // ListMembers lists all members of an organization or a unit
-func (s *Service) ListMembers(ctx context.Context, unitType Type, id uuid.UUID) ([]SimpleUser, error) {
-	traceCtx, span := s.tracer.Start(ctx, fmt.Sprintf("List%sMembers", unitType.String()))
+func (s *Service) ListMembers(ctx context.Context, id uuid.UUID) ([]SimpleUser, error) {
+	traceCtx, span := s.tracer.Start(ctx, "ListMembers")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
 	var simpleUsers []SimpleUser
-	switch unitType {
-	case TypeOrg:
-		members, err := s.queries.ListOrgMembers(traceCtx, id)
-		if err != nil {
-			err = databaseutil.WrapDBError(err, logger, "list org members")
-			span.RecordError(err)
-			return nil, err
-		}
+	members, err := s.queries.ListMembers(traceCtx, id)
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "list org members")
+		span.RecordError(err)
+		return nil, err
+	}
 
-		simpleUsers = make([]SimpleUser, len(members))
-		for i, member := range members {
-			simpleUsers[i] = SimpleUser{
-				ID:        member.MemberID,
-				Name:      member.Name.String,
-				Username:  member.Username.String,
-				AvatarURL: member.AvatarUrl.String,
-			}
-		}
-
-	case TypeUnit:
-		members, err := s.queries.ListUnitMembers(traceCtx, id)
-		if err != nil {
-			err = databaseutil.WrapDBError(err, logger, "list org members")
-			span.RecordError(err)
-			return nil, err
-		}
-
-		simpleUsers = make([]SimpleUser, len(members))
-		for i, member := range members {
-			simpleUsers[i] = SimpleUser{
-				ID:        member.MemberID,
-				Name:      member.Name.String,
-				Username:  member.Username.String,
-				AvatarURL: member.AvatarUrl.String,
-			}
+	simpleUsers = make([]SimpleUser, len(members))
+	for i, member := range members {
+		simpleUsers[i] = SimpleUser{
+			ID:        member.MemberID,
+			Name:      member.Name.String,
+			Username:  member.Username.String,
+			AvatarURL: member.AvatarUrl.String,
 		}
 	}
 
-	logger.Info(fmt.Sprintf("Listed %s members", unitType.String()),
-		zap.String("org_id", id.String()),
+	logger.Info(fmt.Sprintf("Listed unit members"),
+		zap.String("id", id.String()),
 		zap.Int("count", len(simpleUsers)),
 	)
 

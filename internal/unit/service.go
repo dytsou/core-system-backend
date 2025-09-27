@@ -24,8 +24,8 @@ type Querier interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 
 	AddMember(ctx context.Context, arg AddMemberParams) (UnitMember, error)
-	ListMembers(ctx context.Context, orgID uuid.UUID) ([]uuid.UUID, error)
-	ListUnitsMembers(ctx context.Context, unitIDs []uuid.UUID) ([]UnitMember, error)
+	ListMembers(ctx context.Context, unitID uuid.UUID) ([]ListMembersRow, error)
+	ListUnitsMembers(ctx context.Context, unitIDs []uuid.UUID) ([]ListUnitsMembersRow, error)
 	RemoveMember(ctx context.Context, arg RemoveMemberParams) error
 }
 

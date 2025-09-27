@@ -35,7 +35,7 @@ type Store interface {
 	ListSubUnits(ctx context.Context, id uuid.UUID, unitType Type) ([]Unit, error)
 	ListSubUnitIDs(ctx context.Context, id uuid.UUID, unitType Type) ([]uuid.UUID, error)
 	AddMember(ctx context.Context, unitType Type, id uuid.UUID, memberID uuid.UUID) (UnitMember, error)
-	ListMembers(ctx context.Context, unitType Type, id uuid.UUID) ([]SimpleUser, error)
+	ListMembers(ctx context.Context, id uuid.UUID) ([]SimpleUser, error)
 	RemoveMember(ctx context.Context, unitType Type, id uuid.UUID, memberID uuid.UUID) error
 }
 
@@ -90,6 +90,13 @@ type Response struct {
 	Metadata    map[string]string `json:"metadata"`
 	CreatedAt   string            `json:"created_at"`
 	UpdatedAt   string            `json:"updated_at"`
+}
+
+type SimpleUserResponse struct {
+	ID        uuid.UUID `json:"id"`
+	Name      string    `json:"name"`
+	Username  string    `json:"username"`
+	AvatarURL string    `json:"avatar_url"`
 }
 
 func convertResponse(u Unit) Response {
@@ -704,7 +711,8 @@ func (h *Handler) ListOrgMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	members, err := h.store.ListMembers(traceCtx, TypeOrg, orgTenant.ID)
+	// Todo: Need to recursively obtain members of the entire organization
+	members, err := h.store.ListMembers(traceCtx, orgTenant.ID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list org members: %w", err), h.logger)
 		return
@@ -730,7 +738,7 @@ func (h *Handler) ListUnitMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	members, err := h.store.ListMembers(traceCtx, TypeUnit, id)
+	members, err := h.store.ListMembers(traceCtx, id)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list unit members: %w", err), h.logger)
 		return
