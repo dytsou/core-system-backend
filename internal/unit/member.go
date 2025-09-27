@@ -63,7 +63,7 @@ func (s *Service) ListMembers(ctx context.Context, id uuid.UUID) ([]SimpleUser, 
 		}
 	}
 
-	logger.Info(fmt.Sprintf("Listed unit members"),
+	logger.Info("Listed unit members",
 		zap.String("id", id.String()),
 		zap.Int("count", len(simpleUsers)),
 	)
