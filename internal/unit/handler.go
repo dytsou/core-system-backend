@@ -35,7 +35,7 @@ type Store interface {
 	ListSubUnits(ctx context.Context, id uuid.UUID, unitType Type) ([]Unit, error)
 	ListSubUnitIDs(ctx context.Context, id uuid.UUID, unitType Type) ([]uuid.UUID, error)
 	AddMember(ctx context.Context, unitType Type, id uuid.UUID, memberID uuid.UUID) (UnitMember, error)
-	ListMembers(ctx context.Context, unitType Type, id uuid.UUID) ([]uuid.UUID, error)
+	ListMembers(ctx context.Context, unitType Type, id uuid.UUID) ([]SimpleUser, error)
 	RemoveMember(ctx context.Context, unitType Type, id uuid.UUID, memberID uuid.UUID) error
 }
 
@@ -583,7 +583,8 @@ func (h *Handler) CreateFormUnderUnit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusCreated, newForm)
+	response := form.ToResponse(newForm)
+	handlerutil.WriteJSONResponse(w, http.StatusCreated, response)
 }
 
 func (h *Handler) ListFormsByUnit(w http.ResponseWriter, r *http.Request) {
@@ -604,7 +605,12 @@ func (h *Handler) ListFormsByUnit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusOK, forms)
+	responses := make([]form.Response, len(forms))
+	for i, currentForm := range forms {
+		responses[i] = form.ToResponse(currentForm)
+	}
+
+	handlerutil.WriteJSONResponse(w, http.StatusOK, responses)
 }
 
 func (h *Handler) AddOrgMember(w http.ResponseWriter, r *http.Request) {
@@ -644,7 +650,7 @@ func (h *Handler) AddOrgMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusNoContent, members)
+	handlerutil.WriteJSONResponse(w, http.StatusCreated, members)
 }
 
 func (h *Handler) AddUnitMember(w http.ResponseWriter, r *http.Request) {
@@ -678,7 +684,7 @@ func (h *Handler) AddUnitMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusNoContent, member)
+	handlerutil.WriteJSONResponse(w, http.StatusCreated, member)
 }
 
 func (h *Handler) ListOrgMembers(w http.ResponseWriter, r *http.Request) {
@@ -704,7 +710,12 @@ func (h *Handler) ListOrgMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusOK, members)
+	response := make([]SimpleUserResponse, 0, len(members))
+	for _, m := range members {
+		response = append(response, SimpleUserResponse(m))
+	}
+
+	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
 }
 
 func (h *Handler) ListUnitMembers(w http.ResponseWriter, r *http.Request) {
@@ -725,7 +736,12 @@ func (h *Handler) ListUnitMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusOK, members)
+	response := make([]SimpleUserResponse, 0, len(members))
+	for _, m := range members {
+		response = append(response, SimpleUserResponse(m))
+	}
+
+	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
 }
 
 func (h *Handler) RemoveOrgMember(w http.ResponseWriter, r *http.Request) {

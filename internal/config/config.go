@@ -21,6 +21,9 @@ const DefaultSecret = "default-secret"
 var ErrDatabaseURLRequired = errors.New("database_url is required")
 
 type Config struct {
+	// Dev mode disables strict cookie policies by using SameSite=None
+	// instead of SameSite=Strict, allowing cross-site requests during development.
+	Dev                       bool                    `yaml:"dev"                envconfig:"DEV"`
 	Debug                     bool                    `yaml:"debug"              envconfig:"DEBUG"`
 	Host                      string                  `yaml:"host"               envconfig:"HOST"`
 	Port                      string                  `yaml:"port"               envconfig:"PORT"`
@@ -121,6 +124,7 @@ func Load() (Config, *LogBuffer) {
 
 	config := &Config{
 		Debug:                     false,
+		Dev:                       false,
 		Host:                      "localhost",
 		Port:                      "8080",
 		Secret:                    DefaultSecret,
@@ -189,6 +193,7 @@ func FromEnv(config *Config, logger *LogBuffer) (*Config, error) {
 
 	envConfig := &Config{
 		Debug:             os.Getenv("DEBUG") == "true",
+		Dev:               os.Getenv("DEV") == "true",
 		Host:              os.Getenv("HOST"),
 		Port:              os.Getenv("PORT"),
 		BaseURL:           os.Getenv("BASE_URL"),
@@ -211,6 +216,7 @@ func FromFlags(config *Config) (*Config, error) {
 	flagConfig := &Config{}
 
 	flag.BoolVar(&flagConfig.Debug, "debug", false, "debug mode")
+	flag.BoolVar(&flagConfig.Dev, "dev", false, "dev mode")
 	flag.StringVar(&flagConfig.Host, "host", "", "host")
 	flag.StringVar(&flagConfig.Port, "port", "", "port")
 	flag.StringVar(&flagConfig.BaseURL, "base_url", "", "base url")

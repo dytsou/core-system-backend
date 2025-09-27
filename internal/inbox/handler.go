@@ -115,9 +115,10 @@ func (h *Handler) GetMessageContent(ctx context.Context, contentType ContentType
 		if err != nil {
 			err = databaseutil.WrapDBError(err, logger, "get form by id")
 			span.RecordError(err)
-			return Form{}, err
+			return form.Response{}, err
 		}
-		return currentForm, nil
+		response := form.ToResponse(currentForm)
+		return response, nil
 	case ContentTypeText:
 		return nil, nil
 	}

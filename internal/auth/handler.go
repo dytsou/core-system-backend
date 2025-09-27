@@ -67,6 +67,7 @@ type Handler struct {
 	baseURL           string
 	oauthProxyBaseURL string
 	environment       string
+	devMode           bool
 
 	validator     *validator.Validate
 	problemWriter *problem.HttpWriter
@@ -91,6 +92,7 @@ func NewHandler(
 	baseURL string,
 	oauthProxyBaseURL string,
 	environment string,
+	devMode bool,
 
 	accessTokenExpiration time.Duration,
 	refreshTokenExpiration time.Duration,
@@ -112,6 +114,7 @@ func NewHandler(
 		baseURL:           baseURL,
 		oauthProxyBaseURL: oauthProxyBaseURL,
 		environment:       environment,
+		devMode:           devMode,
 
 		validator:     validator,
 		problemWriter: problemWriter,
@@ -222,7 +225,13 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.setAccessAndRefreshCookies(w, accessTokenID, refreshTokenID)
+	baseURL, err := url.Parse(h.baseURL)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, internal.ErrInternalServerError, logger)
+		return
+	}
+
+	h.setAccessAndRefreshCookies(w, baseURL.Host, accessTokenID, refreshTokenID)
 
 	redirectURL := redirectTo
 	if redirectURL == "" {
@@ -341,7 +350,13 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.setAccessAndRefreshCookies(w, newAccessTokenID, newRefreshTokenID)
+	baseURL, err := url.Parse(h.baseURL)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, internal.ErrInternalServerError, logger)
+		return
+	}
+
+	h.setAccessAndRefreshCookies(w, baseURL.Host, newAccessTokenID, newRefreshTokenID)
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -379,21 +394,35 @@ func (h *Handler) InternalAPITokenLogin(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	h.setAccessAndRefreshCookies(w, jwtToken, refreshTokenID)
+	baseURL, err := url.Parse(h.baseURL)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, internal.ErrInternalServerError, logger)
+		return
+	}
+
+	h.setAccessAndRefreshCookies(w, baseURL.Host, jwtToken, refreshTokenID)
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, map[string]string{"message": "Login successful"})
 }
 
 // setAccessAndRefreshCookies sets the access/refresh cookies with HTTP-only and secure flags
-func (h *Handler) setAccessAndRefreshCookies(w http.ResponseWriter, accessTokenID, refreshTokenID string) {
+func (h *Handler) setAccessAndRefreshCookies(w http.ResponseWriter, domain, accessTokenID, refreshTokenID string) {
+	var sameSite http.SameSite
+	if h.devMode {
+		sameSite = http.SameSiteNoneMode
+	} else {
+		sameSite = http.SameSiteStrictMode
+	}
+
 	http.SetCookie(w, &http.Cookie{
 		Name:     AccessTokenCookieName,
 		Value:    accessTokenID,
 		HttpOnly: true,
 		Secure:   true,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: sameSite,
 		Path:     "/",
 		MaxAge:   int(h.accessTokenExpiration.Seconds()),
+		Domain:   domain,
 	})
 
 	http.SetCookie(w, &http.Cookie{
@@ -401,9 +430,10 @@ func (h *Handler) setAccessAndRefreshCookies(w http.ResponseWriter, accessTokenI
 		Value:    refreshTokenID,
 		HttpOnly: true,
 		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: sameSite,
 		Path:     "/api/auth/refresh",
 		MaxAge:   int(h.refreshTokenExpiration.Seconds()),
+		Domain:   domain,
 	})
 }
 

@@ -42,12 +42,23 @@ ON CONFLICT (unit_id, member_id) DO UPDATE
 RETURNING *;
 
 -- name: ListMembers :many
-SELECT member_id FROM unit_members WHERE unit_id = $1;
+SELECT m.member_id,
+       u.name,
+       u.username,
+       u.avatar_url
+FROM unit_members m
+JOIN users u ON u.id = m.member_id
+WHERE m.unit_id = $1;
 
 -- name: ListUnitsMembers :many
-SELECT unit_id, member_id
-FROM unit_members
-WHERE unit_id = ANY($1::uuid[]);
+SELECT m.unit_id,
+       m.member_id,
+       u.name,
+       u.username,
+       u.avatar_url
+FROM unit_members m
+JOIN users u ON u.id = m.member_id
+WHERE m.unit_id = ANY($1::uuid[]);
 
 -- name: RemoveMember :exec
 DELETE FROM unit_members WHERE unit_id = $1 AND member_id = $2;

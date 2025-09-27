@@ -5,6 +5,7 @@ import (
 	"NYCU-SDC/core-system-backend/internal/user"
 	"context"
 	"net/http"
+	"time"
 
 	handlerutil "github.com/NYCU-SDC/summer/pkg/handler"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
@@ -17,8 +18,44 @@ import (
 )
 
 type Request struct {
-	Title       string `json:"title" validate:"required"`
-	Description string `json:"description"`
+	Title       string     `json:"title" validate:"required"`
+	Description string     `json:"description"`
+	Deadline    *time.Time `json:"deadline,omitempty"`
+}
+
+type Response struct {
+	ID          string     `json:"id"`
+	Title       string     `json:"title"`
+	Description string     `json:"description"`
+	Status      string     `json:"status"`
+	UnitID      string     `json:"unitId"`
+	LastEditor  string     `json:"lastEditor"`
+	Deadline    *time.Time `json:"deadline"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
+}
+
+// ToResponse converts a Form storage model into an API Response.
+// Ensures deadline is null when empty/invalid.
+func ToResponse(form Form) Response {
+	var deadline *time.Time
+	if form.Deadline.Valid {
+		deadline = &form.Deadline.Time
+	} else {
+		deadline = nil
+	}
+
+	return Response{
+		ID:          form.ID.String(),
+		Title:       form.Title,
+		Description: form.Description.String,
+		Status:      string(form.Status),
+		UnitID:      form.UnitID.String(),
+		LastEditor:  form.LastEditor.String(),
+		Deadline:    deadline,
+		CreatedAt:   form.CreatedAt.Time,
+		UpdatedAt:   form.UpdatedAt.Time,
+	}
 }
 
 type Store interface {
@@ -83,7 +120,8 @@ func (h *Handler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusOK, currentForm)
+	response := ToResponse(currentForm)
+	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
 }
 
 func (h *Handler) DeleteHandler(w http.ResponseWriter, r *http.Request) {
@@ -125,7 +163,8 @@ func (h *Handler) GetHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusOK, currentForm)
+	response := ToResponse(currentForm)
+	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
 }
 
 func (h *Handler) ListHandler(w http.ResponseWriter, r *http.Request) {
@@ -139,5 +178,9 @@ func (h *Handler) ListHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusOK, forms)
+	responses := make([]Response, 0, len(forms))
+	for _, form := range forms {
+		responses = append(responses, ToResponse(form))
+	}
+	handlerutil.WriteJSONResponse(w, http.StatusOK, responses)
 }
