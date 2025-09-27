@@ -19,8 +19,8 @@ import (
 
 type Request struct {
 	Title          string     `json:"title" validate:"required"`
-	Description    string     `json:"description"`
-	PreviewMessage string     `json:"previewMessage"`
+	Description    string     `json:"description,omitempty"`
+	PreviewMessage string     `json:"previewMessage,omitempty"`
 	Deadline       *time.Time `json:"deadline,omitempty"`
 }
 
