@@ -2,13 +2,6 @@
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
-CREATE TABLE IF NOT EXISTS refresh_tokens (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    is_active BOOLEAN DEFAULT TRUE,
-    expiration_date TIMESTAMPTZ NOT NULL
-);CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(255),
@@ -27,6 +20,96 @@ CREATE TABLE IF NOT EXISTS auth (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE(provider, provider_id)
+);CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+CREATE TYPE unit_type AS ENUM ('organization', 'unit');
+
+CREATE TABLE IF NOT EXISTS units (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_id UUID REFERENCES units(id),
+    parent_id UUID REFERENCES units(id) ON DELETE SET NULL,
+    type unit_type NOT NULL DEFAULT 'unit',
+    name VARCHAR(255),
+    description VARCHAR(255),
+    metadata JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_units_parent_id ON units(parent_id);
+
+CREATE TABLE IF NOT EXISTS unit_members (
+    unit_id UUID REFERENCES units(id) ON DELETE CASCADE,
+    member_id UUID,
+    PRIMARY KEY (unit_id, member_id)
+);
+CREATE TYPE db_strategy AS ENUM ('shared', 'isolated');
+
+CREATE TABLE IF NOT EXISTS tenants
+(
+    id UUID PRIMARY KEY REFERENCES units(id) ON DELETE CASCADE,
+    slug TEXT UNIQUE NOT NULL,
+    db_strategy db_strategy NOT NULL,
+    owner_id UUID REFERENCES users(id) ON DELETE SET NULL
+);CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    is_active BOOLEAN DEFAULT TRUE,
+    expiration_date TIMESTAMPTZ NOT NULL
+);CREATE TABLE IF NOT EXISTS form_responses (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    form_id UUID NOT NULL REFERENCES forms(id) ON DELETE CASCADE,
+    submitted_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS answers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    response_id UUID NOT NULL REFERENCES form_responses(id) ON DELETE CASCADE,
+    question_id UUID NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+    type question_type NOT NULL,
+    value TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);CREATE TYPE status AS ENUM(
+    'draft',
+    'published'
+);
+
+CREATE TABLE IF NOT EXISTS forms (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title TEXT NOT NULL,
+    description TEXT,
+    status status NOT NULL DEFAULT 'draft',
+    unit_id UUID REFERENCES units(id) ON DELETE CASCADE,
+    last_editor UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    deadline TIMESTAMPTZ DEFAULT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TYPE question_type AS ENUM(
+    'short_text',
+    'long_text',
+    'single_choice',
+    'multiple_choice',
+    'date'
+);
+
+CREATE TABLE IF NOT EXISTS questions(
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    form_id UUID NOT NULL REFERENCES forms(id) ON DELETE CASCADE,
+    required BOOLEAN NOT NULL,
+    type question_type NOT NULL,
+    title TEXT,
+    description TEXT,
+    metadata JSONB DEFAULT '{}'::JSONB,
+    "order" INTEGER NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );CREATE TYPE content_type AS ENUM(
     'text',
     'form'
@@ -48,109 +131,4 @@ CREATE TABLE IF NOT EXISTS user_inbox_messages (
     is_read boolean NOT NULL DEFAULT false,
     is_starred boolean NOT NULL DEFAULT false,
     is_archived boolean NOT NULL DEFAULT false
-);
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
-CREATE TYPE unit_type AS ENUM ('organization', 'unit');
-
-CREATE TABLE IF NOT EXISTS organizations (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    owner_id UUID REFERENCES users(id) ON DELETE SET NULL,
-    name VARCHAR(255),
-    description VARCHAR(255),
-    metadata JSONB,
-    slug VARCHAR(255) NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE(slug)
-);
-
-CREATE TABLE IF NOT EXISTS units (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    org_id UUID REFERENCES units(id),
-    type unit_type NOT NULL DEFAULT 'unit',
-    name VARCHAR(255),
-    description VARCHAR(255),
-    metadata JSONB,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS unit_members (
-    unit_id UUID REFERENCES units(id) ON DELETE CASCADE,
-    member_id UUID,
-    PRIMARY KEY (unit_id, member_id)
-);
-
-CREATE TABLE IF NOT EXISTS org_members (
-    org_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
-    member_id UUID,
-    PRIMARY KEY (org_id, member_id)
-);
-
-CREATE TABLE IF NOT EXISTS parent_child (
-    parent_id UUID REFERENCES units(id) ON DELETE SET NULL,
-    child_id UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE,
-    org_id UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE,
-    PRIMARY KEY (child_id, org_id)
-);
-CREATE TABLE IF NOT EXISTS form_responses (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    form_id UUID NOT NULL REFERENCES forms(id) ON DELETE CASCADE,
-    submitted_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS answers (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    response_id UUID NOT NULL REFERENCES form_responses(id) ON DELETE CASCADE,
-    question_id UUID NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
-    type question_type NOT NULL,
-    value TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);CREATE TYPE question_type AS ENUM(
-    'short_text',
-    'long_text',
-    'single_choice',
-    'multiple_choice',
-    'date'
-);
-
-CREATE TABLE IF NOT EXISTS questions(
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    form_id UUID NOT NULL REFERENCES forms(id) ON DELETE CASCADE,
-    required BOOLEAN NOT NULL,
-    type question_type NOT NULL,
-    title TEXT,
-    description TEXT,
-    metadata JSONB DEFAULT '{}'::JSONB,
-    "order" INTEGER NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);CREATE TYPE status AS ENUM(
-    'draft',
-    'published'
-);
-
-CREATE TABLE IF NOT EXISTS forms (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    title TEXT NOT NULL,
-    description TEXT,
-    status status NOT NULL DEFAULT 'draft',
-    unit_id UUID REFERENCES units(id) ON DELETE CASCADE,
-    last_editor UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    deadline TIMESTAMPTZ DEFAULT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TYPE db_strategy AS ENUM ('shared', 'isolated');
-
-CREATE TABLE IF NOT EXISTS tenants
-(
-    id UUID PRIMARY KEY REFERENCES organizations(id) ON DELETE CASCADE,
-    db_strategy db_strategy NOT NULL,
-    owner_id UUID REFERENCES users(id) ON DELETE SET NULL
 );
