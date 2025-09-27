@@ -193,12 +193,12 @@ func (h *Handler) CreateOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	unique, err := h.tenantService.ValidateSlugUniqueness(traceCtx, req.Slug)
+	exists, err := h.tenantService.SlugExists(traceCtx, req.Slug)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to validate slug uniqueness: %w", err), h.logger)
 		return
 	}
-	if !unique {
+	if exists {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("slug already in use"), h.logger)
 		return
 	}
@@ -348,12 +348,12 @@ func (h *Handler) UpdateOrg(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		unique, err := h.tenantService.ValidateSlugUniqueness(traceCtx, req.Slug)
+		exists, err := h.tenantService.SlugExists(traceCtx, req.Slug)
 		if err != nil {
 			h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to validate slug uniqueness: %w", err), h.logger)
 			return
 		}
-		if !unique {
+		if exists {
 			h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("slug already in use"), h.logger)
 			return
 		}

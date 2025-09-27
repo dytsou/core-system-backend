@@ -3,8 +3,7 @@ package tenant
 import (
 	"NYCU-SDC/core-system-backend/internal"
 	"context"
-	"database/sql"
-	"errors"
+
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -16,6 +15,7 @@ import (
 )
 
 type Querier interface {
+	ExistsBySlug(ctx context.Context, slug string) (bool, error)
 	Create(ctx context.Context, param CreateParams) (Tenant, error)
 	Get(ctx context.Context, id uuid.UUID) (Tenant, error)
 	Update(ctx context.Context, param UpdateParams) (Tenant, error)
@@ -112,25 +112,19 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-func (s *Service) ValidateSlugUniqueness(ctx context.Context, slug string) (bool, error) {
-	traceCtx, span := s.tracer.Start(ctx, "ValidateSlugUniqueness")
+func (s *Service) SlugExists(ctx context.Context, slug string) (bool, error) {
+	traceCtx, span := s.tracer.Start(ctx, "SlugExists")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	org, err := s.query.GetBySlug(traceCtx, slug)
+	exists, err := s.query.ExistsBySlug(traceCtx, slug)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			// Slug is unique
-			return true, nil
-		}
 		err = databaseutil.WrapDBError(err, logger, "validate slug uniqueness")
 		span.RecordError(err)
 		return false, err
 	}
 
-	// Slug already exists
-	logger.Info("Slug already exists", zap.String("slug", slug), zap.String("org_id", org.ID.String()))
-	return false, nil
+	return exists, nil
 }
 
 func (s *Service) GetBySlug(ctx context.Context, slug string) (Tenant, error) {

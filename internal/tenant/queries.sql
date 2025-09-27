@@ -1,3 +1,6 @@
+-- name: ExistsBySlug :one
+SELECT EXISTS(SELECT 1 FROM tenants WHERE slug = $1);
+
 -- name: Create :one
 INSERT INTO tenants (id, slug, db_strategy, owner_id)
 VALUES ($1, $2, $3, $4)

@@ -52,6 +52,17 @@ func (q *Queries) Delete(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+const existsBySlug = `-- name: ExistsBySlug :one
+SELECT EXISTS(SELECT 1 FROM tenants WHERE slug = $1)
+`
+
+func (q *Queries) ExistsBySlug(ctx context.Context, slug string) (bool, error) {
+	row := q.db.QueryRow(ctx, existsBySlug, slug)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const get = `-- name: Get :one
 SELECT id, slug, db_strategy, owner_id FROM tenants WHERE id = $1
 `
