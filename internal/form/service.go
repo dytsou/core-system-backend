@@ -51,7 +51,7 @@ func (s *Service) Create(ctx context.Context, req Request, unitID uuid.UUID, use
 	newForm, err := s.queries.Create(ctx, CreateParams{
 		Title:          req.Title,
 		Description:    pgtype.Text{String: req.Description, Valid: true},
-		PreviewMessage: pgtype.Text{String: req.PreviewMessage, Valid: true},
+		PreviewMessage: pgtype.Text{String: req.PreviewMessage, Valid: req.PreviewMessage != ""},
 		UnitID:         pgtype.UUID{Bytes: unitID, Valid: true},
 		LastEditor:     userID,
 		Deadline:       deadline,
@@ -81,7 +81,7 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, request Request, use
 		ID:             id,
 		Title:          request.Title,
 		Description:    pgtype.Text{String: request.Description, Valid: true},
-		PreviewMessage: pgtype.Text{String: request.PreviewMessage, Valid: true},
+		PreviewMessage: pgtype.Text{String: request.PreviewMessage, Valid: request.PreviewMessage != ""},
 		LastEditor:     userID,
 		Deadline:       deadline,
 	})
