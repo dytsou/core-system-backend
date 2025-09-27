@@ -5,7 +5,6 @@ import (
 	"NYCU-SDC/core-system-backend/internal/form"
 	"NYCU-SDC/core-system-backend/internal/user"
 	"context"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -35,14 +34,15 @@ type UserInboxMessageFilter struct {
 }
 
 type MessageResponse struct {
-	ID        string      `json:"id"`
-	PostedBy  string      `json:"postedBy"`
-	Title     string      `json:"title"`
-	Subtitle  string      `json:"subtitle"`
-	Type      ContentType `json:"type"`
-	ContentID string      `json:"contentId"`
-	CreatedAt string      `json:"createdAt"`
-	UpdatedAt string      `json:"updatedAt"`
+	ID             string      `json:"id"`
+	PostedBy       string      `json:"postedBy"`
+	Title          string      `json:"title"`
+	Subtitle       string      `json:"subtitle"`
+	Type           ContentType `json:"type"`
+	PreviewMessage string      `json:"previewMessage"`
+	ContentID      string      `json:"contentId"`
+	CreatedAt      string      `json:"createdAt"`
+	UpdatedAt      string      `json:"updatedAt"`
 }
 
 type Response struct {
@@ -85,23 +85,51 @@ func NewHandler(
 	}
 }
 
-func mapToResponse(message ListRow) Response {
+// extractPreviewMessage extracts the preview message from the database result
+func (h *Handler) extractPreviewMessage(ctx context.Context, previewMessage interface{}) string {
+	traceCtx, span := h.tracer.Start(ctx, "extractPreviewMessage")
+	defer span.End()
+	logger := logutil.WithContext(traceCtx, h.logger)
+
+	if previewMessage != nil {
+		previewStr, ok := previewMessage.(string)
+		if ok {
+			return previewStr
+		} else {
+			// Log the issue for monitoring but don't fail
+			logutil.WithContext(traceCtx, logger).Warn("preview message type mismatch",
+				zap.Any("previewMessage", previewMessage))
+			return ""
+		}
+	} else {
+		logutil.WithContext(traceCtx, logger).Warn("preview message is nil")
+		return ""
+	}
+}
+
+func (h *Handler) mapToResponse(ctx context.Context, message ListRow) (Response, error) {
+	traceCtx, span := h.tracer.Start(ctx, "mapToResponse")
+	defer span.End()
+
+	previewMessage := h.extractPreviewMessage(traceCtx, message.PreviewMessage)
+
 	return Response{
 		ID: message.ID.String(),
 		Message: MessageResponse{
-			ID:        message.MessageID.String(),
-			PostedBy:  message.PostedBy.String(),
-			Type:      message.Type,
-			ContentID: message.ContentID.String(),
-			CreatedAt: message.CreatedAt.Time.Format(time.RFC3339),
-			UpdatedAt: message.UpdatedAt.Time.Format(time.RFC3339),
+			ID:             message.MessageID.String(),
+			PostedBy:       message.PostedBy.String(),
+			Type:           message.Type,
+			PreviewMessage: previewMessage,
+			ContentID:      message.ContentID.String(),
+			CreatedAt:      message.CreatedAt.Time.Format(time.RFC3339),
+			UpdatedAt:      message.UpdatedAt.Time.Format(time.RFC3339),
 		},
 		UserInboxMessageFilter: UserInboxMessageFilter{
 			IsRead:     message.IsRead,
 			IsStarred:  message.IsStarred,
 			IsArchived: message.IsArchived,
 		},
-	}
+	}, nil
 }
 
 func (h *Handler) GetMessageContent(ctx context.Context, contentType ContentType, contentID uuid.UUID) (any, error) {
@@ -123,7 +151,7 @@ func (h *Handler) GetMessageContent(ctx context.Context, contentType ContentType
 		return nil, nil
 	}
 
-	return nil, fmt.Errorf("content type %s not supported", contentType)
+	return nil, ErrUnsupportedContentType{ContentType: string(contentType)}
 }
 
 func (h *Handler) ListHandler(w http.ResponseWriter, r *http.Request) {
@@ -152,7 +180,11 @@ func (h *Handler) ListHandler(w http.ResponseWriter, r *http.Request) {
 
 	mappedMessage := make([]Response, len(messages))
 	for i, message := range messages {
-		mappedMessage[i] = mapToResponse(message)
+		mappedMessage[i], err = h.mapToResponse(traceCtx, message)
+		if err != nil {
+			h.problemWriter.WriteError(traceCtx, w, err, logger)
+			return
+		}
 	}
 
 	response := factory.NewResponse(mappedMessage, len(mappedMessage), request.Page, request.Size)
@@ -191,18 +223,22 @@ func (h *Handler) GetHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	messageContent, err := h.GetMessageContent(traceCtx, message.Type, contentID)
 	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
+
+	previewMessage := h.extractPreviewMessage(traceCtx, message.PreviewMessage)
 
 	response := ResponseDetail{
 		ID: message.ID.String(),
 		Message: MessageResponse{
-			ID:        message.MessageID.String(),
-			PostedBy:  message.PostedBy.String(),
-			Type:      message.Type,
-			ContentID: message.ContentID.String(),
-			CreatedAt: message.CreatedAt.Time.Format(time.RFC3339),
-			UpdatedAt: message.UpdatedAt.Time.Format(time.RFC3339),
+			ID:             message.MessageID.String(),
+			PostedBy:       message.PostedBy.String(),
+			Type:           message.Type,
+			PreviewMessage: previewMessage,
+			ContentID:      message.ContentID.String(),
+			CreatedAt:      message.CreatedAt.Time.Format(time.RFC3339),
+			UpdatedAt:      message.UpdatedAt.Time.Format(time.RFC3339),
 		},
 		Content: messageContent,
 		UserInboxMessageFilter: UserInboxMessageFilter{
@@ -250,15 +286,18 @@ func (h *Handler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	previewMessage := h.extractPreviewMessage(traceCtx, message.PreviewMessage)
+
 	response := Response{
 		ID: message.ID.String(),
 		Message: MessageResponse{
-			ID:        message.MessageID.String(),
-			PostedBy:  message.PostedBy.String(),
-			Type:      message.Type,
-			ContentID: message.ContentID.String(),
-			CreatedAt: message.CreatedAt.Time.Format(time.RFC3339),
-			UpdatedAt: message.UpdatedAt.Time.Format(time.RFC3339),
+			ID:             message.MessageID.String(),
+			PostedBy:       message.PostedBy.String(),
+			Type:           message.Type,
+			PreviewMessage: previewMessage,
+			ContentID:      message.ContentID.String(),
+			CreatedAt:      message.CreatedAt.Time.Format(time.RFC3339),
+			UpdatedAt:      message.UpdatedAt.Time.Format(time.RFC3339),
 		},
 		UserInboxMessageFilter: UserInboxMessageFilter{
 			IsRead:     message.IsRead,
