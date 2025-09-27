@@ -48,9 +48,15 @@ func TestUnitService_AddMember(t *testing.T) {
 				require.Equal(t, params.memberIDs[0], results[0].MemberID)
 
 				members, listErr := unit.New(db).ListMembers(context.Background(), params.unitID)
+
+				memberIDs := make([]uuid.UUID, len(members))
+				for i, member := range members {
+					memberIDs[i] = member.MemberID
+				}
+
 				require.NoError(t, listErr)
-				require.Len(t, members, 1)
-				require.Contains(t, members, params.memberIDs[0])
+				require.Len(t, memberIDs, 1)
+				require.Contains(t, memberIDs, params.memberIDs[0])
 			},
 		},
 		{
@@ -113,9 +119,15 @@ func TestUnitService_AddMember(t *testing.T) {
 				require.Equal(t, params.memberIDs[0], results[0].MemberID)
 
 				members, listErr := unit.New(db).ListMembers(context.Background(), params.unitID)
+
+				memberIDs := make([]uuid.UUID, len(members))
+				for i, member := range members {
+					memberIDs[i] = member.MemberID
+				}
+
 				require.NoError(t, listErr)
-				require.Len(t, members, 1)
-				require.Contains(t, members, params.memberIDs[0])
+				require.Len(t, memberIDs, 1)
+				require.Contains(t, memberIDs, params.memberIDs[0])
 			},
 		},
 	}
