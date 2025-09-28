@@ -9,23 +9,36 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const create = `-- name: Create :one
-INSERT INTO tenants (id, db_strategy)
-VALUES ($1, $2)
-RETURNING id, db_strategy, owner_id
+INSERT INTO tenants (id, slug, db_strategy, owner_id)
+VALUES ($1, $2, $3, $4)
+RETURNING id, slug, db_strategy, owner_id
 `
 
 type CreateParams struct {
 	ID         uuid.UUID
+	Slug       string
 	DbStrategy DbStrategy
+	OwnerID    pgtype.UUID
 }
 
 func (q *Queries) Create(ctx context.Context, arg CreateParams) (Tenant, error) {
-	row := q.db.QueryRow(ctx, create, arg.ID, arg.DbStrategy)
+	row := q.db.QueryRow(ctx, create,
+		arg.ID,
+		arg.Slug,
+		arg.DbStrategy,
+		arg.OwnerID,
+	)
 	var i Tenant
-	err := row.Scan(&i.ID, &i.DbStrategy, &i.OwnerID)
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.DbStrategy,
+		&i.OwnerID,
+	)
 	return i, err
 }
 
@@ -39,32 +52,70 @@ func (q *Queries) Delete(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+const existsBySlug = `-- name: ExistsBySlug :one
+SELECT EXISTS(SELECT 1 FROM tenants WHERE slug = $1)
+`
+
+func (q *Queries) ExistsBySlug(ctx context.Context, slug string) (bool, error) {
+	row := q.db.QueryRow(ctx, existsBySlug, slug)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const get = `-- name: Get :one
-SELECT id, db_strategy, owner_id FROM tenants WHERE id = $1
+SELECT id, slug, db_strategy, owner_id FROM tenants WHERE id = $1
 `
 
 func (q *Queries) Get(ctx context.Context, id uuid.UUID) (Tenant, error) {
 	row := q.db.QueryRow(ctx, get, id)
 	var i Tenant
-	err := row.Scan(&i.ID, &i.DbStrategy, &i.OwnerID)
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.DbStrategy,
+		&i.OwnerID,
+	)
+	return i, err
+}
+
+const getBySlug = `-- name: GetBySlug :one
+SELECT id, slug, db_strategy, owner_id FROM tenants WHERE slug = $1
+`
+
+func (q *Queries) GetBySlug(ctx context.Context, slug string) (Tenant, error) {
+	row := q.db.QueryRow(ctx, getBySlug, slug)
+	var i Tenant
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.DbStrategy,
+		&i.OwnerID,
+	)
 	return i, err
 }
 
 const update = `-- name: Update :one
 UPDATE tenants
-SET db_strategy = $2
+SET slug = $2, db_strategy = $3
 WHERE id = $1
-RETURNING id, db_strategy, owner_id
+RETURNING id, slug, db_strategy, owner_id
 `
 
 type UpdateParams struct {
 	ID         uuid.UUID
+	Slug       string
 	DbStrategy DbStrategy
 }
 
 func (q *Queries) Update(ctx context.Context, arg UpdateParams) (Tenant, error) {
-	row := q.db.QueryRow(ctx, update, arg.ID, arg.DbStrategy)
+	row := q.db.QueryRow(ctx, update, arg.ID, arg.Slug, arg.DbStrategy)
 	var i Tenant
-	err := row.Scan(&i.ID, &i.DbStrategy, &i.OwnerID)
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.DbStrategy,
+		&i.OwnerID,
+	)
 	return i, err
 }

@@ -9,7 +9,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
 
 	handlerutil "github.com/NYCU-SDC/summer/pkg/handler"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
@@ -22,20 +25,17 @@ import (
 )
 
 type Store interface {
-	GetOrgIDBySlug(ctx context.Context, slug string) (uuid.UUID, error)
-	CreateUnit(ctx context.Context, name string, orgID uuid.UUID, desc string, metadata []byte) (Unit, error)
-	CreateOrg(ctx context.Context, name string, desc string, creatorID uuid.UUID, metadata []byte, slug string) (Organization, error)
-	GetByID(ctx context.Context, id uuid.UUID, orgID uuid.UUID, unitType Type) (GenericUnit, error)
-	GetAllOrganizations(ctx context.Context) ([]Organization, error)
-	UpdateUnit(ctx context.Context, id uuid.UUID, name string, description string, metadata []byte) (Unit, error)
-	UpdateOrg(ctx context.Context, id uuid.UUID, name string, description string, metadata []byte, slug string) (Organization, error)
+	CreateOrganization(ctx context.Context, name string, description string, metadata []byte) (Unit, error)
+	CreateUnit(ctx context.Context, name string, orgID pgtype.UUID, desc string, metadata []byte) (Unit, error)
+	GetByID(ctx context.Context, id uuid.UUID, unitType Type) (Unit, error)
+	GetAllOrganizations(ctx context.Context) ([]Unit, error)
+	Update(ctx context.Context, id uuid.UUID, name string, description string, metadata []byte) (Unit, error)
 	Delete(ctx context.Context, id uuid.UUID, unitType Type) error
-	AddParentChild(ctx context.Context, parentID uuid.UUID, childID uuid.UUID, orgID uuid.UUID) (ParentChild, error)
-	RemoveParentChild(ctx context.Context, childID uuid.UUID) error
+	AddParent(ctx context.Context, id uuid.UUID, parentID uuid.UUID) (Unit, error)
 	ListSubUnits(ctx context.Context, id uuid.UUID, unitType Type) ([]Unit, error)
 	ListSubUnitIDs(ctx context.Context, id uuid.UUID, unitType Type) ([]uuid.UUID, error)
-	AddMember(ctx context.Context, unitType Type, id uuid.UUID, memberID uuid.UUID) (GenericMember, error)
-	ListMembers(ctx context.Context, unitType Type, id uuid.UUID) ([]uuid.UUID, error)
+	AddMember(ctx context.Context, unitType Type, id uuid.UUID, memberID uuid.UUID) (UnitMember, error)
+	ListMembers(ctx context.Context, id uuid.UUID) ([]SimpleUser, error)
 	RemoveMember(ctx context.Context, unitType Type, id uuid.UUID, memberID uuid.UUID) error
 }
 
@@ -73,6 +73,7 @@ type OrgRequest struct {
 	Description string            `json:"description"`
 	Metadata    map[string]string `json:"metadata"`
 	Slug        string            `json:"slug" validate:"required"`
+	DbStrategy  string            `json:"db_strategy"`
 }
 
 type Request struct {
@@ -81,25 +82,21 @@ type Request struct {
 	Metadata    map[string]string `json:"metadata"`
 }
 
-type orgResponse struct {
+type Response struct {
 	ID          uuid.UUID         `json:"id"`
-	OwnerID     uuid.UUID         `json:"owner_id"`
+	OrgID       uuid.UUID         `json:"org_id"`
 	Name        string            `json:"name"`
 	Description string            `json:"description"`
 	Metadata    map[string]string `json:"metadata"`
-	Slug        string            `json:"slug"`
 	CreatedAt   string            `json:"created_at"`
 	UpdatedAt   string            `json:"updated_at"`
 }
 
-type Response struct {
-	ID          uuid.UUID         `json:"id"`
-	OrgID       string            `json:"org_id"`
-	Name        string            `json:"name"`
-	Description string            `json:"description"`
-	Metadata    map[string]string `json:"metadata"`
-	CreatedAt   string            `json:"created_at"`
-	UpdatedAt   string            `json:"updated_at"`
+type SimpleUserResponse struct {
+	ID        uuid.UUID `json:"id"`
+	Name      string    `json:"name"`
+	Username  string    `json:"username"`
+	AvatarURL string    `json:"avatar_url"`
 }
 
 func convertResponse(u Unit) Response {
@@ -110,7 +107,7 @@ func convertResponse(u Unit) Response {
 
 	return Response{
 		ID:          u.ID,
-		OrgID:       u.OrgID.String(),
+		OrgID:       u.OrgID.Bytes,
 		Name:        u.Name.String,
 		Description: u.Description.String,
 		Metadata:    meta,
@@ -119,28 +116,13 @@ func convertResponse(u Unit) Response {
 	}
 }
 
-func convertOrgResponse(o Organization) orgResponse {
-	var meta map[string]string
-	if err := json.Unmarshal(o.Metadata, &meta); err != nil {
-		meta = make(map[string]string)
-	}
-	return orgResponse{
-		ID:          o.ID,
-		OwnerID:     o.OwnerID.Bytes,
-		Name:        o.Name.String,
-		Description: o.Description.String,
-		Metadata:    meta,
-		Slug:        o.Slug,
-		CreatedAt:   o.CreatedAt.Time.Format(time.RFC3339),
-		UpdatedAt:   o.UpdatedAt.Time.Format(time.RFC3339),
-	}
-}
-
 type ParentChildRequest struct {
 	ParentID uuid.UUID `json:"parent_id"`
 	ChildID  uuid.UUID `json:"child_id" validate:"required"`
 	OrgID    uuid.UUID `json:"org_id" validate:"required"`
 }
+
+var slugPattern = `^[a-zA-Z0-9_-]+$`
 
 func (h *Handler) CreateUnit(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "CreateUnit")
@@ -166,13 +148,13 @@ func (h *Handler) CreateUnit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgID, err := h.store.GetOrgIDBySlug(traceCtx, orgSlug)
+	orgTenant, err := h.tenantService.GetBySlug(traceCtx, orgSlug)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
 		return
 	}
 
-	createdUnit, err := h.store.CreateUnit(traceCtx, req.Name, orgID, req.Description, metadataBytes)
+	createdUnit, err := h.store.CreateUnit(traceCtx, req.Name, pgtype.UUID{Bytes: orgTenant.ID, Valid: true}, req.Description, metadataBytes)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to create unit: %w", err), h.logger)
 		return
@@ -205,31 +187,41 @@ func (h *Handler) CreateOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	createdOrg, err := h.store.CreateOrg(traceCtx, req.Name, req.Description, currentUser.ID, metadataBytes, req.Slug)
+	matched, err := regexp.MatchString(slugPattern, req.Slug)
+	if err != nil || !matched {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid slug format: must contain only alphanumeric characters, dashes, and underscores"), h.logger)
+		return
+	}
+
+	exists, err := h.tenantService.SlugExists(traceCtx, req.Slug)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to validate slug uniqueness: %w", err), h.logger)
+		return
+	}
+	if exists {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("slug already in use"), h.logger)
+		return
+	}
+
+	createdOrg, err := h.store.CreateOrganization(traceCtx, req.Name, req.Description, metadataBytes)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to create org: %w", err), h.logger)
 		return
 	}
 
-	_, err = h.tenantService.Create(traceCtx, createdOrg.ID)
+	_, err = h.tenantService.Create(traceCtx, req.Slug, createdOrg.ID, currentUser.ID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to create tenant for org: %w", err), h.logger)
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusCreated, convertOrgResponse(createdOrg))
+	handlerutil.WriteJSONResponse(w, http.StatusCreated, convertResponse(createdOrg))
 }
 
 func (h *Handler) GetUnitByID(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "GetUnitByID")
 	defer span.End()
 	h.logger = logutil.WithContext(traceCtx, h.logger)
-
-	slug, err := internal.GetSlugFromContext(traceCtx)
-	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org slug from context: %w", err), h.logger)
-		return
-	}
 
 	idStr := r.PathValue("id")
 
@@ -239,19 +231,13 @@ func (h *Handler) GetUnitByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgID, err := h.store.GetOrgIDBySlug(traceCtx, slug)
-	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
-		return
-	}
-
-	unitWrap, err := h.store.GetByID(traceCtx, id, orgID, TypeUnit)
+	unit, err := h.store.GetByID(traceCtx, id, TypeUnit)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get unit by ID: %w", err), h.logger)
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusOK, convertResponse(unitWrap.Instance().(Unit)))
+	handlerutil.WriteJSONResponse(w, http.StatusOK, convertResponse(unit))
 }
 
 func (h *Handler) GetOrgByID(w http.ResponseWriter, r *http.Request) {
@@ -265,19 +251,19 @@ func (h *Handler) GetOrgByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgID, err := h.store.GetOrgIDBySlug(traceCtx, slug)
+	orgTenant, err := h.tenantService.GetBySlug(traceCtx, slug)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
 		return
 	}
 
-	orgWrap, err := h.store.GetByID(traceCtx, orgID, orgID, TypeOrg)
+	org, err := h.store.GetByID(traceCtx, orgTenant.ID, TypeOrg)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get unit by ID: %w", err), h.logger)
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusOK, convertOrgResponse(orgWrap.Instance().(Organization)))
+	handlerutil.WriteJSONResponse(w, http.StatusOK, convertResponse(org))
 }
 
 func (h *Handler) GetAllOrganizations(w http.ResponseWriter, r *http.Request) {
@@ -291,9 +277,9 @@ func (h *Handler) GetAllOrganizations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgResponses := make([]orgResponse, 0)
+	orgResponses := make([]Response, 0)
 	for _, org := range organizations {
-		orgResponses = append(orgResponses, convertOrgResponse(org))
+		orgResponses = append(orgResponses, convertResponse(org))
 	}
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, orgResponses)
@@ -323,7 +309,7 @@ func (h *Handler) UpdateUnit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updatedUnit, err := h.store.UpdateUnit(traceCtx, id, req.Name, req.Description, metadataBytes)
+	updatedUnit, err := h.store.Update(traceCtx, id, req.Name, req.Description, metadataBytes)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to update unit: %w", err), h.logger)
 		return
@@ -349,11 +335,30 @@ func (h *Handler) UpdateOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, err := h.store.GetOrgIDBySlug(traceCtx, slug)
+	orgTenant, err := h.tenantService.GetBySlug(traceCtx, slug)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
 		return
 	}
+
+	if req.Slug != slug {
+		matched, err := regexp.MatchString(slugPattern, req.Slug)
+		if err != nil || !matched {
+			h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid slug format: must contain only alphanumeric characters, dashes, and underscores"), h.logger)
+			return
+		}
+
+		exists, err := h.tenantService.SlugExists(traceCtx, req.Slug)
+		if err != nil {
+			h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to validate slug uniqueness: %w", err), h.logger)
+			return
+		}
+		if exists {
+			h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("slug already in use"), h.logger)
+			return
+		}
+	}
+	// TODO: Slug Validator
 
 	metadataBytes, err := json.Marshal(req.Metadata)
 	if err != nil {
@@ -361,13 +366,27 @@ func (h *Handler) UpdateOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updatedOrg, err := h.store.UpdateOrg(traceCtx, id, req.Name, req.Description, metadataBytes, req.Slug)
+	var dbStrategy tenant.DbStrategy
+
+	if req.DbStrategy == "" || req.DbStrategy == string(DbStrategyShared) {
+		dbStrategy = "shared"
+	} else if req.DbStrategy == string(DbStrategyIsolated) {
+		dbStrategy = "isolated"
+	}
+
+	_, err = h.tenantService.Update(traceCtx, orgTenant.ID, req.Slug, dbStrategy)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to update organization tenant: %w", err), h.logger)
+		return
+	}
+
+	updatedOrg, err := h.store.Update(traceCtx, orgTenant.ID, req.Name, req.Description, metadataBytes)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to update organization: %w", err), h.logger)
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusOK, convertOrgResponse(updatedOrg))
+	handlerutil.WriteJSONResponse(w, http.StatusOK, convertResponse(updatedOrg))
 }
 
 func (h *Handler) DeleteOrg(w http.ResponseWriter, r *http.Request) {
@@ -381,13 +400,13 @@ func (h *Handler) DeleteOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, err := h.store.GetOrgIDBySlug(traceCtx, slug)
+	orgTenant, err := h.tenantService.GetBySlug(traceCtx, slug)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
 		return
 	}
 
-	err = h.store.Delete(traceCtx, id, TypeOrg)
+	err = h.store.Delete(traceCtx, orgTenant.ID, TypeOrg)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to delete unit: %w", err), h.logger)
 		return
@@ -419,7 +438,7 @@ func (h *Handler) DeleteUnit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) AddParentChild(w http.ResponseWriter, r *http.Request) {
-	traceCtx, span := h.tracer.Start(r.Context(), "AddParentChild")
+	traceCtx, span := h.tracer.Start(r.Context(), "AddParent")
 	defer span.End()
 	h.logger = logutil.WithContext(traceCtx, h.logger)
 
@@ -429,38 +448,13 @@ func (h *Handler) AddParentChild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pc, err := h.store.AddParentChild(traceCtx, req.ParentID, req.ChildID, req.OrgID)
+	pc, err := h.store.AddParent(traceCtx, req.ParentID, req.ChildID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to add parent-child relationship: %w", err), h.logger)
 		return
 	}
 
 	handlerutil.WriteJSONResponse(w, http.StatusCreated, pc)
-}
-
-func (h *Handler) RemoveParentChild(w http.ResponseWriter, r *http.Request) {
-	traceCtx, span := h.tracer.Start(r.Context(), "RemoveParentChild")
-	defer span.End()
-	h.logger = logutil.WithContext(traceCtx, h.logger)
-
-	cIDStr := r.PathValue("child_id")
-	if cIDStr == "" {
-		http.Error(w, "parent or child ID not provided", http.StatusBadRequest)
-		return
-	}
-	cID, err := internal.ParseUUID(cIDStr)
-	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, err, h.logger)
-		return
-	}
-
-	err = h.store.RemoveParentChild(traceCtx, cID)
-	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to remove parent-child relationship: %w", err), h.logger)
-		return
-	}
-
-	handlerutil.WriteJSONResponse(w, http.StatusNoContent, nil)
 }
 
 func (h *Handler) ListOrgSubUnits(w http.ResponseWriter, r *http.Request) {
@@ -474,13 +468,13 @@ func (h *Handler) ListOrgSubUnits(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgID, err := h.store.GetOrgIDBySlug(traceCtx, slug)
+	orgTenant, err := h.tenantService.GetBySlug(traceCtx, slug)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
 		return
 	}
 
-	subUnits, err := h.store.ListSubUnits(traceCtx, orgID, TypeOrg)
+	subUnits, err := h.store.ListSubUnits(traceCtx, orgTenant.ID, TypeOrg)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list sub-units: %w", err), h.logger)
 		return
@@ -530,13 +524,13 @@ func (h *Handler) ListOrgSubUnitIDs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgID, err := h.store.GetOrgIDBySlug(traceCtx, slug)
+	orgTenant, err := h.tenantService.GetBySlug(traceCtx, slug)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
 		return
 	}
 
-	subUnits, err := h.store.ListSubUnitIDs(traceCtx, orgID, TypeOrg)
+	subUnits, err := h.store.ListSubUnitIDs(traceCtx, orgTenant.ID, TypeOrg)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list sub-units: %w", err), h.logger)
 		return
@@ -596,7 +590,8 @@ func (h *Handler) CreateFormUnderUnit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusCreated, newForm)
+	response := form.ToResponse(newForm)
+	handlerutil.WriteJSONResponse(w, http.StatusCreated, response)
 }
 
 func (h *Handler) ListFormsByUnit(w http.ResponseWriter, r *http.Request) {
@@ -617,7 +612,12 @@ func (h *Handler) ListFormsByUnit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusOK, forms)
+	responses := make([]form.Response, len(forms))
+	for i, currentForm := range forms {
+		responses[i] = form.ToResponse(currentForm)
+	}
+
+	handlerutil.WriteJSONResponse(w, http.StatusOK, responses)
 }
 
 func (h *Handler) AddOrgMember(w http.ResponseWriter, r *http.Request) {
@@ -631,7 +631,7 @@ func (h *Handler) AddOrgMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgID, err := h.store.GetOrgIDBySlug(traceCtx, slug)
+	orgTenant, err := h.tenantService.GetBySlug(traceCtx, slug)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
 		return
@@ -646,18 +646,18 @@ func (h *Handler) AddOrgMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if orgID == uuid.Nil || params.MemberID == uuid.Nil {
+	if orgTenant.ID == uuid.Nil || params.MemberID == uuid.Nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("org ID or member ID cannot be empty"), h.logger)
 		return
 	}
 
-	members, err := h.store.AddMember(traceCtx, TypeOrg, orgID, params.MemberID)
+	members, err := h.store.AddMember(traceCtx, TypeOrg, orgTenant.ID, params.MemberID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to add org member: %w", err), h.logger)
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusNoContent, members)
+	handlerutil.WriteJSONResponse(w, http.StatusCreated, members)
 }
 
 func (h *Handler) AddUnitMember(w http.ResponseWriter, r *http.Request) {
@@ -691,7 +691,7 @@ func (h *Handler) AddUnitMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusNoContent, member)
+	handlerutil.WriteJSONResponse(w, http.StatusCreated, member)
 }
 
 func (h *Handler) ListOrgMembers(w http.ResponseWriter, r *http.Request) {
@@ -705,19 +705,25 @@ func (h *Handler) ListOrgMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgID, err := h.store.GetOrgIDBySlug(traceCtx, slug)
+	orgTenant, err := h.tenantService.GetBySlug(traceCtx, slug)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
 		return
 	}
 
-	members, err := h.store.ListMembers(traceCtx, TypeOrg, orgID)
+	// Todo: Need to recursively obtain members of the entire organization
+	members, err := h.store.ListMembers(traceCtx, orgTenant.ID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list org members: %w", err), h.logger)
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusOK, members)
+	response := make([]SimpleUserResponse, 0, len(members))
+	for _, m := range members {
+		response = append(response, SimpleUserResponse(m))
+	}
+
+	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
 }
 
 func (h *Handler) ListUnitMembers(w http.ResponseWriter, r *http.Request) {
@@ -732,13 +738,18 @@ func (h *Handler) ListUnitMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	members, err := h.store.ListMembers(traceCtx, TypeUnit, id)
+	members, err := h.store.ListMembers(traceCtx, id)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list unit members: %w", err), h.logger)
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusOK, members)
+	response := make([]SimpleUserResponse, 0, len(members))
+	for _, m := range members {
+		response = append(response, SimpleUserResponse(m))
+	}
+
+	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
 }
 
 func (h *Handler) RemoveOrgMember(w http.ResponseWriter, r *http.Request) {
@@ -752,8 +763,8 @@ func (h *Handler) RemoveOrgMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgID, err := h.store.GetOrgIDBySlug(traceCtx, slug)
-	if err != nil || orgID == uuid.Nil {
+	orgTenant, err := h.tenantService.GetBySlug(traceCtx, slug)
+	if err != nil || orgTenant.ID == uuid.Nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
 		return
 	}
@@ -770,7 +781,7 @@ func (h *Handler) RemoveOrgMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.store.RemoveMember(traceCtx, TypeOrg, orgID, mID)
+	err = h.store.RemoveMember(traceCtx, TypeOrg, orgTenant.ID, mID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to remove org member: %w", err), h.logger)
 		return

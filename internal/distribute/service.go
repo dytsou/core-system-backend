@@ -14,7 +14,7 @@ import (
 )
 
 type UnitStore interface {
-	ListMembers(ctx context.Context, unitType unit.Type, id uuid.UUID) ([]uuid.UUID, error)
+	ListMembers(ctx context.Context, id uuid.UUID) ([]unit.SimpleUser, error)
 	ListUnitsMembers(ctx context.Context, unitIDs []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error)
 }
 
@@ -32,12 +32,13 @@ func NewService(logger *zap.Logger, store UnitStore) *Service {
 	}
 }
 
+// Todo: Need to use SimpleUser instead of uuid.UUID
 func (s *Service) GetOrgRecipients(ctx context.Context, orgID uuid.UUID) ([]uuid.UUID, error) {
 	traceCtx, span := s.tracer.Start(ctx, "GetOrgRecipients")
 	defer span.End()
 	logger := internal.WithContext(traceCtx, s.logger)
 
-	recipients, err := s.store.ListMembers(traceCtx, unit.TypeOrg, orgID)
+	recipients, err := s.store.ListMembers(traceCtx, orgID)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +48,12 @@ func (s *Service) GetOrgRecipients(ctx context.Context, orgID uuid.UUID) ([]uuid
 		zap.Int("recipients_count", len(recipients)),
 	)
 
-	return recipients, nil
+	ids := make([]uuid.UUID, 0, len(recipients))
+	for _, r := range recipients {
+		ids = append(ids, r.ID)
+	}
+
+	return ids, nil
 }
 
 func (s *Service) GetRecipients(ctx context.Context, unitIDs []uuid.UUID) ([]uuid.UUID, error) {

@@ -98,5 +98,5 @@ func (h *Handler) PublishForm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusNoContent, nil)
+	handlerutil.WriteJSONResponse(w, http.StatusOK, nil)
 }
