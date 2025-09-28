@@ -159,7 +159,7 @@ func main() {
 	traceMiddleware := trace.NewMiddleware(logger, cfg.Debug)
 	corsMiddleware := cors.NewMiddleware(logger, cfg.AllowOrigins)
 	jwtMiddleware := jwt.NewMiddleware(logger, validator, problemWriter, jwtService)
-	tenantMiddleware := tenant.NewMiddleware(logger, dbPool, tenantService, unitService)
+	tenantMiddleware := tenant.NewMiddleware(logger, dbPool, tenantService)
 
 	// Basic Middleware (Tracing and Recovery)
 	basicMiddleware := middleware.NewSet(traceMiddleware.RecoverMiddleware)
@@ -227,7 +227,6 @@ func main() {
 	mux.Handle("GET /api/orgs/{slug}/units/{id}/subunits", tenantBasicMiddleware.HandlerFunc(unitHandler.ListUnitSubUnits))
 	mux.Handle("GET /api/orgs/{slug}/unit-ids", tenantBasicMiddleware.HandlerFunc(unitHandler.ListOrgSubUnitIDs))
 	mux.Handle("GET /api/orgs/{slug}/units/{id}/subunit-ids", tenantBasicMiddleware.HandlerFunc(unitHandler.ListUnitSubUnitIDs))
-	mux.Handle("DELETE /api/orgs/relations/child-id/{child_id}", authMiddleware.HandlerFunc(unitHandler.RemoveParentChild))
 
 	// Form routes
 	mux.Handle("GET /api/forms", authMiddleware.HandlerFunc(formHandler.ListHandler))

@@ -274,28 +274,6 @@ type InboxMessage struct {
 	UpdatedAt pgtype.Timestamp
 }
 
-type OrgMember struct {
-	OrgID    uuid.UUID
-	MemberID uuid.UUID
-}
-
-type Organization struct {
-	ID          uuid.UUID
-	OwnerID     pgtype.UUID
-	Name        pgtype.Text
-	Description pgtype.Text
-	Metadata    []byte
-	Slug        string
-	CreatedAt   pgtype.Timestamptz
-	UpdatedAt   pgtype.Timestamptz
-}
-
-type ParentChild struct {
-	ParentID pgtype.UUID
-	ChildID  uuid.UUID
-	OrgID    uuid.UUID
-}
-
 type Question struct {
 	ID          uuid.UUID
 	FormID      uuid.UUID
@@ -318,6 +296,7 @@ type RefreshToken struct {
 
 type Tenant struct {
 	ID         uuid.UUID
+	Slug       string
 	DbStrategy DbStrategy
 	OwnerID    pgtype.UUID
 }
@@ -325,6 +304,7 @@ type Tenant struct {
 type Unit struct {
 	ID          uuid.UUID
 	OrgID       pgtype.UUID
+	ParentID    pgtype.UUID
 	Type        UnitType
 	Name        pgtype.Text
 	Description pgtype.Text

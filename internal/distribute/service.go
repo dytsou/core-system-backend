@@ -14,7 +14,7 @@ import (
 )
 
 type UnitStore interface {
-	ListMembers(ctx context.Context, unitType unit.Type, id uuid.UUID) ([]unit.SimpleUser, error)
+	ListMembers(ctx context.Context, id uuid.UUID) ([]unit.SimpleUser, error)
 	ListUnitsMembers(ctx context.Context, unitIDs []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error)
 }
 
@@ -38,7 +38,7 @@ func (s *Service) GetOrgRecipients(ctx context.Context, orgID uuid.UUID) ([]uuid
 	defer span.End()
 	logger := internal.WithContext(traceCtx, s.logger)
 
-	recipients, err := s.store.ListMembers(traceCtx, unit.TypeOrg, orgID)
+	recipients, err := s.store.ListMembers(traceCtx, orgID)
 	if err != nil {
 		return nil, err
 	}
