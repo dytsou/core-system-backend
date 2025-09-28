@@ -2,6 +2,13 @@
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    is_active BOOLEAN DEFAULT TRUE,
+    expiration_date TIMESTAMPTZ NOT NULL
+);CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(255),
@@ -20,7 +27,29 @@ CREATE TABLE IF NOT EXISTS auth (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE(provider, provider_id)
-);CREATE EXTENSION IF NOT EXISTS pgcrypto;
+);CREATE TYPE content_type AS ENUM(
+    'text',
+    'form'
+);
+
+CREATE TABLE IF NOT EXISTS inbox_message(
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    posted_by UUID NOT NULL references units(id),
+    type content_type NOT NULL,
+    content_id UUID NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    updated_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS user_inbox_messages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL references users(id) ON DELETE CASCADE,
+    message_id UUID NOT NULL references inbox_message(id) ON DELETE CASCADE,
+    is_read boolean NOT NULL DEFAULT false,
+    is_starred boolean NOT NULL DEFAULT false,
+    is_archived boolean NOT NULL DEFAULT false
+);
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE TYPE unit_type AS ENUM ('organization', 'unit');
 
@@ -43,22 +72,7 @@ CREATE TABLE IF NOT EXISTS unit_members (
     member_id UUID,
     PRIMARY KEY (unit_id, member_id)
 );
-CREATE TYPE db_strategy AS ENUM ('shared', 'isolated');
-
-CREATE TABLE IF NOT EXISTS tenants
-(
-    id UUID PRIMARY KEY REFERENCES units(id) ON DELETE CASCADE,
-    slug TEXT UNIQUE NOT NULL,
-    db_strategy db_strategy NOT NULL,
-    owner_id UUID REFERENCES users(id) ON DELETE SET NULL
-);CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
-CREATE TABLE IF NOT EXISTS refresh_tokens (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    is_active BOOLEAN DEFAULT TRUE,
-    expiration_date TIMESTAMPTZ NOT NULL
-);CREATE TABLE IF NOT EXISTS form_responses (
+CREATE TABLE IF NOT EXISTS form_responses (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     form_id UUID NOT NULL REFERENCES forms(id) ON DELETE CASCADE,
     submitted_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -74,24 +88,7 @@ CREATE TABLE IF NOT EXISTS answers (
     value TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);CREATE TYPE status AS ENUM(
-    'draft',
-    'published'
-);
-
-CREATE TABLE IF NOT EXISTS forms (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    title TEXT NOT NULL,
-    description TEXT,
-    status status NOT NULL DEFAULT 'draft',
-    unit_id UUID REFERENCES units(id) ON DELETE CASCADE,
-    last_editor UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    deadline TIMESTAMPTZ DEFAULT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TYPE question_type AS ENUM(
+);CREATE TYPE question_type AS ENUM(
     'short_text',
     'long_text',
     'single_choice',
@@ -110,25 +107,30 @@ CREATE TABLE IF NOT EXISTS questions(
     "order" INTEGER NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);CREATE TYPE content_type AS ENUM(
-    'text',
-    'form'
+);CREATE TYPE status AS ENUM(
+    'draft',
+    'published'
 );
 
-CREATE TABLE IF NOT EXISTS inbox_message(
+CREATE TABLE IF NOT EXISTS forms (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    posted_by UUID NOT NULL references units(id),
-    type content_type NOT NULL,
-    content_id UUID NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT now(),
-    updated_at TIMESTAMP NOT NULL DEFAULT now()
+    title TEXT NOT NULL,
+    description TEXT,
+    preview_message TEXT DEFAULT NULL,
+    status status NOT NULL DEFAULT 'draft',
+    unit_id UUID REFERENCES units(id) ON DELETE CASCADE,
+    last_editor UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    deadline TIMESTAMPTZ DEFAULT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS user_inbox_messages (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL references users(id) ON DELETE CASCADE,
-    message_id UUID NOT NULL references inbox_message(id) ON DELETE CASCADE,
-    is_read boolean NOT NULL DEFAULT false,
-    is_starred boolean NOT NULL DEFAULT false,
-    is_archived boolean NOT NULL DEFAULT false
+CREATE TYPE db_strategy AS ENUM ('shared', 'isolated');
+
+CREATE TABLE IF NOT EXISTS tenants
+(
+    id UUID PRIMARY KEY REFERENCES units(id) ON DELETE CASCADE,
+    slug TEXT UNIQUE NOT NULL,
+    db_strategy db_strategy NOT NULL,
+    owner_id UUID REFERENCES users(id) ON DELETE SET NULL
 );
