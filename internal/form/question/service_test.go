@@ -38,9 +38,19 @@ func (f *fakeQuerier) GetByID(ctx context.Context, id uuid.UUID) (Question, erro
 }
 
 func mkQuestion(t QuestionType) Question {
-	return Question{
-		Type: t,
+	q := Question{Type: t}
+
+	switch t {
+	case QuestionTypeSingleChoice:
+		md, _ := GenerateMetadata("single_choice", []ChoiceOption{{Name: "A"}, {Name: "B"}})
+		q.Metadata = md
+	case QuestionTypeMultipleChoice:
+		md, _ := GenerateMetadata("multiple_choice", []ChoiceOption{{Name: "A"}, {Name: "B"}})
+		q.Metadata = md
+	default:
+		q.Metadata = []byte(`{}`)
 	}
+	return q
 }
 
 func TestService_Create_KnownAndUnknown(t *testing.T) {
