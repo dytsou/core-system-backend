@@ -5,6 +5,7 @@ import (
 	"NYCU-SDC/core-system-backend/internal/form"
 	"NYCU-SDC/core-system-backend/internal/user"
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -151,7 +152,7 @@ func (h *Handler) GetMessageContent(ctx context.Context, contentType ContentType
 		return nil, nil
 	}
 
-	return nil, ErrUnsupportedContentType{ContentType: string(contentType)}
+	return nil, fmt.Errorf("content type %s not supported", contentType)
 }
 
 func (h *Handler) ListHandler(w http.ResponseWriter, r *http.Request) {
