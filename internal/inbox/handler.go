@@ -92,33 +92,11 @@ func NewHandler(
 	}
 }
 
-// extractPreviewMessage extracts the preview message from the database result
-func (h *Handler) extractPreviewMessage(ctx context.Context, previewMessage interface{}) string {
-	traceCtx, span := h.tracer.Start(ctx, "extractPreviewMessage")
-	defer span.End()
-	logger := logutil.WithContext(traceCtx, h.logger)
-
-	if previewMessage != nil {
-		previewStr, ok := previewMessage.(string)
-		if ok {
-			return previewStr
-		} else {
-			// Log the issue for monitoring but don't fail
-			logutil.WithContext(traceCtx, logger).Warn("preview message type mismatch",
-				zap.Any("previewMessage", previewMessage))
-			return ""
-		}
-	} else {
-		logutil.WithContext(traceCtx, logger).Warn("preview message is nil")
-		return ""
-	}
-}
-
 func (h *Handler) mapToResponse(ctx context.Context, message ListRow) (Response, error) {
 	traceCtx, span := h.tracer.Start(ctx, "mapToResponse")
 	defer span.End()
 
-	previewMessage := h.extractPreviewMessage(traceCtx, message.PreviewMessage)
+	previewMessage := h.extractStringField(traceCtx, message.PreviewMessage)
 	title := h.extractStringField(traceCtx, message.Title)
 	orgName := h.extractStringField(traceCtx, message.OrgName)
 	unitName := h.extractStringField(traceCtx, message.UnitName)
@@ -264,7 +242,7 @@ func (h *Handler) GetHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	previewMessage := h.extractPreviewMessage(traceCtx, message.PreviewMessage)
+	previewMessage := h.extractStringField(traceCtx, message.PreviewMessage)
 	title := h.extractStringField(traceCtx, message.Title)
 	orgName := h.extractStringField(traceCtx, message.OrgName)
 	unitName := h.extractStringField(traceCtx, message.UnitName)
@@ -329,7 +307,7 @@ func (h *Handler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	previewMessage := h.extractPreviewMessage(traceCtx, message.PreviewMessage)
+	previewMessage := h.extractStringField(traceCtx, message.PreviewMessage)
 	title := h.extractStringField(traceCtx, message.Title)
 	orgName := h.extractStringField(traceCtx, message.OrgName)
 	unitName := h.extractStringField(traceCtx, message.UnitName)
