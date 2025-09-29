@@ -3,6 +3,7 @@ package inbox
 import (
 	"NYCU-SDC/core-system-backend/internal"
 	"NYCU-SDC/core-system-backend/internal/form"
+	"NYCU-SDC/core-system-backend/internal/unit"
 	"NYCU-SDC/core-system-backend/internal/user"
 	"context"
 	"fmt"
@@ -34,11 +35,12 @@ type UserInboxMessageFilter struct {
 	IsArchived bool `json:"isArchived"`
 }
 
-type MessageResponse struct {
+type FormMessageResponse struct {
 	ID             string      `json:"id"`
 	PostedBy       string      `json:"postedBy"`
 	Title          string      `json:"title"`
-	Subtitle       string      `json:"subtitle"`
+	Org            string      `json:"org"`
+	Unit           string      `json:"unit"`
 	Type           ContentType `json:"type"`
 	PreviewMessage string      `json:"previewMessage"`
 	ContentID      string      `json:"contentId"`
@@ -47,15 +49,15 @@ type MessageResponse struct {
 }
 
 type Response struct {
-	ID      string          `json:"id"`
-	Message MessageResponse `json:"message"`
+	ID      string              `json:"id"`
+	Message FormMessageResponse `json:"message"`
 	UserInboxMessageFilter
 }
 
 type ResponseDetail struct {
-	ID      string          `json:"id"`
-	Message MessageResponse `json:"message"`
-	Content any             `json:"content"`
+	ID      string              `json:"id"`
+	Message FormMessageResponse `json:"message"`
+	Content any                 `json:"content"`
 	UserInboxMessageFilter
 }
 
@@ -67,6 +69,7 @@ type Handler struct {
 
 	store     Store
 	formStore form.Store
+	unitStore unit.Store
 }
 
 func NewHandler(
@@ -75,6 +78,7 @@ func NewHandler(
 	problemWriter *problem.HttpWriter,
 	store Store,
 	formStore form.Store,
+	unitStore unit.Store,
 ) *Handler {
 	return &Handler{
 		logger:        logger,
@@ -83,6 +87,7 @@ func NewHandler(
 		tracer:        otel.Tracer("inbox/handler"),
 		store:         store,
 		formStore:     formStore,
+		unitStore:     unitStore,
 	}
 }
 
@@ -114,11 +119,16 @@ func (h *Handler) mapToResponse(ctx context.Context, message ListRow) (Response,
 
 	previewMessage := h.extractPreviewMessage(traceCtx, message.PreviewMessage)
 
+	title, orgName, unitName := h.resolveTitleOrgUnit(traceCtx, message.Type, message.ContentID)
+
 	return Response{
 		ID: message.ID.String(),
-		Message: MessageResponse{
+		Message: FormMessageResponse{
 			ID:             message.MessageID.String(),
 			PostedBy:       message.PostedBy.String(),
+			Title:          title,
+			Org:            orgName,
+			Unit:           unitName,
 			Type:           message.Type,
 			PreviewMessage: previewMessage,
 			ContentID:      message.ContentID.String(),
@@ -131,6 +141,43 @@ func (h *Handler) mapToResponse(ctx context.Context, message ListRow) (Response,
 			IsArchived: message.IsArchived,
 		},
 	}, nil
+}
+
+// resolveTitleSubtitle resolves the message title from content and subtitle from org/unit
+func (h *Handler) resolveTitleOrgUnit(ctx context.Context, contentType ContentType, contentID uuid.UUID) (string, string, string) {
+	traceCtx, span := h.tracer.Start(ctx, "resolveTitleSubtitle")
+	defer span.End()
+
+	switch contentType {
+	case ContentTypeForm:
+		currentForm, err := h.formStore.GetByID(traceCtx, contentID)
+		if err != nil {
+			return "", "", ""
+		}
+		title := currentForm.Title
+		orgName := ""
+		unitName := ""
+		if currentForm.UnitID.Valid {
+			unitModel, err := h.unitStore.GetByID(traceCtx, currentForm.UnitID.Bytes, unit.TypeUnit)
+			if err != nil {
+				return title, "", ""
+			}
+			if unitModel.OrgID.Valid {
+				orgModel, err := h.unitStore.GetByID(traceCtx, unitModel.OrgID.Bytes, unit.TypeOrg)
+				if err == nil {
+					orgName = orgModel.Name.String
+				}
+			}
+			if orgName != "" {
+				unitName = unitModel.Name.String
+			} else {
+				orgName = unitModel.Name.String
+			}
+		}
+		return title, orgName, unitName
+	default:
+		return "", "", ""
+	}
 }
 
 func (h *Handler) GetMessageContent(ctx context.Context, contentType ContentType, contentID uuid.UUID) (any, error) {
@@ -230,11 +277,16 @@ func (h *Handler) GetHandler(w http.ResponseWriter, r *http.Request) {
 
 	previewMessage := h.extractPreviewMessage(traceCtx, message.PreviewMessage)
 
+	title, orgName, unitName := h.resolveTitleOrgUnit(traceCtx, message.Type, message.ContentID)
+
 	response := ResponseDetail{
 		ID: message.ID.String(),
-		Message: MessageResponse{
+		Message: FormMessageResponse{
 			ID:             message.MessageID.String(),
 			PostedBy:       message.PostedBy.String(),
+			Title:          title,
+			Org:            orgName,
+			Unit:           unitName,
 			Type:           message.Type,
 			PreviewMessage: previewMessage,
 			ContentID:      message.ContentID.String(),
@@ -289,11 +341,16 @@ func (h *Handler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 
 	previewMessage := h.extractPreviewMessage(traceCtx, message.PreviewMessage)
 
+	title, orgName, unitName := h.resolveTitleOrgUnit(traceCtx, message.Type, message.ContentID)
+
 	response := Response{
 		ID: message.ID.String(),
-		Message: MessageResponse{
+		Message: FormMessageResponse{
 			ID:             message.MessageID.String(),
 			PostedBy:       message.PostedBy.String(),
+			Title:          title,
+			Org:            orgName,
+			Unit:           unitName,
 			Type:           message.Type,
 			PreviewMessage: previewMessage,
 			ContentID:      message.ContentID.String(),
