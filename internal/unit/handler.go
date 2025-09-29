@@ -503,7 +503,7 @@ func (h *Handler) AddParentChild(w http.ResponseWriter, r *http.Request) {
 	}
 	response := parentChildResponse{
 		ParentID: parentPtr,
-		ChildID:  req.ChildID,
+		ChildID:  pc.ID,
 		OrgID:    pc.OrgID.Bytes,
 	}
 	handlerutil.WriteJSONResponse(w, http.StatusCreated, response)
