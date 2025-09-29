@@ -18,6 +18,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
@@ -146,7 +147,10 @@ func (h *Handler) mapToResponse(ctx context.Context, message ListRow) (Response,
 
 // extractStringField extracts a string field from the database result
 func (h *Handler) extractStringField(ctx context.Context, field interface{}) string {
-	traceCtx, span := h.tracer.Start(ctx, "extractStringField")
+	traceCtx, span := h.tracer.Start(ctx, "extractStringField", trace.WithAttributes(
+		attribute.String("field", fmt.Sprintf("%v", field)),
+		attribute.String("field_type", fmt.Sprintf("%T", field)),
+	))
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
@@ -156,7 +160,9 @@ func (h *Handler) extractStringField(ctx context.Context, field interface{}) str
 			return fieldStr
 		} else {
 			logutil.WithContext(traceCtx, logger).Warn("field type mismatch",
-				zap.Any("field", field))
+				zap.String("field_type", fmt.Sprintf("%T", field)),
+				zap.String("field", fmt.Sprintf("%v", field)),
+			)
 			return ""
 		}
 	}
