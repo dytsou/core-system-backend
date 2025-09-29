@@ -118,8 +118,9 @@ func (h *Handler) mapToResponse(ctx context.Context, message ListRow) (Response,
 	defer span.End()
 
 	previewMessage := h.extractPreviewMessage(traceCtx, message.PreviewMessage)
-
-	title, orgName, unitName := h.resolveTitleOrgUnit(traceCtx, message.Type, message.ContentID)
+	title := h.extractStringField(traceCtx, message.Title)
+	orgName := h.extractStringField(traceCtx, message.OrgName)
+	unitName := h.extractStringField(traceCtx, message.UnitName)
 
 	return Response{
 		ID: message.ID.String(),
@@ -143,41 +144,23 @@ func (h *Handler) mapToResponse(ctx context.Context, message ListRow) (Response,
 	}, nil
 }
 
-// resolveTitleSubtitle resolves the message title from content and subtitle from org/unit
-func (h *Handler) resolveTitleOrgUnit(ctx context.Context, contentType ContentType, contentID uuid.UUID) (string, string, string) {
-	traceCtx, span := h.tracer.Start(ctx, "resolveTitleSubtitle")
+// extractStringField extracts a string field from the database result
+func (h *Handler) extractStringField(ctx context.Context, field interface{}) string {
+	traceCtx, span := h.tracer.Start(ctx, "extractStringField")
 	defer span.End()
+	logger := logutil.WithContext(traceCtx, h.logger)
 
-	switch contentType {
-	case ContentTypeForm:
-		currentForm, err := h.formStore.GetByID(traceCtx, contentID)
-		if err != nil {
-			return "", "", ""
+	if field != nil {
+		fieldStr, ok := field.(string)
+		if ok {
+			return fieldStr
+		} else {
+			logutil.WithContext(traceCtx, logger).Warn("field type mismatch",
+				zap.Any("field", field))
+			return ""
 		}
-		title := currentForm.Title
-		orgName := ""
-		unitName := ""
-		if currentForm.UnitID.Valid {
-			unitModel, err := h.unitStore.GetByID(traceCtx, currentForm.UnitID.Bytes, unit.TypeUnit)
-			if err != nil {
-				return title, "", ""
-			}
-			if unitModel.OrgID.Valid {
-				orgModel, err := h.unitStore.GetByID(traceCtx, unitModel.OrgID.Bytes, unit.TypeOrg)
-				if err == nil {
-					orgName = orgModel.Name.String
-				}
-			}
-			if orgName != "" {
-				unitName = unitModel.Name.String
-			} else {
-				orgName = unitModel.Name.String
-			}
-		}
-		return title, orgName, unitName
-	default:
-		return "", "", ""
 	}
+	return ""
 }
 
 func (h *Handler) GetMessageContent(ctx context.Context, contentType ContentType, contentID uuid.UUID) (any, error) {
@@ -276,8 +259,9 @@ func (h *Handler) GetHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	previewMessage := h.extractPreviewMessage(traceCtx, message.PreviewMessage)
-
-	title, orgName, unitName := h.resolveTitleOrgUnit(traceCtx, message.Type, message.ContentID)
+	title := h.extractStringField(traceCtx, message.Title)
+	orgName := h.extractStringField(traceCtx, message.OrgName)
+	unitName := h.extractStringField(traceCtx, message.UnitName)
 
 	response := ResponseDetail{
 		ID: message.ID.String(),
@@ -340,8 +324,9 @@ func (h *Handler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	previewMessage := h.extractPreviewMessage(traceCtx, message.PreviewMessage)
-
-	title, orgName, unitName := h.resolveTitleOrgUnit(traceCtx, message.Type, message.ContentID)
+	title := h.extractStringField(traceCtx, message.Title)
+	orgName := h.extractStringField(traceCtx, message.OrgName)
+	unitName := h.extractStringField(traceCtx, message.UnitName)
 
 	response := Response{
 		ID: message.ID.String(),
