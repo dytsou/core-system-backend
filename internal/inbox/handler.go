@@ -3,6 +3,7 @@ package inbox
 import (
 	"NYCU-SDC/core-system-backend/internal"
 	"NYCU-SDC/core-system-backend/internal/form"
+	"NYCU-SDC/core-system-backend/internal/unit"
 	"NYCU-SDC/core-system-backend/internal/user"
 	"context"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
@@ -34,11 +36,12 @@ type UserInboxMessageFilter struct {
 	IsArchived bool `json:"isArchived"`
 }
 
-type MessageResponse struct {
+type FormMessageResponse struct {
 	ID             string      `json:"id"`
 	PostedBy       string      `json:"postedBy"`
 	Title          string      `json:"title"`
-	Subtitle       string      `json:"subtitle"`
+	Org            string      `json:"org"`
+	Unit           string      `json:"unit"`
 	Type           ContentType `json:"type"`
 	PreviewMessage string      `json:"previewMessage"`
 	ContentID      string      `json:"contentId"`
@@ -47,15 +50,15 @@ type MessageResponse struct {
 }
 
 type Response struct {
-	ID      string          `json:"id"`
-	Message MessageResponse `json:"message"`
+	ID      string              `json:"id"`
+	Message FormMessageResponse `json:"message"`
 	UserInboxMessageFilter
 }
 
 type ResponseDetail struct {
-	ID      string          `json:"id"`
-	Message MessageResponse `json:"message"`
-	Content any             `json:"content"`
+	ID      string              `json:"id"`
+	Message FormMessageResponse `json:"message"`
+	Content any                 `json:"content"`
 	UserInboxMessageFilter
 }
 
@@ -67,6 +70,7 @@ type Handler struct {
 
 	store     Store
 	formStore form.Store
+	unitStore unit.Store
 }
 
 func NewHandler(
@@ -75,6 +79,7 @@ func NewHandler(
 	problemWriter *problem.HttpWriter,
 	store Store,
 	formStore form.Store,
+	unitStore unit.Store,
 ) *Handler {
 	return &Handler{
 		logger:        logger,
@@ -83,28 +88,7 @@ func NewHandler(
 		tracer:        otel.Tracer("inbox/handler"),
 		store:         store,
 		formStore:     formStore,
-	}
-}
-
-// extractPreviewMessage extracts the preview message from the database result
-func (h *Handler) extractPreviewMessage(ctx context.Context, previewMessage interface{}) string {
-	traceCtx, span := h.tracer.Start(ctx, "extractPreviewMessage")
-	defer span.End()
-	logger := logutil.WithContext(traceCtx, h.logger)
-
-	if previewMessage != nil {
-		previewStr, ok := previewMessage.(string)
-		if ok {
-			return previewStr
-		} else {
-			// Log the issue for monitoring but don't fail
-			logutil.WithContext(traceCtx, logger).Warn("preview message type mismatch",
-				zap.Any("previewMessage", previewMessage))
-			return ""
-		}
-	} else {
-		logutil.WithContext(traceCtx, logger).Warn("preview message is nil")
-		return ""
+		unitStore:     unitStore,
 	}
 }
 
@@ -112,13 +96,19 @@ func (h *Handler) mapToResponse(ctx context.Context, message ListRow) (Response,
 	traceCtx, span := h.tracer.Start(ctx, "mapToResponse")
 	defer span.End()
 
-	previewMessage := h.extractPreviewMessage(traceCtx, message.PreviewMessage)
+	previewMessage := h.extractStringField(traceCtx, message.PreviewMessage)
+	title := h.extractStringField(traceCtx, message.Title)
+	orgName := h.extractStringField(traceCtx, message.OrgName)
+	unitName := h.extractStringField(traceCtx, message.UnitName)
 
 	return Response{
 		ID: message.ID.String(),
-		Message: MessageResponse{
+		Message: FormMessageResponse{
 			ID:             message.MessageID.String(),
 			PostedBy:       message.PostedBy.String(),
+			Title:          title,
+			Org:            orgName,
+			Unit:           unitName,
 			Type:           message.Type,
 			PreviewMessage: previewMessage,
 			ContentID:      message.ContentID.String(),
@@ -131,6 +121,30 @@ func (h *Handler) mapToResponse(ctx context.Context, message ListRow) (Response,
 			IsArchived: message.IsArchived,
 		},
 	}, nil
+}
+
+// extractStringField extracts a string field from the database result
+func (h *Handler) extractStringField(ctx context.Context, field interface{}) string {
+	traceCtx, span := h.tracer.Start(ctx, "extractStringField", trace.WithAttributes(
+		attribute.String("field", fmt.Sprintf("%v", field)),
+		attribute.String("field_type", fmt.Sprintf("%T", field)),
+	))
+	defer span.End()
+	logger := logutil.WithContext(traceCtx, h.logger)
+
+	if field != nil {
+		fieldStr, ok := field.(string)
+		if ok {
+			return fieldStr
+		} else {
+			logutil.WithContext(traceCtx, logger).Warn("field type mismatch",
+				zap.String("field_type", fmt.Sprintf("%T", field)),
+				zap.String("field", fmt.Sprintf("%v", field)),
+			)
+			return ""
+		}
+	}
+	return ""
 }
 
 func (h *Handler) GetMessageContent(ctx context.Context, contentType ContentType, contentID uuid.UUID) (any, error) {
@@ -228,13 +242,19 @@ func (h *Handler) GetHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	previewMessage := h.extractPreviewMessage(traceCtx, message.PreviewMessage)
+	previewMessage := h.extractStringField(traceCtx, message.PreviewMessage)
+	title := h.extractStringField(traceCtx, message.Title)
+	orgName := h.extractStringField(traceCtx, message.OrgName)
+	unitName := h.extractStringField(traceCtx, message.UnitName)
 
 	response := ResponseDetail{
 		ID: message.ID.String(),
-		Message: MessageResponse{
+		Message: FormMessageResponse{
 			ID:             message.MessageID.String(),
 			PostedBy:       message.PostedBy.String(),
+			Title:          title,
+			Org:            orgName,
+			Unit:           unitName,
 			Type:           message.Type,
 			PreviewMessage: previewMessage,
 			ContentID:      message.ContentID.String(),
@@ -287,13 +307,19 @@ func (h *Handler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	previewMessage := h.extractPreviewMessage(traceCtx, message.PreviewMessage)
+	previewMessage := h.extractStringField(traceCtx, message.PreviewMessage)
+	title := h.extractStringField(traceCtx, message.Title)
+	orgName := h.extractStringField(traceCtx, message.OrgName)
+	unitName := h.extractStringField(traceCtx, message.UnitName)
 
 	response := Response{
 		ID: message.ID.String(),
-		Message: MessageResponse{
+		Message: FormMessageResponse{
 			ID:             message.MessageID.String(),
 			PostedBy:       message.PostedBy.String(),
+			Title:          title,
+			Org:            orgName,
+			Unit:           unitName,
 			Type:           message.Type,
 			PreviewMessage: previewMessage,
 			ContentID:      message.ContentID.String(),
