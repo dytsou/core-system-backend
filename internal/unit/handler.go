@@ -496,13 +496,13 @@ func (h *Handler) AddParentChild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var parentPtr *uuid.UUID
+	var parent *uuid.UUID
 	if req.ParentID != uuid.Nil {
 		pid := req.ParentID
-		parentPtr = &pid
+		parent = &pid
 	}
 	response := parentChildResponse{
-		ParentID: parentPtr,
+		ParentID: parent,
 		ChildID:  pc.ID,
 		OrgID:    pc.OrgID.Bytes,
 	}
