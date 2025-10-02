@@ -44,11 +44,11 @@ func TestInboxService_Create(t *testing.T) {
 		unitID      uuid.UUID
 	}
 	testCases := []struct {
-		name      string
-		params    params
-		setup     func(t *testing.T, params *params, db dbbuilder.DBTX, logger interface{}) context.Context
-		validate  func(t *testing.T, params params, db dbbuilder.DBTX, result uuid.UUID)
-		expectErr bool
+		name        string
+		params      params
+		setup       func(t *testing.T, params *params, db dbbuilder.DBTX, logger interface{}) context.Context
+		validate    func(t *testing.T, params params, db dbbuilder.DBTX, result uuid.UUID)
+		expectedErr bool
 	}{
 		{
 			name: "Create message for multiple users",
@@ -133,7 +133,7 @@ func TestInboxService_Create(t *testing.T) {
 
 				return context.Background()
 			},
-			expectErr: true,
+			expectedErr: true,
 		},
 		{
 			name: "Fail when unit ID does not exist",
@@ -162,7 +162,7 @@ func TestInboxService_Create(t *testing.T) {
 
 				return context.Background()
 			},
-			expectErr: true,
+			expectedErr: true,
 		},
 	}
 
@@ -188,7 +188,7 @@ func TestInboxService_Create(t *testing.T) {
 			service := inbox.NewService(logger, db)
 
 			result, err := service.Create(ctx, params.contentType, params.contentID, params.recipients, params.unitID)
-			require.Equal(t, tc.expectErr, err != nil, "expected error: %v, got: %v", tc.expectErr, err)
+			require.Equal(t, tc.expectedErr, err != nil, "expected error: %v, got: %v", tc.expectedErr, err)
 
 			if tc.validate != nil {
 				tc.validate(t, params, db, result)
@@ -203,11 +203,11 @@ func TestInboxService_List(t *testing.T) {
 		expected int
 	}
 	testCases := []struct {
-		name      string
-		params    params
-		setup     func(t *testing.T, params *params, db dbbuilder.DBTX, logger interface{}) context.Context
-		validate  func(t *testing.T, params params, db dbbuilder.DBTX, result []inbox.ListRow)
-		expectErr bool
+		name        string
+		params      params
+		setup       func(t *testing.T, params *params, db dbbuilder.DBTX, logger interface{}) context.Context
+		validate    func(t *testing.T, params params, db dbbuilder.DBTX, result []inbox.ListRow)
+		expectedErr bool
 	}{
 		{
 			name: "Return empty list when no messages exist",
@@ -312,7 +312,7 @@ func TestInboxService_List(t *testing.T) {
 			service := inbox.NewService(logger, db)
 
 			result, err := service.List(ctx, params.userID)
-			require.Equal(t, tc.expectErr, err != nil, "expected error: %v, got: %v", tc.expectErr, err)
+			require.Equal(t, tc.expectedErr, err != nil, "expected error: %v, got: %v", tc.expectedErr, err)
 
 			if tc.validate != nil {
 				tc.validate(t, params, db, result)
@@ -329,11 +329,11 @@ func TestInboxService_UpdateByID(t *testing.T) {
 		expected  inbox.UserInboxMessageFilter
 	}
 	testCases := []struct {
-		name      string
-		params    params
-		setup     func(t *testing.T, params *params, db dbbuilder.DBTX, logger interface{}) context.Context
-		validate  func(t *testing.T, params params, db dbbuilder.DBTX, result inbox.UpdateByIDRow)
-		expectErr bool
+		name        string
+		params      params
+		setup       func(t *testing.T, params *params, db dbbuilder.DBTX, logger interface{}) context.Context
+		validate    func(t *testing.T, params params, db dbbuilder.DBTX, result inbox.UpdateByIDRow)
+		expectedErr bool
 	}{
 		{
 			name: "Mark read and starred",
@@ -483,7 +483,7 @@ func TestInboxService_UpdateByID(t *testing.T) {
 
 				return context.Background()
 			},
-			expectErr: true,
+			expectedErr: true,
 		},
 		{
 			name: "Fail when user ID does not exist",
@@ -521,7 +521,7 @@ func TestInboxService_UpdateByID(t *testing.T) {
 
 				return context.Background()
 			},
-			expectErr: true,
+			expectedErr: true,
 		},
 	}
 
@@ -547,7 +547,7 @@ func TestInboxService_UpdateByID(t *testing.T) {
 			service := inbox.NewService(logger, db)
 
 			result, err := service.UpdateByID(ctx, params.messageID, params.userID, params.update)
-			require.Equal(t, tc.expectErr, err != nil, "expected error: %v, got: %v", tc.expectErr, err)
+			require.Equal(t, tc.expectedErr, err != nil, "expected error: %v, got: %v", tc.expectedErr, err)
 
 			if tc.validate != nil {
 				tc.validate(t, params, db, result)
@@ -564,11 +564,11 @@ func TestInboxService_DuplicateCreatesProduceMultipleMessages(t *testing.T) {
 		expected  int
 	}
 	testCases := []struct {
-		name      string
-		params    params
-		setup     func(t *testing.T, params *params, db dbbuilder.DBTX, logger interface{}) context.Context
-		validate  func(t *testing.T, params params, db dbbuilder.DBTX, results []uuid.UUID)
-		expectErr bool
+		name        string
+		params      params
+		setup       func(t *testing.T, params *params, db dbbuilder.DBTX, logger interface{}) context.Context
+		validate    func(t *testing.T, params params, db dbbuilder.DBTX, results []uuid.UUID)
+		expectedErr bool
 	}{
 		{
 			name: "Create multiple messages for same content and recipient",
@@ -642,7 +642,7 @@ func TestInboxService_DuplicateCreatesProduceMultipleMessages(t *testing.T) {
 
 				return context.Background()
 			},
-			expectErr: true,
+			expectedErr: true,
 		},
 	}
 
@@ -671,7 +671,7 @@ func TestInboxService_DuplicateCreatesProduceMultipleMessages(t *testing.T) {
 			results := make([]uuid.UUID, params.expected)
 			for i := 0; i < params.expected; i++ {
 				result, err := service.Create(ctx, inbox.ContentTypeForm, params.contentID, []uuid.UUID{params.userID}, params.unitID)
-				require.Equal(t, tc.expectErr, err != nil, "expected error: %v, got: %v", tc.expectErr, err)
+				require.Equal(t, tc.expectedErr, err != nil, "expected error: %v, got: %v", tc.expectedErr, err)
 				require.NotEqual(t, uuid.Nil, result)
 				results[i] = result
 			}
@@ -689,11 +689,11 @@ func TestInboxService_ArchiveVisibilityInList(t *testing.T) {
 		messageID uuid.UUID
 	}
 	testCases := []struct {
-		name      string
-		params    params
-		setup     func(t *testing.T, params *params, db dbbuilder.DBTX, logger interface{}) context.Context
-		validate  func(t *testing.T, params params, db dbbuilder.DBTX)
-		expectErr bool
+		name        string
+		params      params
+		setup       func(t *testing.T, params *params, db dbbuilder.DBTX, logger interface{}) context.Context
+		validate    func(t *testing.T, params params, db dbbuilder.DBTX)
+		expectedErr bool
 	}{
 		{
 			name: "Archived messages should not appear in List",
