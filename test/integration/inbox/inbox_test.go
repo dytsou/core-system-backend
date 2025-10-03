@@ -97,8 +97,8 @@ func TestInboxService_Create(t *testing.T) {
 							require.Equal(t, params.contentType, r.Type)
 							require.NotEmpty(t, r.PreviewMessage)
 							require.NotEmpty(t, r.Title)
-							require.NotEmpty(t, r.OrgName)
-							require.NotEmpty(t, r.UnitName)
+							require.Equal(t, "test-org", r.OrgName)
+							require.Equal(t, "test-unit", r.UnitName)
 							break
 						}
 					}
@@ -251,6 +251,8 @@ func TestInboxService_List(t *testing.T) {
 				formRow := formBuilder.Create(
 					formbuilder.WithUnitID(unitRow.ID),
 					formbuilder.WithLastEditor(user.ID),
+					formbuilder.WithTitle("message-title"),
+					formbuilder.WithPreviewMessage("message-preview"),
 				)
 
 				serviceLogger, _ := zap.NewDevelopment()
@@ -266,10 +268,10 @@ func TestInboxService_List(t *testing.T) {
 				require.Len(t, result, params.expected)
 				for _, msg := range result {
 					require.Equal(t, params.userID, msg.UserID)
-					require.NotNil(t, msg.Title)
-					require.NotNil(t, msg.PreviewMessage)
-					require.NotNil(t, msg.OrgName)
-					require.NotNil(t, msg.UnitName)
+					require.Equal(t, "message-title", msg.Title)
+					require.Equal(t, "message-preview", msg.PreviewMessage)
+					require.Equal(t, "message-org", msg.OrgName)
+					require.Equal(t, "message-unit", msg.UnitName)
 				}
 			},
 		},
