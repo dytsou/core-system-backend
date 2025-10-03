@@ -38,10 +38,12 @@ func TestMain(m *testing.M) {
 
 func TestInboxService_Create(t *testing.T) {
 	type Params struct {
-		contentType inbox.ContentType
-		contentID   uuid.UUID
-		recipients  []uuid.UUID
-		unitID      uuid.UUID
+		contentType    inbox.ContentType
+		contentID      uuid.UUID
+		recipients     []uuid.UUID
+		unitID         uuid.UUID
+		title          string
+		previewMessage string
 	}
 	testCases := []struct {
 		name        string
@@ -53,7 +55,9 @@ func TestInboxService_Create(t *testing.T) {
 		{
 			name: "Create user inbox message for multiple users",
 			params: Params{
-				contentType: inbox.ContentTypeForm,
+				contentType:    inbox.ContentTypeForm,
+				title:          "test-title",
+				previewMessage: "test-preview-message",
 			},
 			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				unitBuilder := unitbuilder.New(t, db)
@@ -72,6 +76,8 @@ func TestInboxService_Create(t *testing.T) {
 				formRow := formBuilder.Create(
 					formbuilder.WithUnitID(unitRow.ID),
 					formbuilder.WithLastEditor(userA.ID),
+					formbuilder.WithTitle(params.title),
+					formbuilder.WithPreviewMessage(params.previewMessage),
 				)
 
 				params.contentID = formRow.ID
@@ -93,8 +99,8 @@ func TestInboxService_Create(t *testing.T) {
 						if r.ContentID == params.contentID {
 							found = true
 							require.Equal(t, params.contentType, r.Type)
-							require.NotEmpty(t, r.PreviewMessage)
-							require.NotEmpty(t, r.Title)
+							require.Equal(t, params.title, r.Title)
+							require.Equal(t, params.previewMessage, r.PreviewMessage)
 							require.Equal(t, "test-org", r.OrgName)
 							require.Equal(t, "test-unit", r.UnitName)
 							break
@@ -108,7 +114,9 @@ func TestInboxService_Create(t *testing.T) {
 		{
 			name: "Fail when user ID does not exist in recipients for user inbox",
 			params: Params{
-				contentType: inbox.ContentTypeForm,
+				contentType:    inbox.ContentTypeForm,
+				title:          "test-title",
+				previewMessage: "test-preview-message",
 			},
 			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				unitBuilder := unitbuilder.New(t, db)
@@ -124,6 +132,8 @@ func TestInboxService_Create(t *testing.T) {
 				formRow := formBuilder.Create(
 					formbuilder.WithUnitID(unitRow.ID),
 					formbuilder.WithLastEditor(user.ID),
+					formbuilder.WithTitle(params.title),
+					formbuilder.WithPreviewMessage(params.previewMessage),
 				)
 
 				params.contentID = formRow.ID
@@ -137,7 +147,9 @@ func TestInboxService_Create(t *testing.T) {
 		{
 			name: "Fail when unit ID does not exist in user inbox",
 			params: Params{
-				contentType: inbox.ContentTypeForm,
+				contentType:    inbox.ContentTypeForm,
+				title:          "test-title",
+				previewMessage: "test-preview-message",
 			},
 			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				userBuilder := userbuilder.New(t, db)
@@ -153,6 +165,8 @@ func TestInboxService_Create(t *testing.T) {
 				formRow := formBuilder.Create(
 					formbuilder.WithUnitID(unitRow.ID),
 					formbuilder.WithLastEditor(user.ID),
+					formbuilder.WithTitle(params.title),
+					formbuilder.WithPreviewMessage(params.previewMessage),
 				)
 
 				params.contentID = formRow.ID
@@ -675,12 +689,15 @@ func TestInboxService_ArchiveVisibilityInList(t *testing.T) {
 		name        string
 		params      Params
 		setup       func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context
-		validate    func(t *testing.T, params Params, db dbbuilder.DBTX)
+		validate    func(t *testing.T, params Params, db dbbuilder.DBTX, result []inbox.ListRow)
 		expectedErr bool
 	}{
 		{
-			name:   "Archived user inbox messages should not appear in List",
-			params: Params{},
+			name: "Archived user inbox messages should not appear in List",
+			params: Params{
+				messageID: uuid.New(),
+				userID:    uuid.New(),
+			},
 			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				unitBuilder := unitbuilder.New(t, db)
 				userBuilder := userbuilder.New(t, db)
@@ -707,7 +724,8 @@ func TestInboxService_ArchiveVisibilityInList(t *testing.T) {
 
 				return context.Background()
 			},
-			validate: func(t *testing.T, params Params, db dbbuilder.DBTX) {
+			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result []inbox.ListRow) {
+				require.Len(t, result, 1)
 				inboxBuilder := inboxbuilder.New(t, db)
 
 				// Archive the message
@@ -748,8 +766,11 @@ func TestInboxService_ArchiveVisibilityInList(t *testing.T) {
 				tc.setup(t, &params, db, nil)
 			}
 
+			inboxBuilder := inboxbuilder.New(t, db)
+			results := inboxBuilder.GetUserInboxMessages(params.userID)
+
 			if tc.validate != nil {
-				tc.validate(t, params, db)
+				tc.validate(t, params, db, results)
 			}
 		})
 	}
