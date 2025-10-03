@@ -6,6 +6,7 @@ import (
 	"NYCU-SDC/core-system-backend/test/integration"
 	"NYCU-SDC/core-system-backend/test/testdata/dbbuilder"
 	formbuilder "NYCU-SDC/core-system-backend/test/testdata/dbbuilder/form"
+	inboxbuilder "NYCU-SDC/core-system-backend/test/testdata/dbbuilder/inbox"
 	unitbuilder "NYCU-SDC/core-system-backend/test/testdata/dbbuilder/unit"
 	userbuilder "NYCU-SDC/core-system-backend/test/testdata/dbbuilder/user"
 	"context"
@@ -14,7 +15,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 func TestMain(m *testing.M) {
@@ -37,7 +37,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestInboxService_Create(t *testing.T) {
-	type params struct {
+	type Params struct {
 		contentType inbox.ContentType
 		contentID   uuid.UUID
 		recipients  []uuid.UUID
@@ -45,17 +45,17 @@ func TestInboxService_Create(t *testing.T) {
 	}
 	testCases := []struct {
 		name        string
-		params      params
-		setup       func(t *testing.T, params *params, db dbbuilder.DBTX, logger interface{}) context.Context
-		validate    func(t *testing.T, params params, db dbbuilder.DBTX, result uuid.UUID)
+		params      Params
+		setup       func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context
+		validate    func(t *testing.T, params Params, db dbbuilder.DBTX, result uuid.UUID)
 		expectedErr bool
 	}{
 		{
 			name: "Create user inbox message for multiple users",
-			params: params{
+			params: Params{
 				contentType: inbox.ContentTypeForm,
 			},
-			setup: func(t *testing.T, params *params, db dbbuilder.DBTX, logger interface{}) context.Context {
+			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				unitBuilder := unitbuilder.New(t, db)
 				userBuilder := userbuilder.New(t, db)
 				formBuilder := formbuilder.New(t, db)
@@ -80,14 +80,12 @@ func TestInboxService_Create(t *testing.T) {
 
 				return context.Background()
 			},
-			validate: func(t *testing.T, params params, db dbbuilder.DBTX, result uuid.UUID) {
+			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result uuid.UUID) {
 				require.NotEqual(t, uuid.Nil, result)
 
-				serviceLogger, _ := zap.NewDevelopment()
-				service := inbox.NewService(serviceLogger, db)
+				inboxBuilder := inboxbuilder.New(t, db)
 				for _, recipientID := range params.recipients {
-					rows, err := service.List(context.Background(), recipientID)
-					require.NoError(t, err)
+					rows := inboxBuilder.GetUserInboxMessages(recipientID)
 					require.Equal(t, 1, len(rows))
 
 					found := false
@@ -105,13 +103,14 @@ func TestInboxService_Create(t *testing.T) {
 					require.True(t, found, "message not found for recipient %s", recipientID)
 				}
 			},
+			expectedErr: false,
 		},
 		{
 			name: "Fail when user ID does not exist in recipients for user inbox",
-			params: params{
+			params: Params{
 				contentType: inbox.ContentTypeForm,
 			},
-			setup: func(t *testing.T, params *params, db dbbuilder.DBTX, logger interface{}) context.Context {
+			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				unitBuilder := unitbuilder.New(t, db)
 				userBuilder := userbuilder.New(t, db)
 				formBuilder := formbuilder.New(t, db)
@@ -137,10 +136,10 @@ func TestInboxService_Create(t *testing.T) {
 		},
 		{
 			name: "Fail when unit ID does not exist in user inbox",
-			params: params{
+			params: Params{
 				contentType: inbox.ContentTypeForm,
 			},
-			setup: func(t *testing.T, params *params, db dbbuilder.DBTX, logger interface{}) context.Context {
+			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				userBuilder := userbuilder.New(t, db)
 				formBuilder := formbuilder.New(t, db)
 
@@ -198,23 +197,23 @@ func TestInboxService_Create(t *testing.T) {
 }
 
 func TestInboxService_List(t *testing.T) {
-	type params struct {
+	type Params struct {
 		userID   uuid.UUID
 		expected int
 	}
 	testCases := []struct {
 		name        string
-		params      params
-		setup       func(t *testing.T, params *params, db dbbuilder.DBTX, logger interface{}) context.Context
-		validate    func(t *testing.T, params params, db dbbuilder.DBTX, result []inbox.ListRow)
+		params      Params
+		setup       func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context
+		validate    func(t *testing.T, params Params, db dbbuilder.DBTX, result []inbox.ListRow)
 		expectedErr bool
 	}{
 		{
 			name: "Return empty list when no user inbox messages exist",
-			params: params{
+			params: Params{
 				expected: 0,
 			},
-			setup: func(t *testing.T, params *params, db dbbuilder.DBTX, logger interface{}) context.Context {
+			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				unitBuilder := unitbuilder.New(t, db)
 				userBuilder := userbuilder.New(t, db)
 
@@ -228,19 +227,21 @@ func TestInboxService_List(t *testing.T) {
 
 				return context.Background()
 			},
-			validate: func(t *testing.T, params params, db dbbuilder.DBTX, result []inbox.ListRow) {
+			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result []inbox.ListRow) {
 				require.Empty(t, result)
 			},
+			expectedErr: false,
 		},
 		{
 			name: "Return user inbox messages when they exist",
-			params: params{
+			params: Params{
 				expected: 1,
 			},
-			setup: func(t *testing.T, params *params, db dbbuilder.DBTX, logger interface{}) context.Context {
+			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				unitBuilder := unitbuilder.New(t, db)
 				userBuilder := userbuilder.New(t, db)
 				formBuilder := formbuilder.New(t, db)
+				inboxBuilder := inboxbuilder.New(t, db)
 
 				org := unitBuilder.Create(unit.UnitTypeOrganization, unitbuilder.WithName("message-org"))
 				unitRow := unitBuilder.Create(unit.UnitTypeUnit, unitbuilder.WithOrgID(org.ID), unitbuilder.WithName("message-unit"))
@@ -255,16 +256,15 @@ func TestInboxService_List(t *testing.T) {
 					formbuilder.WithPreviewMessage("message-preview"),
 				)
 
-				serviceLogger, _ := zap.NewDevelopment()
-				service := inbox.NewService(serviceLogger, db)
-				_, err := service.Create(context.Background(), inbox.ContentTypeForm, formRow.ID, []uuid.UUID{user.ID}, unitRow.ID)
-				require.NoError(t, err)
+				message := inboxBuilder.CreateMessage(inbox.ContentTypeForm, formRow.ID, unitRow.ID)
+				userInboxMessages := inboxBuilder.CreateUserInboxMessage(user.ID, message.ID)
+				require.Equal(t, 1, len(userInboxMessages))
 
 				params.userID = user.ID
 
 				return context.Background()
 			},
-			validate: func(t *testing.T, params params, db dbbuilder.DBTX, result []inbox.ListRow) {
+			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result []inbox.ListRow) {
 				require.Len(t, result, params.expected)
 				for _, msg := range result {
 					require.Equal(t, params.userID, msg.UserID)
@@ -274,22 +274,23 @@ func TestInboxService_List(t *testing.T) {
 					require.Equal(t, "message-unit", msg.UnitName)
 				}
 			},
+			expectedErr: false,
 		},
 		{
-			name: "Fail when user ID does not exist in user inbox",
-			params: params{
+			name: "Return empty list when user ID does not exist in user inbox",
+			params: Params{
 				expected: 0,
 			},
-			setup: func(t *testing.T, params *params, db dbbuilder.DBTX, logger interface{}) context.Context {
+			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				// Use a non-existent user ID
 				params.userID = uuid.New()
 
 				return context.Background()
 			},
-			validate: func(t *testing.T, params params, db dbbuilder.DBTX, result []inbox.ListRow) {
+			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result []inbox.ListRow) {
 				require.Empty(t, result)
 			},
-			expectedErr: true,
+			expectedErr: false,
 		},
 	}
 
@@ -325,27 +326,28 @@ func TestInboxService_List(t *testing.T) {
 }
 
 func TestInboxService_UpdateByID(t *testing.T) {
-	type params struct {
+	type Params struct {
 		messageID uuid.UUID
 		userID    uuid.UUID
 		expected  inbox.UserInboxMessageFilter
 	}
 	testCases := []struct {
 		name        string
-		params      params
-		setup       func(t *testing.T, params *params, db dbbuilder.DBTX, logger interface{}) context.Context
-		validate    func(t *testing.T, params params, db dbbuilder.DBTX, result inbox.UpdateByIDRow)
+		params      Params
+		setup       func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context
+		validate    func(t *testing.T, params Params, db dbbuilder.DBTX, result inbox.UpdateByIDRow)
 		expectedErr bool
 	}{
 		{
 			name: "Mark user inbox message as read and starred",
-			params: params{
+			params: Params{
 				expected: inbox.UserInboxMessageFilter{IsRead: true, IsStarred: true, IsArchived: false},
 			},
-			setup: func(t *testing.T, params *params, db dbbuilder.DBTX, logger interface{}) context.Context {
+			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				unitBuilder := unitbuilder.New(t, db)
 				userBuilder := userbuilder.New(t, db)
 				formBuilder := formbuilder.New(t, db)
+				inboxBuilder := inboxbuilder.New(t, db)
 
 				org := unitBuilder.Create(unit.UnitTypeOrganization, unitbuilder.WithName("update-org"))
 				unitRow := unitBuilder.Create(unit.UnitTypeUnit, unitbuilder.WithOrgID(org.ID), unitbuilder.WithName("update-unit"))
@@ -358,35 +360,32 @@ func TestInboxService_UpdateByID(t *testing.T) {
 					formbuilder.WithLastEditor(user.ID),
 				)
 
-				serviceLogger, _ := zap.NewDevelopment()
-				service := inbox.NewService(serviceLogger, db)
-				_, err := service.Create(context.Background(), inbox.ContentTypeForm, formRow.ID, []uuid.UUID{user.ID}, unitRow.ID)
-				require.NoError(t, err)
+				message := inboxBuilder.CreateMessage(inbox.ContentTypeForm, formRow.ID, unitRow.ID)
+				userInboxMessage := inboxBuilder.CreateUserInboxMessage(user.ID, message.ID)
+				require.Equal(t, 1, len(userInboxMessage))
 
-				rows, err := service.List(context.Background(), user.ID)
-				require.NoError(t, err)
-				require.Len(t, rows, 1)
-
-				params.messageID = rows[0].ID
+				params.messageID = userInboxMessage[0].ID
 				params.userID = user.ID
 
 				return context.Background()
 			},
-			validate: func(t *testing.T, params params, db dbbuilder.DBTX, result inbox.UpdateByIDRow) {
+			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result inbox.UpdateByIDRow) {
 				require.Equal(t, params.expected.IsRead, result.IsRead)
 				require.Equal(t, params.expected.IsStarred, result.IsStarred)
 				require.Equal(t, params.expected.IsArchived, result.IsArchived)
 			},
+			expectedErr: false,
 		},
 		{
 			name: "Archive user inbox message",
-			params: params{
+			params: Params{
 				expected: inbox.UserInboxMessageFilter{IsRead: false, IsStarred: false, IsArchived: true},
 			},
-			setup: func(t *testing.T, params *params, db dbbuilder.DBTX, logger interface{}) context.Context {
+			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				unitBuilder := unitbuilder.New(t, db)
 				userBuilder := userbuilder.New(t, db)
 				formBuilder := formbuilder.New(t, db)
+				inboxBuilder := inboxbuilder.New(t, db)
 
 				org := unitBuilder.Create(unit.UnitTypeOrganization, unitbuilder.WithName("archive-org"))
 				unitRow := unitBuilder.Create(unit.UnitTypeUnit, unitbuilder.WithOrgID(org.ID), unitbuilder.WithName("archive-unit"))
@@ -399,35 +398,32 @@ func TestInboxService_UpdateByID(t *testing.T) {
 					formbuilder.WithLastEditor(user.ID),
 				)
 
-				serviceLogger, _ := zap.NewDevelopment()
-				service := inbox.NewService(serviceLogger, db)
-				_, err := service.Create(context.Background(), inbox.ContentTypeForm, formRow.ID, []uuid.UUID{user.ID}, unitRow.ID)
-				require.NoError(t, err)
+				message := inboxBuilder.CreateMessage(inbox.ContentTypeForm, formRow.ID, unitRow.ID)
+				userInboxMessage := inboxBuilder.CreateUserInboxMessage(user.ID, message.ID)
+				require.Equal(t, 1, len(userInboxMessage))
 
-				rows, err := service.List(context.Background(), user.ID)
-				require.NoError(t, err)
-				require.Len(t, rows, 1)
-
-				params.messageID = rows[0].ID
+				params.messageID = userInboxMessage[0].ID
 				params.userID = user.ID
 
 				return context.Background()
 			},
-			validate: func(t *testing.T, params params, db dbbuilder.DBTX, result inbox.UpdateByIDRow) {
+			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result inbox.UpdateByIDRow) {
 				require.Equal(t, params.expected.IsRead, result.IsRead)
 				require.Equal(t, params.expected.IsStarred, result.IsStarred)
 				require.Equal(t, params.expected.IsArchived, result.IsArchived)
 			},
+			expectedErr: false,
 		},
 		{
 			name: "Unstar and read user inbox message",
-			params: params{
+			params: Params{
 				expected: inbox.UserInboxMessageFilter{IsRead: true, IsStarred: false, IsArchived: false},
 			},
-			setup: func(t *testing.T, params *params, db dbbuilder.DBTX, logger interface{}) context.Context {
+			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				unitBuilder := unitbuilder.New(t, db)
 				userBuilder := userbuilder.New(t, db)
 				formBuilder := formbuilder.New(t, db)
+				inboxBuilder := inboxbuilder.New(t, db)
 
 				org := unitBuilder.Create(unit.UnitTypeOrganization, unitbuilder.WithName("unstar-org"))
 				unitRow := unitBuilder.Create(unit.UnitTypeUnit, unitbuilder.WithOrgID(org.ID), unitbuilder.WithName("unstar-unit"))
@@ -440,39 +436,34 @@ func TestInboxService_UpdateByID(t *testing.T) {
 					formbuilder.WithLastEditor(user.ID),
 				)
 
-				serviceLogger, _ := zap.NewDevelopment()
-				service := inbox.NewService(serviceLogger, db)
-				_, err := service.Create(context.Background(), inbox.ContentTypeForm, formRow.ID, []uuid.UUID{user.ID}, unitRow.ID)
-				require.NoError(t, err)
-
-				rows, err := service.List(context.Background(), user.ID)
-				require.NoError(t, err)
-				require.Len(t, rows, 1)
-
-				params.messageID = rows[0].ID
+				// Create inbox message
+				message := inboxBuilder.CreateMessage(inbox.ContentTypeForm, formRow.ID, unitRow.ID)
+				userInboxMessage := inboxBuilder.CreateUserInboxMessage(user.ID, message.ID)
+				require.Equal(t, 1, len(userInboxMessage))
+				params.messageID = userInboxMessage[0].ID
 				params.userID = user.ID
 
 				return context.Background()
 			},
-			validate: func(t *testing.T, params params, db dbbuilder.DBTX, result inbox.UpdateByIDRow) {
+			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result inbox.UpdateByIDRow) {
 				require.Equal(t, params.expected.IsRead, result.IsRead)
 				require.Equal(t, params.expected.IsStarred, result.IsStarred)
 				require.Equal(t, params.expected.IsArchived, result.IsArchived)
 			},
+			expectedErr: false,
 		},
 		{
 			name: "Fail when message ID does not exist in user inbox",
-			params: params{
+			params: Params{
 				expected: inbox.UserInboxMessageFilter{IsRead: true, IsStarred: false, IsArchived: false},
 			},
-			setup: func(t *testing.T, params *params, db dbbuilder.DBTX, logger interface{}) context.Context {
+			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				unitBuilder := unitbuilder.New(t, db)
 				userBuilder := userbuilder.New(t, db)
 
 				org := unitBuilder.Create(unit.UnitTypeOrganization, unitbuilder.WithName("invalid-message-org"))
 				unitRow := unitBuilder.Create(unit.UnitTypeUnit, unitbuilder.WithOrgID(org.ID), unitbuilder.WithName("invalid-message-unit"))
 				user := userBuilder.Create()
-
 				unitBuilder.AddMember(unitRow.ID, user.ID)
 
 				// Use a non-existent message ID
@@ -485,13 +476,14 @@ func TestInboxService_UpdateByID(t *testing.T) {
 		},
 		{
 			name: "Fail when user ID does not exist in user inbox",
-			params: params{
+			params: Params{
 				expected: inbox.UserInboxMessageFilter{IsRead: true, IsStarred: false, IsArchived: false},
 			},
-			setup: func(t *testing.T, params *params, db dbbuilder.DBTX, logger interface{}) context.Context {
+			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				unitBuilder := unitbuilder.New(t, db)
 				userBuilder := userbuilder.New(t, db)
 				formBuilder := formbuilder.New(t, db)
+				inboxBuilder := inboxbuilder.New(t, db)
 
 				org := unitBuilder.Create(unit.UnitTypeOrganization, unitbuilder.WithName("invalid-user-org"))
 				unitRow := unitBuilder.Create(unit.UnitTypeUnit, unitbuilder.WithOrgID(org.ID), unitbuilder.WithName("invalid-user-unit"))
@@ -504,16 +496,11 @@ func TestInboxService_UpdateByID(t *testing.T) {
 					formbuilder.WithLastEditor(user.ID),
 				)
 
-				serviceLogger, _ := zap.NewDevelopment()
-				service := inbox.NewService(serviceLogger, db)
-				_, err := service.Create(context.Background(), inbox.ContentTypeForm, formRow.ID, []uuid.UUID{user.ID}, unitRow.ID)
-				require.NoError(t, err)
-
-				rows, err := service.List(context.Background(), user.ID)
-				require.NoError(t, err)
-				require.Len(t, rows, 1)
-
-				params.messageID = rows[0].ID
+				// Create inbox message
+				message := inboxBuilder.CreateMessage(inbox.ContentTypeForm, formRow.ID, unitRow.ID)
+				userInboxMessage := inboxBuilder.CreateUserInboxMessage(user.ID, message.ID)
+				require.Equal(t, 1, len(userInboxMessage))
+				params.messageID = userInboxMessage[0].ID
 				params.userID = uuid.New() // Non-existent user ID
 
 				return context.Background()
@@ -554,7 +541,7 @@ func TestInboxService_UpdateByID(t *testing.T) {
 }
 
 func TestInboxService_DuplicateCreatesProduceMultipleMessages(t *testing.T) {
-	type params struct {
+	type Params struct {
 		contentID uuid.UUID
 		userID    uuid.UUID
 		unitID    uuid.UUID
@@ -562,17 +549,17 @@ func TestInboxService_DuplicateCreatesProduceMultipleMessages(t *testing.T) {
 	}
 	testCases := []struct {
 		name        string
-		params      params
-		setup       func(t *testing.T, params *params, db dbbuilder.DBTX, logger interface{}) context.Context
-		validate    func(t *testing.T, params params, db dbbuilder.DBTX, results []uuid.UUID)
+		params      Params
+		setup       func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context
+		validate    func(t *testing.T, params Params, db dbbuilder.DBTX, results []uuid.UUID)
 		expectedErr bool
 	}{
 		{
 			name: "Create multiple user inbox messages for same content and recipient",
-			params: params{
+			params: Params{
 				expected: 2,
 			},
-			setup: func(t *testing.T, params *params, db dbbuilder.DBTX, logger interface{}) context.Context {
+			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				unitBuilder := unitbuilder.New(t, db)
 				userBuilder := userbuilder.New(t, db)
 				formBuilder := formbuilder.New(t, db)
@@ -594,14 +581,12 @@ func TestInboxService_DuplicateCreatesProduceMultipleMessages(t *testing.T) {
 
 				return context.Background()
 			},
-			validate: func(t *testing.T, params params, db dbbuilder.DBTX, results []uuid.UUID) {
+			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, results []uuid.UUID) {
 				require.Len(t, results, params.expected)
 				require.NotEqual(t, results[0], results[1], "message IDs should be different")
 
-				serviceLogger, _ := zap.NewDevelopment()
-				service := inbox.NewService(serviceLogger, db)
-				rows, err := service.List(context.Background(), params.userID)
-				require.NoError(t, err)
+				inboxBuilder := inboxbuilder.New(t, db)
+				rows := inboxBuilder.GetUserInboxMessages(params.userID)
 
 				count := 0
 				for _, r := range rows {
@@ -611,13 +596,14 @@ func TestInboxService_DuplicateCreatesProduceMultipleMessages(t *testing.T) {
 				}
 				require.GreaterOrEqual(t, count, params.expected, "expect multiple messages for repeated Create calls")
 			},
+			expectedErr: false,
 		},
 		{
 			name: "Fail when trying to create with invalid user ID in user inbox",
-			params: params{
+			params: Params{
 				expected: 0,
 			},
-			setup: func(t *testing.T, params *params, db dbbuilder.DBTX, logger interface{}) context.Context {
+			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				unitBuilder := unitbuilder.New(t, db)
 				userBuilder := userbuilder.New(t, db)
 				formBuilder := formbuilder.New(t, db)
@@ -681,23 +667,25 @@ func TestInboxService_DuplicateCreatesProduceMultipleMessages(t *testing.T) {
 }
 
 func TestInboxService_ArchiveVisibilityInList(t *testing.T) {
-	type params struct {
+	type Params struct {
 		userID    uuid.UUID
 		messageID uuid.UUID
 	}
 	testCases := []struct {
 		name        string
-		params      params
-		setup       func(t *testing.T, params *params, db dbbuilder.DBTX, logger interface{}) context.Context
-		validate    func(t *testing.T, params params, db dbbuilder.DBTX)
+		params      Params
+		setup       func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context
+		validate    func(t *testing.T, params Params, db dbbuilder.DBTX)
 		expectedErr bool
 	}{
 		{
-			name: "Archived user inbox messages should not appear in List",
-			setup: func(t *testing.T, params *params, db dbbuilder.DBTX, logger interface{}) context.Context {
+			name:   "Archived user inbox messages should not appear in List",
+			params: Params{},
+			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				unitBuilder := unitbuilder.New(t, db)
 				userBuilder := userbuilder.New(t, db)
 				formBuilder := formbuilder.New(t, db)
+				inboxBuilder := inboxbuilder.New(t, db)
 
 				org := unitBuilder.Create(unit.UnitTypeOrganization, unitbuilder.WithName("archive-visibility-org"))
 				unitRow := unitBuilder.Create(unit.UnitTypeUnit, unitbuilder.WithOrgID(org.ID), unitbuilder.WithName("archive-visibility-unit"))
@@ -710,40 +698,23 @@ func TestInboxService_ArchiveVisibilityInList(t *testing.T) {
 					formbuilder.WithLastEditor(user.ID),
 				)
 
-				serviceLogger, _ := zap.NewDevelopment()
-				service := inbox.NewService(serviceLogger, db)
-				_, err := service.Create(context.Background(), inbox.ContentTypeForm, formRow.ID, []uuid.UUID{user.ID}, unitRow.ID)
-				require.NoError(t, err)
-
-				rows, err := service.List(context.Background(), user.ID)
-				require.NoError(t, err)
-				require.NotEmpty(t, rows)
-
-				var uimID uuid.UUID
-				for _, r := range rows {
-					if r.ContentID == formRow.ID {
-						uimID = r.ID
-						break
-					}
-				}
-				require.NotEqual(t, uuid.Nil, uimID)
-
+				// Create inbox message
+				message := inboxBuilder.CreateMessage(inbox.ContentTypeForm, formRow.ID, unitRow.ID)
+				userInboxMessage := inboxBuilder.CreateUserInboxMessage(user.ID, message.ID)
+				require.Equal(t, 1, len(userInboxMessage))
 				params.userID = user.ID
-				params.messageID = uimID
+				params.messageID = userInboxMessage[0].ID
 
 				return context.Background()
 			},
-			validate: func(t *testing.T, params params, db dbbuilder.DBTX) {
-				serviceLogger, _ := zap.NewDevelopment()
-				service := inbox.NewService(serviceLogger, db)
+			validate: func(t *testing.T, params Params, db dbbuilder.DBTX) {
+				inboxBuilder := inboxbuilder.New(t, db)
 
 				// Archive the message
-				_, err := service.UpdateByID(context.Background(), params.messageID, params.userID, inbox.UserInboxMessageFilter{IsRead: true, IsStarred: false, IsArchived: true})
-				require.NoError(t, err)
+				inboxBuilder.UpdateUserInboxMessage(params.messageID, params.userID, inbox.UserInboxMessageFilter{IsRead: true, IsStarred: false, IsArchived: true})
 
 				// Service List (no filters) should not return archived messages
-				rows, err := service.List(context.Background(), params.userID)
-				require.NoError(t, err)
+				rows := inboxBuilder.GetUserInboxMessages(params.userID)
 
 				found := false
 				for _, r := range rows {
@@ -755,6 +726,7 @@ func TestInboxService_ArchiveVisibilityInList(t *testing.T) {
 				}
 				require.False(t, found, "archived message should not appear in List")
 			},
+			expectedErr: false,
 		},
 	}
 
@@ -772,6 +744,9 @@ func TestInboxService_ArchiveVisibilityInList(t *testing.T) {
 			defer rollback()
 
 			params := tc.params
+			if tc.setup != nil {
+				tc.setup(t, &params, db, nil)
+			}
 
 			if tc.validate != nil {
 				tc.validate(t, params, db)
