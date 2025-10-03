@@ -326,7 +326,6 @@ func TestInboxService_UpdateByID(t *testing.T) {
 	type params struct {
 		messageID uuid.UUID
 		userID    uuid.UUID
-		update    inbox.UserInboxMessageFilter
 		expected  inbox.UserInboxMessageFilter
 	}
 	testCases := []struct {
@@ -339,7 +338,6 @@ func TestInboxService_UpdateByID(t *testing.T) {
 		{
 			name: "Mark user inbox message as read and starred",
 			params: params{
-				update:   inbox.UserInboxMessageFilter{IsRead: true, IsStarred: true, IsArchived: false},
 				expected: inbox.UserInboxMessageFilter{IsRead: true, IsStarred: true, IsArchived: false},
 			},
 			setup: func(t *testing.T, params *params, db dbbuilder.DBTX, logger interface{}) context.Context {
@@ -381,7 +379,6 @@ func TestInboxService_UpdateByID(t *testing.T) {
 		{
 			name: "Archive user inbox message",
 			params: params{
-				update:   inbox.UserInboxMessageFilter{IsRead: false, IsStarred: false, IsArchived: true},
 				expected: inbox.UserInboxMessageFilter{IsRead: false, IsStarred: false, IsArchived: true},
 			},
 			setup: func(t *testing.T, params *params, db dbbuilder.DBTX, logger interface{}) context.Context {
@@ -423,7 +420,6 @@ func TestInboxService_UpdateByID(t *testing.T) {
 		{
 			name: "Unstar and read user inbox message",
 			params: params{
-				update:   inbox.UserInboxMessageFilter{IsRead: true, IsStarred: false, IsArchived: false},
 				expected: inbox.UserInboxMessageFilter{IsRead: true, IsStarred: false, IsArchived: false},
 			},
 			setup: func(t *testing.T, params *params, db dbbuilder.DBTX, logger interface{}) context.Context {
@@ -465,7 +461,6 @@ func TestInboxService_UpdateByID(t *testing.T) {
 		{
 			name: "Fail when message ID does not exist in user inbox",
 			params: params{
-				update:   inbox.UserInboxMessageFilter{IsRead: true, IsStarred: false, IsArchived: false},
 				expected: inbox.UserInboxMessageFilter{IsRead: true, IsStarred: false, IsArchived: false},
 			},
 			setup: func(t *testing.T, params *params, db dbbuilder.DBTX, logger interface{}) context.Context {
@@ -489,7 +484,6 @@ func TestInboxService_UpdateByID(t *testing.T) {
 		{
 			name: "Fail when user ID does not exist in user inbox",
 			params: params{
-				update:   inbox.UserInboxMessageFilter{IsRead: true, IsStarred: false, IsArchived: false},
 				expected: inbox.UserInboxMessageFilter{IsRead: true, IsStarred: false, IsArchived: false},
 			},
 			setup: func(t *testing.T, params *params, db dbbuilder.DBTX, logger interface{}) context.Context {
@@ -547,7 +541,7 @@ func TestInboxService_UpdateByID(t *testing.T) {
 
 			service := inbox.NewService(logger, db)
 
-			result, err := service.UpdateByID(ctx, params.messageID, params.userID, params.update)
+			result, err := service.UpdateByID(ctx, params.messageID, params.userID, params.expected)
 			require.Equal(t, tc.expectedErr, err != nil, "expected error: %v, got: %v", tc.expectedErr, err)
 
 			if tc.validate != nil {
