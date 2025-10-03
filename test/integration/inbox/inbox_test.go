@@ -761,7 +761,7 @@ func TestInboxService_ArchiveVisibilityInList(t *testing.T) {
 		},
 	}
 
-	resourceManager, logger, err := integration.GetOrInitResource()
+	resourceManager, _, err := integration.GetOrInitResource()
 	if err != nil {
 		t.Fatalf("failed to get resource manager: %v", err)
 	}
@@ -775,11 +775,6 @@ func TestInboxService_ArchiveVisibilityInList(t *testing.T) {
 			defer rollback()
 
 			params := tc.params
-			if tc.setup != nil {
-				_ = tc.setup(t, &params, db, logger)
-			}
-
-			_ = logger // silence unused when not used directly in tests
 
 			if tc.validate != nil {
 				tc.validate(t, params, db)
