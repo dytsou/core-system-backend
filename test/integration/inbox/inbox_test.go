@@ -51,7 +51,7 @@ func TestInboxService_Create(t *testing.T) {
 		expectedErr bool
 	}{
 		{
-			name: "Create message for multiple users",
+			name: "Create user inbox message for multiple users",
 			params: params{
 				contentType: inbox.ContentTypeForm,
 			},
@@ -107,7 +107,7 @@ func TestInboxService_Create(t *testing.T) {
 			},
 		},
 		{
-			name: "Fail when user ID does not exist in recipients",
+			name: "Fail when user ID does not exist in recipients for user inbox",
 			params: params{
 				contentType: inbox.ContentTypeForm,
 			},
@@ -136,7 +136,7 @@ func TestInboxService_Create(t *testing.T) {
 			expectedErr: true,
 		},
 		{
-			name: "Fail when unit ID does not exist",
+			name: "Fail when unit ID does not exist in user inbox",
 			params: params{
 				contentType: inbox.ContentTypeForm,
 			},
@@ -210,7 +210,7 @@ func TestInboxService_List(t *testing.T) {
 		expectedErr bool
 	}{
 		{
-			name: "Return empty list when no messages exist",
+			name: "Return empty list when no user inbox messages exist",
 			params: params{
 				expected: 0,
 			},
@@ -233,7 +233,7 @@ func TestInboxService_List(t *testing.T) {
 			},
 		},
 		{
-			name: "Return messages when they exist",
+			name: "Return user inbox messages when they exist",
 			params: params{
 				expected: 1,
 			},
@@ -274,7 +274,7 @@ func TestInboxService_List(t *testing.T) {
 			},
 		},
 		{
-			name: "Fail when user ID does not exist",
+			name: "Fail when user ID does not exist in user inbox",
 			params: params{
 				expected: 0,
 			},
@@ -336,7 +336,7 @@ func TestInboxService_UpdateByID(t *testing.T) {
 		expectedErr bool
 	}{
 		{
-			name: "Mark read and starred",
+			name: "Mark user inbox message as read and starred",
 			params: params{
 				update:   inbox.UserInboxMessageFilter{IsRead: true, IsStarred: true, IsArchived: false},
 				expected: inbox.UserInboxMessageFilter{IsRead: true, IsStarred: true, IsArchived: false},
@@ -378,7 +378,7 @@ func TestInboxService_UpdateByID(t *testing.T) {
 			},
 		},
 		{
-			name: "Archive only",
+			name: "Archive user inbox message",
 			params: params{
 				update:   inbox.UserInboxMessageFilter{IsRead: false, IsStarred: false, IsArchived: true},
 				expected: inbox.UserInboxMessageFilter{IsRead: false, IsStarred: false, IsArchived: true},
@@ -420,7 +420,7 @@ func TestInboxService_UpdateByID(t *testing.T) {
 			},
 		},
 		{
-			name: "Unstar and read",
+			name: "Unstar and read user inbox message",
 			params: params{
 				update:   inbox.UserInboxMessageFilter{IsRead: true, IsStarred: false, IsArchived: false},
 				expected: inbox.UserInboxMessageFilter{IsRead: true, IsStarred: false, IsArchived: false},
@@ -462,7 +462,7 @@ func TestInboxService_UpdateByID(t *testing.T) {
 			},
 		},
 		{
-			name: "Fail when message ID does not exist",
+			name: "Fail when message ID does not exist in user inbox",
 			params: params{
 				update:   inbox.UserInboxMessageFilter{IsRead: true, IsStarred: false, IsArchived: false},
 				expected: inbox.UserInboxMessageFilter{IsRead: true, IsStarred: false, IsArchived: false},
@@ -486,7 +486,7 @@ func TestInboxService_UpdateByID(t *testing.T) {
 			expectedErr: true,
 		},
 		{
-			name: "Fail when user ID does not exist",
+			name: "Fail when user ID does not exist in user inbox",
 			params: params{
 				update:   inbox.UserInboxMessageFilter{IsRead: true, IsStarred: false, IsArchived: false},
 				expected: inbox.UserInboxMessageFilter{IsRead: true, IsStarred: false, IsArchived: false},
@@ -571,7 +571,7 @@ func TestInboxService_DuplicateCreatesProduceMultipleMessages(t *testing.T) {
 		expectedErr bool
 	}{
 		{
-			name: "Create multiple messages for same content and recipient",
+			name: "Create multiple user inbox messages for same content and recipient",
 			params: params{
 				expected: 2,
 			},
@@ -616,7 +616,7 @@ func TestInboxService_DuplicateCreatesProduceMultipleMessages(t *testing.T) {
 			},
 		},
 		{
-			name: "Fail when trying to create with invalid user ID",
+			name: "Fail when trying to create with invalid user ID in user inbox",
 			params: params{
 				expected: 0,
 			},
@@ -696,7 +696,7 @@ func TestInboxService_ArchiveVisibilityInList(t *testing.T) {
 		expectedErr bool
 	}{
 		{
-			name: "Archived messages should not appear in List",
+			name: "Archived user inbox messages should not appear in List",
 			setup: func(t *testing.T, params *params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				unitBuilder := unitbuilder.New(t, db)
 				userBuilder := userbuilder.New(t, db)
