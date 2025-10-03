@@ -287,6 +287,7 @@ func TestInboxService_List(t *testing.T) {
 			validate: func(t *testing.T, params params, db dbbuilder.DBTX, result []inbox.ListRow) {
 				require.Empty(t, result)
 			},
+			expectedErr: true,
 		},
 	}
 
