@@ -28,7 +28,7 @@ type Store interface {
 	CreateOrganization(ctx context.Context, name string, description string, metadata []byte) (Unit, error)
 	CreateUnit(ctx context.Context, name string, orgID pgtype.UUID, desc string, metadata []byte) (Unit, error)
 	GetByID(ctx context.Context, id uuid.UUID, unitType Type) (Unit, error)
-	GetAllOrganizations(ctx context.Context) ([]Unit, error)
+	GetAllOrganizations(ctx context.Context) ([]Organization, error)
 	Update(ctx context.Context, id uuid.UUID, name string, description string, metadata []byte) (Unit, error)
 	Delete(ctx context.Context, id uuid.UUID, unitType Type) error
 	AddParent(ctx context.Context, id uuid.UUID, parentID uuid.UUID) (Unit, error)
@@ -37,6 +37,7 @@ type Store interface {
 	AddMember(ctx context.Context, unitType Type, id uuid.UUID, memberID uuid.UUID) (UnitMember, error)
 	ListMembers(ctx context.Context, id uuid.UUID) ([]SimpleUser, error)
 	RemoveMember(ctx context.Context, unitType Type, id uuid.UUID, memberID uuid.UUID) error
+	GetOrganizationByIDWithSlug(ctx context.Context, id uuid.UUID) (Organization, error)
 }
 
 type Handler struct {
@@ -73,7 +74,7 @@ type OrgRequest struct {
 	Description string            `json:"description"`
 	Metadata    map[string]string `json:"metadata"`
 	Slug        string            `json:"slug" validate:"required"`
-	DbStrategy  string            `json:"db_strategy"`
+	DbStrategy  string            `json:"dbStrategy"`
 }
 
 type Request struct {
@@ -82,32 +83,50 @@ type Request struct {
 	Metadata    map[string]string `json:"metadata"`
 }
 
-type Response struct {
+type UnitResponse struct {
 	ID          uuid.UUID         `json:"id"`
-	OrgID       uuid.UUID         `json:"org_id"`
 	Name        string            `json:"name"`
 	Description string            `json:"description"`
 	Metadata    map[string]string `json:"metadata"`
-	CreatedAt   string            `json:"created_at"`
-	UpdatedAt   string            `json:"updated_at"`
+	CreatedAt   string            `json:"createdAt"`
+	UpdatedAt   string            `json:"updatedAt"`
+}
+
+type OrganizationResponse struct {
+	ID          uuid.UUID         `json:"id"`
+	Name        string            `json:"name"`
+	Description string            `json:"description"`
+	Metadata    map[string]string `json:"metadata"`
+	CreatedAt   string            `json:"createdAt"`
+	UpdatedAt   string            `json:"updatedAt"`
+	Slug        string            `json:"slug"`
 }
 
 type SimpleUserResponse struct {
 	ID        uuid.UUID `json:"id"`
 	Name      string    `json:"name"`
 	Username  string    `json:"username"`
-	AvatarURL string    `json:"avatar_url"`
+	AvatarURL string    `json:"avatarUrl"`
 }
 
-func convertResponse(u Unit) Response {
+type OrgMemberResponse struct {
+	OrgID    uuid.UUID `json:"orgId"`
+	MemberID uuid.UUID `json:"memberId"`
+}
+
+type UnitMemberResponse struct {
+	UnitID   uuid.UUID `json:"unitId"`
+	MemberID uuid.UUID `json:"memberId"`
+}
+
+func convertUnitResponse(u Unit) UnitResponse {
 	var meta map[string]string
 	if err := json.Unmarshal(u.Metadata, &meta); err != nil {
 		meta = make(map[string]string)
 	}
 
-	return Response{
+	return UnitResponse{
 		ID:          u.ID,
-		OrgID:       u.OrgID.Bytes,
 		Name:        u.Name.String,
 		Description: u.Description.String,
 		Metadata:    meta,
@@ -116,10 +135,33 @@ func convertResponse(u Unit) Response {
 	}
 }
 
+func convertOrgResponse(u Unit, slug string) OrganizationResponse {
+	var meta map[string]string
+	if err := json.Unmarshal(u.Metadata, &meta); err != nil {
+		meta = make(map[string]string)
+	}
+
+	return OrganizationResponse{
+		ID:          u.ID,
+		Name:        u.Name.String,
+		Description: u.Description.String,
+		Metadata:    meta,
+		CreatedAt:   u.CreatedAt.Time.Format(time.RFC3339),
+		UpdatedAt:   u.UpdatedAt.Time.Format(time.RFC3339),
+		Slug:        slug,
+	}
+}
+
+type parentChildResponse struct {
+	ParentID *uuid.UUID `json:"parentId,omitempty"`
+	ChildID  uuid.UUID  `json:"childId"`
+	OrgID    uuid.UUID  `json:"orgId"`
+}
+
 type ParentChildRequest struct {
-	ParentID uuid.UUID `json:"parent_id"`
-	ChildID  uuid.UUID `json:"child_id" validate:"required"`
-	OrgID    uuid.UUID `json:"org_id" validate:"required"`
+	ParentID uuid.UUID `json:"parentId"`
+	ChildID  uuid.UUID `json:"childId" validate:"required"`
+	OrgID    uuid.UUID `json:"orgId" validate:"required"`
 }
 
 var slugPattern = `^[a-zA-Z0-9_-]+$`
@@ -160,7 +202,7 @@ func (h *Handler) CreateUnit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusCreated, convertResponse(createdUnit))
+	handlerutil.WriteJSONResponse(w, http.StatusCreated, convertUnitResponse(createdUnit))
 }
 
 func (h *Handler) CreateOrg(w http.ResponseWriter, r *http.Request) {
@@ -215,7 +257,7 @@ func (h *Handler) CreateOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusCreated, convertResponse(createdOrg))
+	handlerutil.WriteJSONResponse(w, http.StatusCreated, convertOrgResponse(createdOrg, req.Slug))
 }
 
 func (h *Handler) GetUnitByID(w http.ResponseWriter, r *http.Request) {
@@ -237,7 +279,7 @@ func (h *Handler) GetUnitByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusOK, convertResponse(unit))
+	handlerutil.WriteJSONResponse(w, http.StatusOK, convertUnitResponse(unit))
 }
 
 func (h *Handler) GetOrgByID(w http.ResponseWriter, r *http.Request) {
@@ -257,13 +299,13 @@ func (h *Handler) GetOrgByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	org, err := h.store.GetByID(traceCtx, orgTenant.ID, TypeOrg)
+	orgWithSlug, err := h.store.GetOrganizationByIDWithSlug(traceCtx, orgTenant.ID)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get unit by ID: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get organization by ID with slug: %w", err), h.logger)
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusOK, convertResponse(org))
+	handlerutil.WriteJSONResponse(w, http.StatusOK, convertOrgResponse(orgWithSlug.Unit, orgWithSlug.Slug))
 }
 
 func (h *Handler) GetAllOrganizations(w http.ResponseWriter, r *http.Request) {
@@ -271,15 +313,15 @@ func (h *Handler) GetAllOrganizations(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	h.logger = logutil.WithContext(traceCtx, h.logger)
 
-	organizations, err := h.store.GetAllOrganizations(traceCtx)
+	organizationsWithSlug, err := h.store.GetAllOrganizations(traceCtx)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get all organizations: %w", err), h.logger)
 		return
 	}
 
-	orgResponses := make([]Response, 0)
-	for _, org := range organizations {
-		orgResponses = append(orgResponses, convertResponse(org))
+	orgResponses := make([]OrganizationResponse, 0, len(organizationsWithSlug))
+	for _, org := range organizationsWithSlug {
+		orgResponses = append(orgResponses, convertOrgResponse(org.Unit, org.Slug))
 	}
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, orgResponses)
@@ -315,7 +357,7 @@ func (h *Handler) UpdateUnit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusOK, convertResponse(updatedUnit))
+	handlerutil.WriteJSONResponse(w, http.StatusOK, convertUnitResponse(updatedUnit))
 }
 
 func (h *Handler) UpdateOrg(w http.ResponseWriter, r *http.Request) {
@@ -386,7 +428,7 @@ func (h *Handler) UpdateOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusOK, convertResponse(updatedOrg))
+	handlerutil.WriteJSONResponse(w, http.StatusOK, convertOrgResponse(updatedOrg, req.Slug))
 }
 
 func (h *Handler) DeleteOrg(w http.ResponseWriter, r *http.Request) {
@@ -454,7 +496,17 @@ func (h *Handler) AddParentChild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusCreated, pc)
+	var parent *uuid.UUID
+	if req.ParentID != uuid.Nil {
+		pid := req.ParentID
+		parent = &pid
+	}
+	response := parentChildResponse{
+		ParentID: parent,
+		ChildID:  pc.ID,
+		OrgID:    pc.OrgID.Bytes,
+	}
+	handlerutil.WriteJSONResponse(w, http.StatusCreated, response)
 }
 
 func (h *Handler) ListOrgSubUnits(w http.ResponseWriter, r *http.Request) {
@@ -480,9 +532,9 @@ func (h *Handler) ListOrgSubUnits(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	responses := make([]Response, 0)
+	responses := make([]UnitResponse, 0)
 	for _, u := range subUnits {
-		responses = append(responses, convertResponse(u))
+		responses = append(responses, convertUnitResponse(u))
 	}
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, responses)
@@ -505,9 +557,9 @@ func (h *Handler) ListUnitSubUnits(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	responses := make([]Response, 0)
+	responses := make([]UnitResponse, 0)
 	for _, u := range subUnits {
-		responses = append(responses, convertResponse(u))
+		responses = append(responses, convertUnitResponse(u))
 	}
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, responses)
@@ -639,7 +691,7 @@ func (h *Handler) AddOrgMember(w http.ResponseWriter, r *http.Request) {
 
 	// Get MemberID from request body
 	var params struct {
-		MemberID uuid.UUID `json:"member_id"`
+		MemberID uuid.UUID `json:"memberId"`
 	}
 	if err := handlerutil.ParseAndValidateRequestBody(traceCtx, h.validator, r, &params); err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid request body: %w", err), h.logger)
@@ -657,7 +709,8 @@ func (h *Handler) AddOrgMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusCreated, members)
+	orgMemberResponse := OrgMemberResponse{OrgID: orgTenant.ID, MemberID: members.MemberID}
+	handlerutil.WriteJSONResponse(w, http.StatusCreated, orgMemberResponse)
 }
 
 func (h *Handler) AddUnitMember(w http.ResponseWriter, r *http.Request) {
@@ -673,7 +726,7 @@ func (h *Handler) AddUnitMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var params struct {
-		MemberID uuid.UUID `json:"member_id"`
+		MemberID uuid.UUID `json:"memberId"`
 	}
 	if err := handlerutil.ParseAndValidateRequestBody(traceCtx, h.validator, r, &params); err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid request body: %w", err), h.logger)
@@ -691,7 +744,7 @@ func (h *Handler) AddUnitMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusCreated, member)
+	handlerutil.WriteJSONResponse(w, http.StatusCreated, UnitMemberResponse(member))
 }
 
 func (h *Handler) ListOrgMembers(w http.ResponseWriter, r *http.Request) {
