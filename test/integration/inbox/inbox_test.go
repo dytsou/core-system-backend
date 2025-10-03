@@ -88,7 +88,7 @@ func TestInboxService_Create(t *testing.T) {
 				for _, recipientID := range params.recipients {
 					rows, err := service.List(context.Background(), recipientID)
 					require.NoError(t, err)
-					require.GreaterOrEqual(t, len(rows), 1)
+					require.Equal(t, 1, len(rows))
 
 					found := false
 					for _, r := range rows {
