@@ -25,11 +25,11 @@ import (
 )
 
 type Store interface {
-	CreateOrganization(ctx context.Context, name string, description string, metadata []byte) (Unit, error)
-	CreateUnit(ctx context.Context, name string, orgID pgtype.UUID, desc string, metadata []byte) (Unit, error)
+	CreateOrganization(ctx context.Context, name string, description string, slug string, currentUserID uuid.UUID, metadata []byte) (Unit, error)
+	CreateUnit(ctx context.Context, name string, description string, slug string, metadata []byte) (Unit, error)
 	GetByID(ctx context.Context, id uuid.UUID, unitType Type) (Unit, error)
 	GetAllOrganizations(ctx context.Context) ([]Unit, error)
-	Update(ctx context.Context, id uuid.UUID, name string, description string, metadata []byte) (Unit, error)
+	Update(ctx context.Context, id uuid.UUID, name string, description string, slug string, dbStrategy DbStrategy, metadata []byte) (Unit, error)
 	Delete(ctx context.Context, id uuid.UUID, unitType Type) error
 	AddParent(ctx context.Context, id uuid.UUID, parentID uuid.UUID) (Unit, error)
 	ListSubUnits(ctx context.Context, id uuid.UUID, unitType Type) ([]Unit, error)
@@ -55,7 +55,6 @@ func NewHandler(
 	problemWriter *problem.HttpWriter,
 	store Store,
 	formService *form.Service,
-	tenantService *tenant.Service,
 ) *Handler {
 	return &Handler{
 		logger:        logger,
@@ -63,7 +62,6 @@ func NewHandler(
 		problemWriter: problemWriter,
 		store:         store,
 		formService:   formService,
-		tenantService: tenantService,
 		tracer:        otel.Tracer("unit/handler"),
 	}
 }
@@ -148,13 +146,7 @@ func (h *Handler) CreateUnit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgTenant, err := h.tenantService.GetBySlug(traceCtx, orgSlug)
-	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
-		return
-	}
-
-	createdUnit, err := h.store.CreateUnit(traceCtx, req.Name, pgtype.UUID{Bytes: orgTenant.ID, Valid: true}, req.Description, metadataBytes)
+	createdUnit, err := h.store.CreateUnit(traceCtx, req.Name, req.Description, orgSlug, metadataBytes)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to create unit: %w", err), h.logger)
 		return
@@ -193,25 +185,9 @@ func (h *Handler) CreateOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	exists, err := h.tenantService.SlugExists(traceCtx, req.Slug)
-	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to validate slug uniqueness: %w", err), h.logger)
-		return
-	}
-	if exists {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("slug already in use"), h.logger)
-		return
-	}
-
-	createdOrg, err := h.store.CreateOrganization(traceCtx, req.Name, req.Description, metadataBytes)
+	createdOrg, err := h.store.CreateOrganization(traceCtx, req.Name, req.Description, req.Slug, currentUser.ID, metadataBytes)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to create org: %w", err), h.logger)
-		return
-	}
-
-	_, err = h.tenantService.Create(traceCtx, req.Slug, createdOrg.ID, currentUser.ID)
-	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to create tenant for org: %w", err), h.logger)
 		return
 	}
 
@@ -366,7 +342,7 @@ func (h *Handler) UpdateOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var dbStrategy tenant.DbStrategy
+	var dbStrategy DbStrategy
 
 	if req.DbStrategy == "" || req.DbStrategy == string(DbStrategyShared) {
 		dbStrategy = "shared"
@@ -374,13 +350,7 @@ func (h *Handler) UpdateOrg(w http.ResponseWriter, r *http.Request) {
 		dbStrategy = "isolated"
 	}
 
-	_, err = h.tenantService.Update(traceCtx, orgTenant.ID, req.Slug, dbStrategy)
-	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to update organization tenant: %w", err), h.logger)
-		return
-	}
-
-	updatedOrg, err := h.store.Update(traceCtx, orgTenant.ID, req.Name, req.Description, metadataBytes)
+	updatedOrg, err := h.store.Update(traceCtx, orgTenant.ID, req.Name, req.Description, req.Slug, dbStrategy, metadataBytes)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to update organization: %w", err), h.logger)
 		return

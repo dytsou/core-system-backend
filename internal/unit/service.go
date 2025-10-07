@@ -3,7 +3,6 @@ package unit
 import (
 	"context"
 	"fmt"
-
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/google/uuid"
@@ -29,10 +28,17 @@ type Querier interface {
 	RemoveMember(ctx context.Context, arg RemoveMemberParams) error
 }
 
+type tenantStore interface {
+	Create(ctx context.Context, slug string, id uuid.UUID, ownerID uuid.UUID) (Tenant, error)
+	Update(ctx context.Context, id uuid.UUID, slug string, dbStrategy DbStrategy) (Tenant, error)
+	SlugExists(ctx context.Context, slug string) (bool, error)
+	GetBySlug(ctx context.Context, slug string) (Tenant, error)
+}
 type Service struct {
-	logger  *zap.Logger
-	queries Querier
-	tracer  trace.Tracer
+	logger      *zap.Logger
+	queries     Querier
+	tracer      trace.Tracer
+	tenantStore tenantStore
 }
 
 type Base struct {
@@ -58,18 +64,29 @@ func (t Type) String() string {
 	return typeStrings[t]
 }
 
-func NewService(logger *zap.Logger, db DBTX) *Service {
+func NewService(logger *zap.Logger, db DBTX, tenantStore tenantStore) *Service {
 	return &Service{
-		logger:  logger,
-		queries: New(db),
-		tracer:  otel.Tracer("unit/service"),
+		logger:      logger,
+		queries:     New(db),
+		tracer:      otel.Tracer("unit/service"),
+		tenantStore: tenantStore,
 	}
 }
 
-func (s *Service) CreateOrganization(ctx context.Context, name string, description string, metadata []byte) (Unit, error) {
+func (s *Service) CreateOrganization(ctx context.Context, name string, description string, slug string, currentUserID uuid.UUID, metadata []byte) (Unit, error) {
 	traceCtx, span := s.tracer.Start(ctx, "CreateOrganization")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
+
+	exists, err := s.tenantStore.SlugExists(traceCtx, slug)
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "failed to validate slug uniqueness")
+		return Unit{}, err
+	}
+	if exists {
+		err = databaseutil.WrapDBError(err, logger, "slug already in use")
+		return Unit{}, err
+	}
 
 	org, err := s.queries.Create(traceCtx, CreateParams{
 		Name:        pgtype.Text{String: name, Valid: name != ""},
@@ -81,6 +98,12 @@ func (s *Service) CreateOrganization(ctx context.Context, name string, descripti
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "create organization")
 		span.RecordError(err)
+		return Unit{}, err
+	}
+
+	_, err = s.tenantStore.Create(traceCtx, slug, org.ID, currentUserID)
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "failed to create tenant for org: %w")
 		return Unit{}, err
 	}
 
