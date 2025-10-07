@@ -12,8 +12,6 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
-
 	handlerutil "github.com/NYCU-SDC/summer/pkg/handler"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/NYCU-SDC/summer/pkg/problem"
@@ -29,7 +27,7 @@ type Store interface {
 	CreateUnit(ctx context.Context, name string, description string, slug string, metadata []byte) (Unit, error)
 	GetByID(ctx context.Context, id uuid.UUID, unitType Type) (Unit, error)
 	GetAllOrganizations(ctx context.Context) ([]Unit, error)
-	Update(ctx context.Context, id uuid.UUID, name string, description string, slug string, dbStrategy DbStrategy, metadata []byte) (Unit, error)
+	Update(ctx context.Context, id uuid.UUID, name string, description string, metadata []byte) (Unit, error)
 	Delete(ctx context.Context, id uuid.UUID, unitType Type) error
 	AddParent(ctx context.Context, id uuid.UUID, parentID uuid.UUID) (Unit, error)
 	ListSubUnits(ctx context.Context, id uuid.UUID, unitType Type) ([]Unit, error)
@@ -342,7 +340,7 @@ func (h *Handler) UpdateOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var dbStrategy DbStrategy
+	var dbStrategy tenant.DbStrategy
 
 	if req.DbStrategy == "" || req.DbStrategy == string(DbStrategyShared) {
 		dbStrategy = "shared"
@@ -350,7 +348,13 @@ func (h *Handler) UpdateOrg(w http.ResponseWriter, r *http.Request) {
 		dbStrategy = "isolated"
 	}
 
-	updatedOrg, err := h.store.Update(traceCtx, orgTenant.ID, req.Name, req.Description, req.Slug, dbStrategy, metadataBytes)
+	_, err = h.tenantService.Update(traceCtx, orgTenant.ID, req.Slug, dbStrategy)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to update organization tenant: %w", err), h.logger)
+		return
+	}
+
+	updatedOrg, err := h.store.Update(traceCtx, orgTenant.ID, req.Name, req.Description, metadataBytes)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to update organization: %w", err), h.logger)
 		return

@@ -30,7 +30,6 @@ type Querier interface {
 
 type tenantStore interface {
 	Create(ctx context.Context, slug string, id uuid.UUID, ownerID uuid.UUID) (Tenant, error)
-	Update(ctx context.Context, id uuid.UUID, slug string, dbStrategy DbStrategy) (Tenant, error)
 	SlugExists(ctx context.Context, slug string) (bool, error)
 	GetBySlug(ctx context.Context, slug string) (Tenant, error)
 }
