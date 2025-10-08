@@ -65,10 +65,10 @@ func (b Builder) Create(unitType unit.UnitType, opts ...Option) unit.Unit {
 	return unitRow
 }
 
-func (b Builder) AddMember(unitID, memberID uuid.UUID) unit.UnitMember {
+func (b Builder) AddMember(unitID uuid.UUID, memberUsername string) unit.AddMemberRow {
 	member, err := b.Queries().AddMember(context.Background(), unit.AddMemberParams{
 		UnitID:   unitID,
-		MemberID: memberID,
+		Username: pgtype.Text{String: memberUsername, Valid: memberUsername != ""},
 	})
 	require.NoError(b.t, err)
 	return member
