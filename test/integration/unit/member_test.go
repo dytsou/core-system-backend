@@ -159,6 +159,21 @@ func TestUnitService_AddMember(t *testing.T) {
 				require.Contains(t, memberRows[0].Email, params.memberEmails[0])
 			},
 		},
+		{
+			name:   "Error when adding unknown email",
+			params: params{unitType: unit.TypeOrg},
+			setup: func(t *testing.T, params *params, db dbbuilder.DBTX) context.Context {
+				builder := unitbuilder.New(t, db)
+				org := builder.Create(unit.UnitTypeOrganization, unitbuilder.WithName("org-unknown-email"))
+				params.unitID = org.ID
+				params.memberEmails = []string{"nonexistent@example.com"}
+				return context.Background()
+			},
+			validate: func(t *testing.T, params params, db dbbuilder.DBTX, results []unit.AddMemberRow, err error) {
+				require.Error(t, err)
+			},
+			expectedErr: true,
+		},
 	}
 
 	resourceManager, logger, err := integration.GetOrInitResource()
