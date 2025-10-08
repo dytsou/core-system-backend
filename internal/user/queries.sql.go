@@ -124,12 +124,10 @@ func (q *Queries) GetUserIDByAuth(ctx context.Context, arg GetUserIDByAuthParams
 const update = `-- name: Update :one
 UPDATE users
 SET name = $2, username = $3, avatar_url = $4, 
-    email = CASE 
-        WHEN $5 IS NOT NULL AND array_length($5, 1) > 0 THEN
-            (SELECT array_agg(DISTINCT unnest_email)
-             FROM unnest(array_cat(email, $5)) AS unnest_email
-             WHERE unnest_email != '')
-        ELSE email
+    email = CASE
+      WHEN COALESCE(cardinality($5::varchar[]), 0) > 0 THEN
+        array_remove($5::varchar[], '')
+      ELSE email
     END,
     updated_at = now()
 WHERE id = $1
