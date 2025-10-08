@@ -14,7 +14,7 @@ import (
 )
 
 type UnitStore interface {
-	ListMembers(ctx context.Context, id uuid.UUID) ([]user.SimpleUser, error)
+	ListMembers(ctx context.Context, id uuid.UUID) ([]user.Profile, error)
 	ListUnitsMembers(ctx context.Context, unitIDs []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error)
 }
 

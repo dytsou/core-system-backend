@@ -22,7 +22,7 @@ func GetFromContext(ctx context.Context) (*User, bool) {
 	return userData, ok
 }
 
-type SimpleUserResponse struct {
+type ProfileResponse struct {
 	ID        uuid.UUID `json:"id"`
 	Name      string    `json:"name"`
 	Username  string    `json:"username"`

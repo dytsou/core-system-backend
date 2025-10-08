@@ -26,8 +26,8 @@ INSERT INTO auth (user_id, provider, provider_id)
 VALUES ($1, $2, $3)
 RETURNING *;
 
--- name: GetUserIDByAuth :one
+-- name: GetIDByAuth :one
 SELECT user_id FROM auth WHERE provider = $1 AND provider_id = $2;
 
--- name: UserExistsByAuth :one
+-- name: ExistsByAuth :one
 SELECT EXISTS(SELECT 1 FROM auth WHERE provider = $1 AND provider_id = $2);

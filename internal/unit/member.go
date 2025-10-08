@@ -35,12 +35,12 @@ func (s *Service) AddMember(ctx context.Context, unitType Type, id uuid.UUID, me
 }
 
 // ListMembers lists all members of an organization or a unit
-func (s *Service) ListMembers(ctx context.Context, id uuid.UUID) ([]user.SimpleUser, error) {
+func (s *Service) ListMembers(ctx context.Context, id uuid.UUID) ([]user.Profile, error) {
 	traceCtx, span := s.tracer.Start(ctx, "ListMembers")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	var simpleUsers []user.SimpleUser
+	var simpleUsers []user.Profile
 	members, err := s.queries.ListMembers(traceCtx, id)
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "list org members")
@@ -48,9 +48,9 @@ func (s *Service) ListMembers(ctx context.Context, id uuid.UUID) ([]user.SimpleU
 		return nil, err
 	}
 
-	simpleUsers = make([]user.SimpleUser, len(members))
+	simpleUsers = make([]user.Profile, len(members))
 	for i, member := range members {
-		simpleUsers[i] = user.SimpleUser{
+		simpleUsers[i] = user.Profile{
 			ID:        member.MemberID,
 			Name:      member.Name.String,
 			Username:  member.Username.String,
