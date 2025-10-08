@@ -217,7 +217,8 @@ const listMembers = `-- name: ListMembers :many
 SELECT m.member_id,
        u.name,
        u.username,
-       u.avatar_url
+       u.avatar_url,
+       u.email
 FROM unit_members m
 JOIN users u ON u.id = m.member_id
 WHERE m.unit_id = $1
@@ -228,6 +229,7 @@ type ListMembersRow struct {
 	Name      pgtype.Text
 	Username  pgtype.Text
 	AvatarUrl pgtype.Text
+	Email     []string
 }
 
 func (q *Queries) ListMembers(ctx context.Context, unitID uuid.UUID) ([]ListMembersRow, error) {
@@ -244,6 +246,7 @@ func (q *Queries) ListMembers(ctx context.Context, unitID uuid.UUID) ([]ListMemb
 			&i.Name,
 			&i.Username,
 			&i.AvatarUrl,
+			&i.Email,
 		); err != nil {
 			return nil, err
 		}
@@ -318,7 +321,8 @@ SELECT m.unit_id,
        m.member_id,
        u.name,
        u.username,
-       u.avatar_url
+       u.avatar_url,
+       u.email
 FROM unit_members m
 JOIN users u ON u.id = m.member_id
 WHERE m.unit_id = ANY($1::uuid[])
@@ -330,6 +334,7 @@ type ListUnitsMembersRow struct {
 	Name      pgtype.Text
 	Username  pgtype.Text
 	AvatarUrl pgtype.Text
+	Email     []string
 }
 
 func (q *Queries) ListUnitsMembers(ctx context.Context, dollar_1 []uuid.UUID) ([]ListUnitsMembersRow, error) {
@@ -347,6 +352,7 @@ func (q *Queries) ListUnitsMembers(ctx context.Context, dollar_1 []uuid.UUID) ([
 			&i.Name,
 			&i.Username,
 			&i.AvatarUrl,
+			&i.Email,
 		); err != nil {
 			return nil, err
 		}

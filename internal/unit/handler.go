@@ -106,6 +106,7 @@ type SimpleUserResponse struct {
 	ID        uuid.UUID `json:"id"`
 	Name      string    `json:"name"`
 	Username  string    `json:"username"`
+	Email     []string  `json:"email"`
 	AvatarURL string    `json:"avatarUrl"`
 }
 
@@ -758,6 +759,7 @@ func (h *Handler) AddUnitMember(w http.ResponseWriter, r *http.Request) {
 			ID:        member.MemberID,
 			Name:      member.Name.String,
 			Username:  member.Username.String,
+			Email:     member.Email,
 			AvatarURL: member.AvatarUrl.String,
 		},
 	})
@@ -789,7 +791,13 @@ func (h *Handler) ListOrgMembers(w http.ResponseWriter, r *http.Request) {
 
 	response := make([]SimpleUserResponse, 0, len(members))
 	for _, m := range members {
-		response = append(response, SimpleUserResponse(m))
+		response = append(response, SimpleUserResponse{
+			ID:        m.ID,
+			Name:      m.Name,
+			Username:  m.Username,
+			Email:     m.Email,
+			AvatarURL: m.AvatarURL,
+		})
 	}
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
@@ -815,7 +823,13 @@ func (h *Handler) ListUnitMembers(w http.ResponseWriter, r *http.Request) {
 
 	response := make([]SimpleUserResponse, 0, len(members))
 	for _, m := range members {
-		response = append(response, SimpleUserResponse(m))
+		response = append(response, SimpleUserResponse{
+			ID:        m.ID,
+			Name:      m.Name,
+			Username:  m.Username,
+			Email:     m.Email,
+			AvatarURL: m.AvatarURL,
+		})
 	}
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, response)

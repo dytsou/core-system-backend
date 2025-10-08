@@ -15,6 +15,7 @@ type SimpleUser struct {
 	Name      string
 	Username  string
 	AvatarURL string
+	Email     []string
 }
 
 // AddMember adds a member to an organization or a unit

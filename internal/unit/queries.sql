@@ -61,7 +61,8 @@ LEFT JOIN users u ON u.id = um.member_id;
 SELECT m.member_id,
        u.name,
        u.username,
-       u.avatar_url
+       u.avatar_url,
+       u.email
 FROM unit_members m
 JOIN users u ON u.id = m.member_id
 WHERE m.unit_id = $1;
@@ -71,7 +72,8 @@ SELECT m.unit_id,
        m.member_id,
        u.name,
        u.username,
-       u.avatar_url
+       u.avatar_url,
+       u.email
 FROM unit_members m
 JOIN users u ON u.id = m.member_id
 WHERE m.unit_id = ANY($1::uuid[]);
