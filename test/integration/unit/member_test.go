@@ -130,6 +130,35 @@ func TestUnitService_AddMember(t *testing.T) {
 				require.Contains(t, memberIDs, results[0].MemberID)
 			},
 		},
+		{
+			name: "Add member using second email of user",
+			params: params{
+				unitType: unit.TypeUnit,
+			},
+			setup: func(t *testing.T, params *params, db dbbuilder.DBTX) context.Context {
+				builder := unitbuilder.New(t, db)
+				org := builder.Create(unit.UnitTypeOrganization, unitbuilder.WithName("eng-multi-email"))
+				unitRow := builder.Create(unit.UnitTypeUnit, unitbuilder.WithOrgID(org.ID), unitbuilder.WithName("dept-ee"))
+				member := userbuilder.New(t, db).Create(userbuilder.WithEmail([]string{"primary@example.com", "secondary@example.com"}))
+
+				params.unitID = unitRow.ID
+				params.memberEmails = []string{member.Email[1]}
+				return context.Background()
+			},
+			validate: func(t *testing.T, params params, db dbbuilder.DBTX, results []unit.AddMemberRow, err error) {
+				require.NoError(t, err)
+				require.Len(t, results, 1)
+				require.Equal(t, params.unitID, results[0].UnitID)
+				require.Len(t, results[0].Email, 2)
+				require.Equal(t, params.memberEmails[0], results[0].Email[1])
+
+				memberRows, listErr := unit.New(db).ListMembers(context.Background(), params.unitID)
+				require.NoError(t, listErr)
+				require.Len(t, memberRows, 1)
+				require.Equal(t, results[0].MemberID, memberRows[0].MemberID)
+				require.Contains(t, memberRows[0].Email, params.memberEmails[0])
+			},
+		},
 	}
 
 	resourceManager, logger, err := integration.GetOrInitResource()
