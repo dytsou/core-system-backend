@@ -35,7 +35,7 @@ type Store interface {
 	ListSubUnits(ctx context.Context, id uuid.UUID, unitType Type) ([]Unit, error)
 	ListSubUnitIDs(ctx context.Context, id uuid.UUID, unitType Type) ([]uuid.UUID, error)
 	AddMember(ctx context.Context, unitType Type, id uuid.UUID, username string) (AddMemberRow, error)
-	ListMembers(ctx context.Context, id uuid.UUID) ([]SimpleUser, error)
+	ListMembers(ctx context.Context, id uuid.UUID) ([]user.SimpleUser, error)
 	RemoveMember(ctx context.Context, unitType Type, id uuid.UUID, memberID uuid.UUID) error
 	GetOrganizationByIDWithSlug(ctx context.Context, id uuid.UUID) (Organization, error)
 }
@@ -102,22 +102,14 @@ type OrganizationResponse struct {
 	Slug        string            `json:"slug"`
 }
 
-type SimpleUserResponse struct {
-	ID        uuid.UUID `json:"id"`
-	Name      string    `json:"name"`
-	Username  string    `json:"username"`
-	Email     []string  `json:"email"`
-	AvatarURL string    `json:"avatarUrl"`
-}
-
 type OrgMemberResponse struct {
-	OrgID      uuid.UUID          `json:"orgId"`
-	SimpleUser SimpleUserResponse `json:"member"`
+	OrgID      uuid.UUID               `json:"orgId"`
+	SimpleUser user.SimpleUserResponse `json:"member"`
 }
 
 type UnitMemberResponse struct {
-	UnitID     uuid.UUID          `json:"unitId"`
-	SimpleUser SimpleUserResponse `json:"member"`
+	UnitID     uuid.UUID               `json:"unitId"`
+	SimpleUser user.SimpleUserResponse `json:"member"`
 }
 
 func convertUnitResponse(u Unit) UnitResponse {
@@ -712,7 +704,7 @@ func (h *Handler) AddOrgMember(w http.ResponseWriter, r *http.Request) {
 
 	orgMemberResponse := OrgMemberResponse{
 		OrgID: orgTenant.ID,
-		SimpleUser: SimpleUserResponse{
+		SimpleUser: user.SimpleUserResponse{
 			ID:        members.MemberID,
 			Name:      members.Name.String,
 			Username:  members.Username.String,
@@ -756,7 +748,7 @@ func (h *Handler) AddUnitMember(w http.ResponseWriter, r *http.Request) {
 
 	handlerutil.WriteJSONResponse(w, http.StatusCreated, UnitMemberResponse{
 		UnitID: id,
-		SimpleUser: SimpleUserResponse{
+		SimpleUser: user.SimpleUserResponse{
 			ID:        member.MemberID,
 			Name:      member.Name.String,
 			Username:  member.Username.String,
@@ -790,9 +782,9 @@ func (h *Handler) ListOrgMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := make([]SimpleUserResponse, 0, len(members))
+	response := make([]user.SimpleUserResponse, 0, len(members))
 	for _, m := range members {
-		response = append(response, SimpleUserResponse{
+		response = append(response, user.SimpleUserResponse{
 			ID:        m.ID,
 			Name:      m.Name,
 			Username:  m.Username,
@@ -822,9 +814,9 @@ func (h *Handler) ListUnitMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := make([]SimpleUserResponse, 0, len(members))
+	response := make([]user.SimpleUserResponse, 0, len(members))
 	for _, m := range members {
-		response = append(response, SimpleUserResponse{
+		response = append(response, user.SimpleUserResponse{
 			ID:        m.ID,
 			Name:      m.Name,
 			Username:  m.Username,

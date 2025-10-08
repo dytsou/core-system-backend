@@ -10,6 +10,7 @@ import (
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/NYCU-SDC/summer/pkg/problem"
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -19,6 +20,14 @@ import (
 func GetFromContext(ctx context.Context) (*User, bool) {
 	userData, ok := ctx.Value(internal.UserContextKey).(*User)
 	return userData, ok
+}
+
+type SimpleUserResponse struct {
+	ID        uuid.UUID `json:"id"`
+	Name      string    `json:"name"`
+	Username  string    `json:"username"`
+	Email     []string  `json:"email"`
+	AvatarURL string    `json:"avatarUrl"`
 }
 
 // MeResponse represents the response format for /user/me endpoint

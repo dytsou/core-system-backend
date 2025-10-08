@@ -3,20 +3,14 @@ package unit
 import (
 	"fmt"
 
+	"NYCU-SDC/core-system-backend/internal/user"
+
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
 )
-
-type SimpleUser struct {
-	ID        uuid.UUID
-	Name      string
-	Username  string
-	AvatarURL string
-	Email     []string
-}
 
 // AddMember adds a member to an organization or a unit
 func (s *Service) AddMember(ctx context.Context, unitType Type, id uuid.UUID, memberEmail string) (AddMemberRow, error) {
@@ -41,12 +35,12 @@ func (s *Service) AddMember(ctx context.Context, unitType Type, id uuid.UUID, me
 }
 
 // ListMembers lists all members of an organization or a unit
-func (s *Service) ListMembers(ctx context.Context, id uuid.UUID) ([]SimpleUser, error) {
+func (s *Service) ListMembers(ctx context.Context, id uuid.UUID) ([]user.SimpleUser, error) {
 	traceCtx, span := s.tracer.Start(ctx, "ListMembers")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	var simpleUsers []SimpleUser
+	var simpleUsers []user.SimpleUser
 	members, err := s.queries.ListMembers(traceCtx, id)
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "list org members")
@@ -54,9 +48,9 @@ func (s *Service) ListMembers(ctx context.Context, id uuid.UUID) ([]SimpleUser, 
 		return nil, err
 	}
 
-	simpleUsers = make([]SimpleUser, len(members))
+	simpleUsers = make([]user.SimpleUser, len(members))
 	for i, member := range members {
-		simpleUsers[i] = SimpleUser{
+		simpleUsers[i] = user.SimpleUser{
 			ID:        member.MemberID,
 			Name:      member.Name.String,
 			Username:  member.Username.String,

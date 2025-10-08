@@ -29,6 +29,14 @@ type Service struct {
 	tracer  trace.Tracer
 }
 
+type SimpleUser struct {
+	ID        uuid.UUID
+	Name      string
+	Username  string
+	AvatarURL string
+	Email     []string
+}
+
 func NewService(logger *zap.Logger, db DBTX) *Service {
 	return &Service{
 		logger:  logger,
