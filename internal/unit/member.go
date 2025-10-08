@@ -61,6 +61,7 @@ func (s *Service) ListMembers(ctx context.Context, id uuid.UUID) ([]SimpleUser, 
 			Name:      member.Name.String,
 			Username:  member.Username.String,
 			AvatarURL: member.AvatarUrl.String,
+			Email:     member.Email,
 		}
 	}
 

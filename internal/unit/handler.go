@@ -717,6 +717,7 @@ func (h *Handler) AddOrgMember(w http.ResponseWriter, r *http.Request) {
 			Name:      members.Name.String,
 			Username:  members.Username.String,
 			AvatarURL: members.AvatarUrl.String,
+			Email:     members.Email,
 		},
 	}
 	handlerutil.WriteJSONResponse(w, http.StatusCreated, orgMemberResponse)
