@@ -1,6 +1,6 @@
 -- name: Create :one
-INSERT INTO users (name, username, avatar_url, role)
-VALUES ($1, $2, $3, $4) 
+INSERT INTO users (name, username, avatar_url, role, email)
+VALUES ($1, $2, $3, $4, $5) 
 RETURNING *;
 
 -- name: ExistsByID :one
@@ -11,9 +11,17 @@ SELECT * FROM users WHERE id = $1;
 
 -- name: Update :one
 UPDATE users
-SET name = $2, username = $3, avatar_url = $4, updated_at = now()
+SET name = $2, username = $3, avatar_url = $4, 
+    email = CASE 
+        WHEN $5 IS NOT NULL AND array_length($5, 1) > 0 THEN
+            (SELECT array_agg(DISTINCT unnest_email)
+             FROM unnest(array_cat(email, $5)) AS unnest_email
+             WHERE unnest_email != '')
+        ELSE email
+    END,
+    updated_at = now()
 WHERE id = $1
-    RETURNING *;
+RETURNING *;
 
 -- name: CreateAuth :one
 INSERT INTO auth (user_id, provider, provider_id)

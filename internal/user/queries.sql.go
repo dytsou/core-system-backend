@@ -13,8 +13,8 @@ import (
 )
 
 const create = `-- name: Create :one
-INSERT INTO users (name, username, avatar_url, role)
-VALUES ($1, $2, $3, $4) 
+INSERT INTO users (name, username, avatar_url, role, email)
+VALUES ($1, $2, $3, $4, $5) 
 RETURNING id, name, username, email, avatar_url, role, created_at, updated_at
 `
 
@@ -23,6 +23,7 @@ type CreateParams struct {
 	Username  pgtype.Text
 	AvatarUrl pgtype.Text
 	Role      []string
+	Email     []string
 }
 
 func (q *Queries) Create(ctx context.Context, arg CreateParams) (User, error) {
@@ -31,6 +32,7 @@ func (q *Queries) Create(ctx context.Context, arg CreateParams) (User, error) {
 		arg.Username,
 		arg.AvatarUrl,
 		arg.Role,
+		arg.Email,
 	)
 	var i User
 	err := row.Scan(
@@ -121,9 +123,17 @@ func (q *Queries) GetUserIDByAuth(ctx context.Context, arg GetUserIDByAuthParams
 
 const update = `-- name: Update :one
 UPDATE users
-SET name = $2, username = $3, avatar_url = $4, updated_at = now()
+SET name = $2, username = $3, avatar_url = $4, 
+    email = CASE 
+        WHEN $5 IS NOT NULL AND array_length($5, 1) > 0 THEN
+            (SELECT array_agg(DISTINCT unnest_email)
+             FROM unnest(array_cat(email, $5)) AS unnest_email
+             WHERE unnest_email != '')
+        ELSE email
+    END,
+    updated_at = now()
 WHERE id = $1
-    RETURNING id, name, username, email, avatar_url, role, created_at, updated_at
+RETURNING id, name, username, email, avatar_url, role, created_at, updated_at
 `
 
 type UpdateParams struct {
@@ -131,6 +141,7 @@ type UpdateParams struct {
 	Name      pgtype.Text
 	Username  pgtype.Text
 	AvatarUrl pgtype.Text
+	Email     []string
 }
 
 func (q *Queries) Update(ctx context.Context, arg UpdateParams) (User, error) {
@@ -139,6 +150,7 @@ func (q *Queries) Update(ctx context.Context, arg UpdateParams) (User, error) {
 		arg.Name,
 		arg.Username,
 		arg.AvatarUrl,
+		arg.Email,
 	)
 	var i User
 	err := row.Scan(

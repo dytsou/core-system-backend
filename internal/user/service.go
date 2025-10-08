@@ -72,7 +72,7 @@ func resolveAvatarUrl(name, avatarUrl string) string {
 	return avatarUrl
 }
 
-func (s *Service) FindOrCreate(ctx context.Context, name, username, avatarUrl string, role []string, oauthProvider, oauthProviderID string) (uuid.UUID, error) {
+func (s *Service) FindOrCreate(ctx context.Context, name, username, avatarUrl string, role []string, email []string, oauthProvider, oauthProviderID string) (uuid.UUID, error) {
 	traceCtx, span := s.tracer.Start(ctx, "FindOrCreate")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
@@ -103,6 +103,7 @@ func (s *Service) FindOrCreate(ctx context.Context, name, username, avatarUrl st
 			ID:        existingUserID,
 			Name:      pgtype.Text{String: name, Valid: name != ""},
 			Username:  pgtype.Text{String: username, Valid: username != ""},
+			Email:     email,
 			AvatarUrl: pgtype.Text{String: avatarUrl, Valid: avatarUrl != ""},
 		})
 		if err != nil {
@@ -111,7 +112,7 @@ func (s *Service) FindOrCreate(ctx context.Context, name, username, avatarUrl st
 			return uuid.UUID{}, err
 		}
 
-		logger.Debug("Updated existing user", zap.String("provider", oauthProvider), zap.String("provider_id", oauthProviderID), zap.String("user_id", existingUserID.String()))
+		logger.Debug("Updated existing user", zap.String("provider", oauthProvider), zap.String("provider_id", oauthProviderID), zap.String("user_id", existingUserID.String()), zap.Strings("added_emails", email))
 		return existingUserID, nil
 	}
 
@@ -125,6 +126,7 @@ func (s *Service) FindOrCreate(ctx context.Context, name, username, avatarUrl st
 	newUser, err := s.queries.Create(traceCtx, CreateParams{
 		Name:      pgtype.Text{String: name, Valid: name != ""},
 		Username:  pgtype.Text{String: username, Valid: username != ""},
+		Email:     email,
 		AvatarUrl: pgtype.Text{String: avatarUrl, Valid: avatarUrl != ""},
 		Role:      role,
 	})
