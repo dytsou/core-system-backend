@@ -6,6 +6,7 @@ import (
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
 )
@@ -18,25 +19,25 @@ type SimpleUser struct {
 }
 
 // AddMember adds a member to an organization or a unit
-func (s *Service) AddMember(ctx context.Context, unitType Type, id uuid.UUID, memberID uuid.UUID) (UnitMember, error) {
+func (s *Service) AddMember(ctx context.Context, unitType Type, id uuid.UUID, memberUsername string) (AddMemberRow, error) {
 	traceCtx, span := s.tracer.Start(ctx, fmt.Sprintf("Add%sMember", unitType.String()))
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
-	member, err := s.queries.AddMember(traceCtx, AddMemberParams{
+	memberRow, err := s.queries.AddMember(traceCtx, AddMemberParams{
 		UnitID:   id,
-		MemberID: memberID,
+		Username: pgtype.Text{String: memberUsername, Valid: memberUsername != ""},
 	})
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "add member relationship")
 		span.RecordError(err)
-		return UnitMember{}, err
+		return AddMemberRow{}, err
 	}
 
 	logger.Info(fmt.Sprintf("Added %s member", unitType.String()),
-		zap.String("unit_id", member.UnitID.String()),
-		zap.String("member_id", member.MemberID.String()))
+		zap.String("unit_id", memberRow.UnitID.String()),
+		zap.String("member_id", memberRow.MemberID.String()))
 
-	return member, nil
+	return memberRow, nil
 }
 
 // ListMembers lists all members of an organization or a unit
