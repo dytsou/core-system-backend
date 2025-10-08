@@ -15,7 +15,7 @@ import (
 const create = `-- name: Create :one
 INSERT INTO users (name, username, avatar_url, role)
 VALUES ($1, $2, $3, $4) 
-RETURNING id, name, username, avatar_url, role, created_at, updated_at
+RETURNING id, name, username, email, avatar_url, role, created_at, updated_at
 `
 
 type CreateParams struct {
@@ -37,6 +37,7 @@ func (q *Queries) Create(ctx context.Context, arg CreateParams) (User, error) {
 		&i.ID,
 		&i.Name,
 		&i.Username,
+		&i.Email,
 		&i.AvatarUrl,
 		&i.Role,
 		&i.CreatedAt,
@@ -83,7 +84,7 @@ func (q *Queries) ExistsByID(ctx context.Context, id uuid.UUID) (bool, error) {
 }
 
 const getByID = `-- name: GetByID :one
-SELECT id, name, username, avatar_url, role, created_at, updated_at FROM users WHERE id = $1
+SELECT id, name, username, email, avatar_url, role, created_at, updated_at FROM users WHERE id = $1
 `
 
 func (q *Queries) GetByID(ctx context.Context, id uuid.UUID) (User, error) {
@@ -93,6 +94,7 @@ func (q *Queries) GetByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.ID,
 		&i.Name,
 		&i.Username,
+		&i.Email,
 		&i.AvatarUrl,
 		&i.Role,
 		&i.CreatedAt,
@@ -121,7 +123,7 @@ const update = `-- name: Update :one
 UPDATE users
 SET name = $2, username = $3, avatar_url = $4, updated_at = now()
 WHERE id = $1
-    RETURNING id, name, username, avatar_url, role, created_at, updated_at
+    RETURNING id, name, username, email, avatar_url, role, created_at, updated_at
 `
 
 type UpdateParams struct {
@@ -143,6 +145,7 @@ func (q *Queries) Update(ctx context.Context, arg UpdateParams) (User, error) {
 		&i.ID,
 		&i.Name,
 		&i.Username,
+		&i.Email,
 		&i.AvatarUrl,
 		&i.Role,
 		&i.CreatedAt,

@@ -23,11 +23,12 @@ func GetFromContext(ctx context.Context) (*User, bool) {
 
 // MeResponse represents the response format for /user/me endpoint
 type MeResponse struct {
-	ID        string `json:"id"`
-	Username  string `json:"username"`
-	Name      string `json:"name"`
-	AvatarUrl string `json:"avatarUrl"`
-	Role      string `json:"role"`
+	ID        string   `json:"id"`
+	Username  string   `json:"username"`
+	Email     []string `json:"email"`
+	Name      string   `json:"name"`
+	AvatarUrl string   `json:"avatarUrl"`
+	Role      string   `json:"role"`
 }
 
 type Handler struct {
@@ -75,6 +76,7 @@ func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
 	response := MeResponse{
 		ID:        currentUser.ID.String(),
 		Username:  currentUser.Username.String,
+		Email:     currentUser.Email,
 		Name:      currentUser.Name.String,
 		AvatarUrl: currentUser.AvatarUrl.String,
 		Role:      roleStr,

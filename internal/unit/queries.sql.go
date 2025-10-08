@@ -24,7 +24,7 @@ WITH inserted_member AS (
 )
 SELECT um.unit_id, um.member_id, u.name, u.username, u.avatar_url
 FROM inserted_member um
-JOIN users u ON u.id = um.member_id
+LEFT JOIN users u ON u.id = um.member_id
 `
 
 type AddMemberParams struct {
