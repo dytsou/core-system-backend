@@ -17,19 +17,19 @@ WITH inserted_member AS (
     INSERT INTO unit_members (unit_id, member_id)
     SELECT $1, u.id
     FROM users u
-    WHERE u.username = $2
+        WHERE $2::text = ANY(u.email)
     ON CONFLICT (unit_id, member_id) DO UPDATE
         SET member_id = EXCLUDED.member_id
     RETURNING unit_id, member_id
 )
-SELECT um.unit_id, um.member_id, u.name, u.username, u.avatar_url
+SELECT um.unit_id, um.member_id, u.name, u.username, u.avatar_url, u.email
 FROM inserted_member um
 LEFT JOIN users u ON u.id = um.member_id
 `
 
 type AddMemberParams struct {
-	UnitID   uuid.UUID
-	Username pgtype.Text
+	UnitID      uuid.UUID
+	MemberEmail string
 }
 
 type AddMemberRow struct {
@@ -38,10 +38,11 @@ type AddMemberRow struct {
 	Name      pgtype.Text
 	Username  pgtype.Text
 	AvatarUrl pgtype.Text
+	Email     []string
 }
 
 func (q *Queries) AddMember(ctx context.Context, arg AddMemberParams) (AddMemberRow, error) {
-	row := q.db.QueryRow(ctx, addMember, arg.UnitID, arg.Username)
+	row := q.db.QueryRow(ctx, addMember, arg.UnitID, arg.MemberEmail)
 	var i AddMemberRow
 	err := row.Scan(
 		&i.UnitID,
@@ -49,6 +50,7 @@ func (q *Queries) AddMember(ctx context.Context, arg AddMemberParams) (AddMember
 		&i.Name,
 		&i.Username,
 		&i.AvatarUrl,
+		&i.Email,
 	)
 	return i, err
 }

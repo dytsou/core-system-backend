@@ -46,14 +46,14 @@ SELECT id FROM units WHERE parent_id = $1;
 -- name: AddMember :one
 WITH inserted_member AS (
     INSERT INTO unit_members (unit_id, member_id)
-    SELECT $1, u.id
+    SELECT sqlc.arg(unit_id), u.id
     FROM users u
-    WHERE u.username = $2
+        WHERE sqlc.arg(member_email)::text = ANY(u.email)
     ON CONFLICT (unit_id, member_id) DO UPDATE
         SET member_id = EXCLUDED.member_id
     RETURNING *
 )
-SELECT um.*, u.name, u.username, u.avatar_url
+SELECT um.*, u.name, u.username, u.avatar_url, u.email
 FROM inserted_member um
 LEFT JOIN users u ON u.id = um.member_id;
 

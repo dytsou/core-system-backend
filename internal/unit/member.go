@@ -6,7 +6,6 @@ import (
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
 )
@@ -19,13 +18,13 @@ type SimpleUser struct {
 }
 
 // AddMember adds a member to an organization or a unit
-func (s *Service) AddMember(ctx context.Context, unitType Type, id uuid.UUID, memberUsername string) (AddMemberRow, error) {
+func (s *Service) AddMember(ctx context.Context, unitType Type, id uuid.UUID, memberEmail string) (AddMemberRow, error) {
 	traceCtx, span := s.tracer.Start(ctx, fmt.Sprintf("Add%sMember", unitType.String()))
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 	memberRow, err := s.queries.AddMember(traceCtx, AddMemberParams{
-		UnitID:   id,
-		Username: pgtype.Text{String: memberUsername, Valid: memberUsername != ""},
+		UnitID:      id,
+		MemberEmail: memberEmail,
 	})
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "add member relationship")
@@ -73,7 +72,6 @@ func (s *Service) ListMembers(ctx context.Context, id uuid.UUID) ([]SimpleUser, 
 }
 
 // ListUnitsMembers lists members for multiple units at once
-// Todo: need to refactor to use SimpleUser
 func (s *Service) ListUnitsMembers(ctx context.Context, unitIDs []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error) {
 	traceCtx, span := s.tracer.Start(ctx, "ListMultiUnitMembers")
 	defer span.End()

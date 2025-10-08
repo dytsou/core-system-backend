@@ -691,19 +691,19 @@ func (h *Handler) AddOrgMember(w http.ResponseWriter, r *http.Request) {
 
 	// Get Username from request body
 	var params struct {
-		Username string `json:"username"`
+		Email string `json:"email"`
 	}
 	if err := handlerutil.ParseAndValidateRequestBody(traceCtx, h.validator, r, &params); err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid request body: %w", err), h.logger)
 		return
 	}
 
-	if orgTenant.ID == uuid.Nil || params.Username == "" {
+	if orgTenant.ID == uuid.Nil || params.Email == "" {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("org ID or member username cannot be empty"), h.logger)
 		return
 	}
 
-	members, err := h.store.AddMember(traceCtx, TypeOrg, orgTenant.ID, params.Username)
+	members, err := h.store.AddMember(traceCtx, TypeOrg, orgTenant.ID, params.Email)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to add org member: %w", err), h.logger)
 		return
@@ -734,19 +734,19 @@ func (h *Handler) AddUnitMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var params struct {
-		Username string `json:"username"`
+		Email string `json:"email"`
 	}
 	if err := handlerutil.ParseAndValidateRequestBody(traceCtx, h.validator, r, &params); err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid request body: %w", err), h.logger)
 		return
 	}
 
-	if params.Username == "" {
+	if params.Email == "" {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("member username cannot be empty"), h.logger)
 		return
 	}
 
-	member, err := h.store.AddMember(traceCtx, TypeUnit, id, params.Username)
+	member, err := h.store.AddMember(traceCtx, TypeUnit, id, params.Email)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to add unit member: %w", err), h.logger)
 		return
