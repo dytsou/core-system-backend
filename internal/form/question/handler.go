@@ -119,7 +119,6 @@ func (h *Handler) AddHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-
 	// Generate and validate metadata for choice-based questions
 	metadata, err := GenerateMetadata(req.Type, req.Choices)
 	if err != nil {
