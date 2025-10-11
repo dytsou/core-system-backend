@@ -141,7 +141,7 @@ func main() {
 	questionService := question.NewService(logger, dbPool)
 	inboxService := inbox.NewService(logger, dbPool)
 	responseService := response.NewService(logger, dbPool)
-	submitService := submit.NewService(logger, questionService, responseService)
+	submitService := submit.NewService(logger, formService, questionService, responseService)
 	publishService := publish.NewService(logger, distributeService, formService, inboxService)
 
 	// Handler
