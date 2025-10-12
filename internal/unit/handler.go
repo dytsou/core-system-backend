@@ -35,7 +35,7 @@ type Store interface {
 	ListSubUnits(ctx context.Context, id uuid.UUID, unitType Type) ([]Unit, error)
 	ListSubUnitIDs(ctx context.Context, id uuid.UUID, unitType Type) ([]uuid.UUID, error)
 	AddMember(ctx context.Context, unitType Type, id uuid.UUID, username string) (AddMemberRow, error)
-	ListMembers(ctx context.Context, id uuid.UUID) ([]user.Profile, error)
+	ListMembers(ctx context.Context, id uuid.UUID) ([]ListMembersRow, error)
 	RemoveMember(ctx context.Context, unitType Type, id uuid.UUID, memberID uuid.UUID) error
 	GetOrganizationByIDWithSlug(ctx context.Context, id uuid.UUID) (Organization, error)
 }
@@ -48,6 +48,7 @@ type Handler struct {
 	store         Store
 	formService   *form.Service
 	tenantService *tenant.Service
+	userService   *user.Service
 }
 
 func NewHandler(
@@ -57,6 +58,7 @@ func NewHandler(
 	store Store,
 	formService *form.Service,
 	tenantService *tenant.Service,
+	userService *user.Service,
 ) *Handler {
 	return &Handler{
 		logger:        logger,
@@ -65,6 +67,7 @@ func NewHandler(
 		store:         store,
 		formService:   formService,
 		tenantService: tenantService,
+		userService:   userService,
 		tracer:        otel.Tracer("unit/handler"),
 	}
 }
@@ -110,6 +113,25 @@ type OrgMemberResponse struct {
 type UnitMemberResponse struct {
 	UnitID     uuid.UUID            `json:"unitId"`
 	SimpleUser user.ProfileResponse `json:"member"`
+}
+
+// createProfileResponseWithEmails creates a ProfileResponse with emails for a user
+func (h *Handler) createProfileResponseWithEmails(ctx context.Context, userID uuid.UUID, name, username, avatarURL string) user.ProfileResponse {
+	emails, err := h.userService.GetEmailsByID(ctx, userID)
+	if err != nil {
+		// Log the error but don't fail the request
+		logger := logutil.WithContext(ctx, h.logger)
+		logger.Warn("Failed to get user emails", zap.Error(err), zap.String("user_id", userID.String()))
+		emails = []string{}
+	}
+
+	return user.ProfileResponse{
+		ID:        userID,
+		Name:      name,
+		Username:  username,
+		AvatarURL: avatarURL,
+		Emails:    emails,
+	}
 }
 
 func convertUnitResponse(u Unit) UnitResponse {
@@ -703,14 +725,8 @@ func (h *Handler) AddOrgMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	orgMemberResponse := OrgMemberResponse{
-		OrgID: orgTenant.ID,
-		SimpleUser: user.ProfileResponse{
-			ID:        members.MemberID,
-			Name:      members.Name.String,
-			Username:  members.Username.String,
-			AvatarURL: members.AvatarUrl.String,
-			Email:     members.Email,
-		},
+		OrgID:      orgTenant.ID,
+		SimpleUser: h.createProfileResponseWithEmails(traceCtx, members.MemberID, members.Name.String, members.Username.String, members.AvatarUrl.String),
 	}
 	handlerutil.WriteJSONResponse(w, http.StatusCreated, orgMemberResponse)
 }
@@ -747,14 +763,8 @@ func (h *Handler) AddUnitMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	handlerutil.WriteJSONResponse(w, http.StatusCreated, UnitMemberResponse{
-		UnitID: id,
-		SimpleUser: user.ProfileResponse{
-			ID:        member.MemberID,
-			Name:      member.Name.String,
-			Username:  member.Username.String,
-			Email:     member.Email,
-			AvatarURL: member.AvatarUrl.String,
-		},
+		UnitID:     id,
+		SimpleUser: h.createProfileResponseWithEmails(traceCtx, member.MemberID, member.Name.String, member.Username.String, member.AvatarUrl.String),
 	})
 }
 
@@ -785,11 +795,11 @@ func (h *Handler) ListOrgMembers(w http.ResponseWriter, r *http.Request) {
 	response := make([]user.ProfileResponse, 0, len(members))
 	for _, m := range members {
 		response = append(response, user.ProfileResponse{
-			ID:        m.ID,
-			Name:      m.Name,
-			Username:  m.Username,
-			Email:     m.Email,
-			AvatarURL: m.AvatarURL,
+			ID:        m.MemberID,
+			Name:      m.Name.String,
+			Username:  m.Username.String,
+			AvatarURL: m.AvatarUrl.String,
+			Emails:    m.Emails.([]string),
 		})
 	}
 
@@ -817,11 +827,11 @@ func (h *Handler) ListUnitMembers(w http.ResponseWriter, r *http.Request) {
 	response := make([]user.ProfileResponse, 0, len(members))
 	for _, m := range members {
 		response = append(response, user.ProfileResponse{
-			ID:        m.ID,
-			Name:      m.Name,
-			Username:  m.Username,
-			Email:     m.Email,
-			AvatarURL: m.AvatarURL,
+			ID:        m.MemberID,
+			Name:      m.Name.String,
+			Username:  m.Username.String,
+			AvatarURL: m.AvatarUrl.String,
+			Emails:    m.Emails.([]string),
 		})
 	}
 

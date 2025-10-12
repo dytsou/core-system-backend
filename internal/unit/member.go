@@ -3,8 +3,6 @@ package unit
 import (
 	"fmt"
 
-	"NYCU-SDC/core-system-backend/internal/user"
-
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/google/uuid"
@@ -34,13 +32,12 @@ func (s *Service) AddMember(ctx context.Context, unitType Type, id uuid.UUID, me
 	return memberRow, nil
 }
 
-// ListMembers lists all members of an organization or a unit
-func (s *Service) ListMembers(ctx context.Context, id uuid.UUID) ([]user.Profile, error) {
+// ListMembers lists all members of an organization or a unit with their emails
+func (s *Service) ListMembers(ctx context.Context, id uuid.UUID) ([]ListMembersRow, error) {
 	traceCtx, span := s.tracer.Start(ctx, "ListMembers")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	var simpleUsers []user.Profile
 	members, err := s.queries.ListMembers(traceCtx, id)
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "list org members")
@@ -48,23 +45,16 @@ func (s *Service) ListMembers(ctx context.Context, id uuid.UUID) ([]user.Profile
 		return nil, err
 	}
 
-	simpleUsers = make([]user.Profile, len(members))
-	for i, member := range members {
-		simpleUsers[i] = user.Profile{
-			ID:        member.MemberID,
-			Name:      member.Name.String,
-			Username:  member.Username.String,
-			AvatarURL: member.AvatarUrl.String,
-			Email:     member.Email,
-		}
+	if members == nil {
+		members = []ListMembersRow{}
 	}
 
 	logger.Info("Listed unit members",
 		zap.String("id", id.String()),
-		zap.Int("count", len(simpleUsers)),
+		zap.Int("count", len(members)),
 	)
 
-	return simpleUsers, nil
+	return members, nil
 }
 
 // ListUnitsMembers lists members for multiple units at once
