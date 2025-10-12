@@ -338,7 +338,7 @@ func initOpenTelemetry(appName, version, buildTime, commitHash, environment, ote
 	serviceName := semconv.ServiceNameKey.String(appName)
 	serviceVersion := semconv.ServiceVersionKey.String(version)
 	serviceNamespace := semconv.ServiceNamespaceKey.String("example")
-	serviceCommitHash := semconv.ServiceVersionKey.String(commitHash)
+	serviceCommitHash := attribute.String("service.commit_hash", commitHash)
 	serviceEnvironment := semconv.DeploymentEnvironmentKey.String(environment)
 
 	res, err := resource.New(ctx,
