@@ -52,7 +52,7 @@ func TestService_CreateOrUpdate(t *testing.T) {
 
 	testCases := []testCase{
 		{
-			name: "Return error when answers length != question types length",
+			name: "Return error if answers length != question types length",
 			params: Params{
 				formID: uuid.New(),
 				userID: uuid.New(),
@@ -68,7 +68,7 @@ func TestService_CreateOrUpdate(t *testing.T) {
 			},
 		},
 		{
-			name: "Exists=false → Create response and answers",
+			name: "Create response and answers if not exists",
 			params: Params{
 				formID: uuid.New(),
 				userID: uuid.New(),
@@ -148,7 +148,7 @@ func TestService_CreateOrUpdate(t *testing.T) {
 			},
 		},
 		{
-			name: "Exists query fails → return error",
+			name: "Return error if Exists query fails",
 			params: Params{
 				formID: uuid.New(),
 				userID: uuid.New(),
@@ -215,7 +215,7 @@ func TestService_Update(t *testing.T) {
 
 	testCases := []testCase{
 		{
-			name: "Create answer when it does not exist",
+			name: "Create answer if not exist",
 			params: Params{
 				formID: uuid.New(),
 				userID: uuid.New(),

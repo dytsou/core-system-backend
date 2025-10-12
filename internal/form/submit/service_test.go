@@ -71,7 +71,7 @@ func TestSubmitService_Submit(t *testing.T) {
 
 	testCases := []testCase{
 		{
-			name: "All valid → CreateOrUpdate is called with mapped types",
+			name: "CreateOrUpdate called with mapped types if all valid",
 			params: Params{
 				formID:  formID,
 				userID:  userID,
@@ -114,7 +114,7 @@ func TestSubmitService_Submit(t *testing.T) {
 			},
 		},
 		{
-			name: "Some invalid answers → do not call CreateOrUpdate",
+			name: "Not call CreateOrUpdate if there are some invalid answers",
 			params: Params{
 				formID:  formID,
 				userID:  userID,
@@ -143,7 +143,7 @@ func TestSubmitService_Submit(t *testing.T) {
 			},
 		},
 		{
-			name: "Answer refers to unknown question → do not call CreateOrUpdate",
+			name: "Not call CreateOrUpdate if answer refers to unknown question ",
 			params: Params{
 				formID:  formID,
 				userID:  userID,
@@ -172,7 +172,7 @@ func TestSubmitService_Submit(t *testing.T) {
 			},
 		},
 		{
-			name: "ListByFormID fails → return error and do not call CreateOrUpdate",
+			name: "Return error and do not call CreateOrUpdate if ListByFormID fails",
 			params: Params{
 				formID:  formID,
 				userID:  userID,
@@ -199,7 +199,7 @@ func TestSubmitService_Submit(t *testing.T) {
 			},
 		},
 		{
-			name: "Validation passes but CreateOrUpdate fails → return error",
+			name: "Return error if validation passes but CreateOrUpdate fails",
 			params: Params{
 				formID:  formID,
 				userID:  userID,
