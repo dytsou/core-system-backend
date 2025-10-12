@@ -2,105 +2,20 @@ package response
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 
+	"NYCU-SDC/core-system-backend/internal/form/response/mocks"
 	"NYCU-SDC/core-system-backend/internal/form/shared"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 )
 
-type fakeQuerier struct {
-	existsReturn bool
-	existsErr    error
-
-	createResp FormResponse
-	createErr  error
-	updateErr  error
-
-	getByFormIDAndSubmittedByResp FormResponse
-	getByFormIDAndSubmittedByErr  error
-
-	answerExists    map[uuid.UUID]bool
-	answerExistsErr error
-
-	sameAnswer    map[uuid.UUID]bool
-	sameAnswerErr error
-
-	answerIDByQuestion map[uuid.UUID]uuid.UUID
-	answerIDErr        error
-
-	createAnswerErr error
-	updateAnswerErr error
-
-	createAnswerCalls []CreateAnswerParams
-	updateAnswerCalls []UpdateAnswerParams
-	updateResponseIDs []uuid.UUID
-}
-
-func (f *fakeQuerier) Create(ctx context.Context, arg CreateParams) (FormResponse, error) {
-	return f.createResp, f.createErr
-}
-func (f *fakeQuerier) Get(ctx context.Context, arg GetParams) (FormResponse, error) {
-	panic("not used in these tests")
-}
-func (f *fakeQuerier) GetByFormIDAndSubmittedBy(ctx context.Context, arg GetByFormIDAndSubmittedByParams) (FormResponse, error) {
-	return f.getByFormIDAndSubmittedByResp, f.getByFormIDAndSubmittedByErr
-}
-func (f *fakeQuerier) Exists(ctx context.Context, arg ExistsParams) (bool, error) {
-	return f.existsReturn, f.existsErr
-}
-func (f *fakeQuerier) ListByFormID(ctx context.Context, formID uuid.UUID) ([]FormResponse, error) {
-	panic("not used in these tests")
-}
-func (f *fakeQuerier) Update(ctx context.Context, id uuid.UUID) error {
-	f.updateResponseIDs = append(f.updateResponseIDs, id)
-	return f.updateErr
-}
-func (f *fakeQuerier) Delete(ctx context.Context, id uuid.UUID) error {
-	panic("not used in these tests")
-}
-func (f *fakeQuerier) CreateAnswer(ctx context.Context, arg CreateAnswerParams) (Answer, error) {
-	f.createAnswerCalls = append(f.createAnswerCalls, arg)
-	return Answer{ID: uuid.New(), ResponseID: arg.ResponseID, QuestionID: arg.QuestionID, Type: arg.Type, Value: arg.Value}, f.createAnswerErr
-}
-func (f *fakeQuerier) GetAnswersByQuestionID(ctx context.Context, arg GetAnswersByQuestionIDParams) ([]GetAnswersByQuestionIDRow, error) {
-	panic("not used in these tests")
-}
-func (f *fakeQuerier) GetAnswersByResponseID(ctx context.Context, responseID uuid.UUID) ([]Answer, error) {
-	panic("not used in these tests")
-}
-func (f *fakeQuerier) UpdateAnswer(ctx context.Context, arg UpdateAnswerParams) (Answer, error) {
-	f.updateAnswerCalls = append(f.updateAnswerCalls, arg)
-	return Answer{ID: arg.ID, Value: arg.Value}, f.updateAnswerErr
-}
-func (f *fakeQuerier) AnswerExists(ctx context.Context, arg AnswerExistsParams) (bool, error) {
-	if f.answerExistsErr != nil {
-		return false, f.answerExistsErr
-	}
-	return f.answerExists[arg.QuestionID], nil
-}
-func (f *fakeQuerier) CheckAnswerContent(ctx context.Context, arg CheckAnswerContentParams) (bool, error) {
-	if f.sameAnswerErr != nil {
-		return false, f.sameAnswerErr
-	}
-	return f.sameAnswer[arg.QuestionID], nil
-}
-func (f *fakeQuerier) GetAnswerID(ctx context.Context, arg GetAnswerIDParams) (uuid.UUID, error) {
-	if f.answerIDErr != nil {
-		return uuid.Nil, f.answerIDErr
-	}
-	id, ok := f.answerIDByQuestion[arg.QuestionID]
-	if !ok {
-		return uuid.Nil, fmt.Errorf("fakeQuerier.GetAnswerID: no mapping for questionID %s", arg.QuestionID)
-	}
-	return id, nil
-}
-
-func newSvcWithFake(q *fakeQuerier) *Service {
+func newSvcWithMock(q Querier) *Service {
 	return &Service{
 		logger:  zap.NewNop(),
 		queries: q,
@@ -115,128 +30,343 @@ func ap(qID uuid.UUID, val string) shared.AnswerParam {
 	}
 }
 
-func TestService_CreateOrUpdate_LengthMismatch(t *testing.T) {
-	svc := newSvcWithFake(&fakeQuerier{})
-	formID := uuid.New()
-	userID := uuid.New()
+func TestService_CreateOrUpdate(t *testing.T) {
+	type Params struct {
+		formID uuid.UUID
+		userID uuid.UUID
+		ans    []shared.AnswerParam
+		types  []QuestionType
 
-	answers := []shared.AnswerParam{ap(uuid.New(), "A")}
-	qtypes := []QuestionType{}
+		svc  *Service
+		mock *mocks.Querier
+	}
 
-	_, err := svc.CreateOrUpdate(context.Background(), formID, userID, answers, qtypes)
-	require.Error(t, err)
+	type testCase struct {
+		name        string
+		params      Params
+		expected    FormResponse
+		expectedErr bool
+		setup       func(t *testing.T, p *Params) context.Context
+		validate    func(t *testing.T, p Params, got FormResponse)
+	}
+
+	testCases := []testCase{
+		{
+			name: "Return error when answers length != question types length",
+			params: Params{
+				formID: uuid.New(),
+				userID: uuid.New(),
+				ans:    []shared.AnswerParam{ap(uuid.New(), "A")}, // len=1
+				types:  []QuestionType{},                          // len=0
+			},
+			expectedErr: true,
+			setup: func(t *testing.T, p *Params) context.Context {
+				q := mocks.NewQuerier(t)
+				p.mock = q
+				p.svc = newSvcWithMock(q)
+				return context.Background()
+			},
+		},
+		{
+			name: "Exists=false → Create response and answers",
+			params: Params{
+				formID: uuid.New(),
+				userID: uuid.New(),
+			},
+			setup: func(t *testing.T, p *Params) context.Context {
+				respID := uuid.New()
+				q1, q2 := uuid.New(), uuid.New()
+
+				p.ans = []shared.AnswerParam{ap(q1, "v1"), ap(q2, "v2")}
+				p.types = []QuestionType{QuestionTypeShortText, QuestionTypeLongText}
+
+				q := mocks.NewQuerier(t)
+
+				q.EXPECT().
+					Exists(mock.Anything, ExistsParams{FormID: p.formID, SubmittedBy: p.userID}).
+					Return(false, nil).Once()
+
+				q.EXPECT().
+					Create(mock.Anything, mock.MatchedBy(func(cp CreateParams) bool {
+						return cp.FormID == p.formID && cp.SubmittedBy == p.userID
+					})).
+					Return(FormResponse{ID: respID, FormID: p.formID, SubmittedBy: p.userID}, nil).Once()
+
+				q.EXPECT().
+					CreateAnswer(mock.Anything, mock.MatchedBy(func(a CreateAnswerParams) bool {
+						return a.ResponseID == respID && a.QuestionID == q1 && a.Value == "v1"
+					})).
+					Return(Answer{ID: uuid.New(), ResponseID: respID, QuestionID: q1}, nil).Once()
+
+				q.EXPECT().
+					CreateAnswer(mock.Anything, mock.MatchedBy(func(a CreateAnswerParams) bool {
+						return a.ResponseID == respID && a.QuestionID == q2 && a.Value == "v2"
+					})).
+					Return(Answer{ID: uuid.New(), ResponseID: respID, QuestionID: q2}, nil).Once()
+
+				p.mock = q
+				p.svc = newSvcWithMock(q)
+				return context.Background()
+			},
+			validate: func(t *testing.T, p Params, got FormResponse) {
+				require.Equal(t, p.formID, got.FormID)
+				require.Equal(t, p.userID, got.SubmittedBy)
+				require.NotEqual(t, uuid.Nil, got.ID)
+			},
+		},
+		{
+			name: "Update if it exists",
+			params: Params{
+				formID: uuid.New(),
+				userID: uuid.New(),
+				ans:    []shared.AnswerParam{},
+				types:  []QuestionType{},
+			},
+			setup: func(t *testing.T, p *Params) context.Context {
+				respID := uuid.New()
+				q := mocks.NewQuerier(t)
+
+				q.EXPECT().
+					Exists(mock.Anything, ExistsParams{FormID: p.formID, SubmittedBy: p.userID}).
+					Return(true, nil).Once()
+
+				q.EXPECT().
+					GetByFormIDAndSubmittedBy(mock.Anything, GetByFormIDAndSubmittedByParams{
+						FormID: p.formID, SubmittedBy: p.userID,
+					}).
+					Return(FormResponse{ID: respID, FormID: p.formID, SubmittedBy: p.userID}, nil).Once()
+
+				q.EXPECT().Update(mock.Anything, respID).Return(nil).Once()
+
+				p.mock = q
+				p.svc = newSvcWithMock(q)
+				return context.Background()
+			},
+			validate: func(t *testing.T, p Params, got FormResponse) {
+				require.Equal(t, p.formID, got.FormID)
+				require.Equal(t, p.userID, got.SubmittedBy)
+			},
+		},
+		{
+			name: "Exists query fails → return error",
+			params: Params{
+				formID: uuid.New(),
+				userID: uuid.New(),
+			},
+			expectedErr: true,
+			setup: func(t *testing.T, p *Params) context.Context {
+				q := mocks.NewQuerier(t)
+				q.EXPECT().
+					Exists(mock.Anything, ExistsParams{FormID: p.formID, SubmittedBy: p.userID}).
+					Return(false, errors.New("db down")).Once()
+				p.mock = q
+				p.svc = newSvcWithMock(q)
+				return context.Background()
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			params := tc.params
+			if tc.setup != nil {
+				ctx = tc.setup(t, &params)
+			}
+
+			result, err := params.svc.CreateOrUpdate(ctx, params.formID, params.userID, params.ans, params.types)
+			require.Equal(t, tc.expectedErr, err != nil, "expected error: %v, got: %v", tc.expectedErr, err)
+
+			if tc.expectedErr {
+				return
+			}
+			if tc.validate != nil {
+				tc.validate(t, params, result)
+			}
+		})
+	}
 }
 
-func TestService_CreateOrUpdate_CreatePath(t *testing.T) {
-	respID := uuid.New()
-	formID := uuid.New()
-	userID := uuid.New()
+func TestService_Update(t *testing.T) {
+	type Params struct {
+		formID uuid.UUID
+		userID uuid.UUID
+		ans    []shared.AnswerParam
+		types  []QuestionType
 
-	q1 := uuid.New()
-	q2 := uuid.New()
+		respID uuid.UUID
+		qNew   uuid.UUID
+		qSame  uuid.UUID
+		qDiff  uuid.UUID
 
-	f := fakeQuerier{
-		existsReturn: false,
-		createResp:   FormResponse{ID: respID, FormID: formID, SubmittedBy: userID},
+		svc  *Service
+		mock *mocks.Querier
 	}
-	svc := newSvcWithFake(&f)
 
-	answers := []shared.AnswerParam{ap(q1, "v1"), ap(q2, "v2")}
-	qtypes := []QuestionType{QuestionTypeShortText, QuestionTypeLongText}
+	type testCase struct {
+		name        string
+		params      Params
+		expected    FormResponse
+		expectedErr bool
+		setup       func(t *testing.T, p *Params) context.Context
+		validate    func(t *testing.T, p Params, got FormResponse)
+	}
 
-	got, err := svc.CreateOrUpdate(context.Background(), formID, userID, answers, qtypes)
-	require.NoError(t, err)
-	require.Equal(t, respID, got.ID)
+	testCases := []testCase{
+		{
+			name: "Create answer when it does not exist",
+			params: Params{
+				formID: uuid.New(),
+				userID: uuid.New(),
+				qNew:   uuid.New(),
+			},
+			setup: func(t *testing.T, p *Params) context.Context {
+				p.respID = uuid.New()
+				p.ans = []shared.AnswerParam{ap(p.qNew, "aaa")}
+				p.types = []QuestionType{QuestionTypeShortText}
 
-	require.Len(t, f.createAnswerCalls, 2)
-	require.Equal(t, q1, f.createAnswerCalls[0].QuestionID)
-	require.Equal(t, q2, f.createAnswerCalls[1].QuestionID)
-	require.Equal(t, respID, f.createAnswerCalls[0].ResponseID)
-	require.Equal(t, respID, f.createAnswerCalls[1].ResponseID)
-}
+				q := mocks.NewQuerier(t)
 
-func TestService_CreateOrUpdate_UpdatePath(t *testing.T) {
-	formID := uuid.New()
-	userID := uuid.New()
-	respID := uuid.New()
+				q.EXPECT().
+					GetByFormIDAndSubmittedBy(mock.Anything, GetByFormIDAndSubmittedByParams{
+						FormID: p.formID, SubmittedBy: p.userID,
+					}).
+					Return(FormResponse{ID: p.respID, FormID: p.formID, SubmittedBy: p.userID}, nil).Once()
 
-	qNew := uuid.New()
-	qSame := uuid.New()
-	qDiff := uuid.New()
+				q.EXPECT().
+					AnswerExists(mock.Anything, AnswerExistsParams{ResponseID: p.respID, QuestionID: p.qNew}).
+					Return(false, nil).Once()
 
-	answerIDDiff := uuid.New()
+				q.EXPECT().
+					CreateAnswer(mock.Anything, mock.MatchedBy(func(a CreateAnswerParams) bool {
+						return a.ResponseID == p.respID && a.QuestionID == p.qNew && a.Value == "aaa"
+					})).
+					Return(Answer{ID: uuid.New(), ResponseID: p.respID, QuestionID: p.qNew}, nil).Once()
 
-	f := fakeQuerier{
-		existsReturn: true,
-		getByFormIDAndSubmittedByResp: FormResponse{
-			ID: respID, FormID: formID, SubmittedBy: userID,
+				q.EXPECT().Update(mock.Anything, p.respID).Return(nil).Once()
+
+				p.mock = q
+				p.svc = newSvcWithMock(q)
+				return context.Background()
+			},
+			validate: func(t *testing.T, p Params, got FormResponse) {
+				require.Equal(t, p.formID, got.FormID)
+				require.Equal(t, p.userID, got.SubmittedBy)
+			},
 		},
+		{
+			name: "Do nothing when answer exists and content is the same",
+			params: Params{
+				formID: uuid.New(),
+				userID: uuid.New(),
+				qSame:  uuid.New(),
+			},
+			setup: func(t *testing.T, p *Params) context.Context {
+				p.respID = uuid.New()
+				p.ans = []shared.AnswerParam{ap(p.qSame, "bbb")}
+				p.types = []QuestionType{QuestionTypeShortText}
 
-		answerExists: map[uuid.UUID]bool{
-			qNew:  false,
-			qSame: true,
-			qDiff: true,
+				q := mocks.NewQuerier(t)
+
+				q.EXPECT().
+					GetByFormIDAndSubmittedBy(mock.Anything, GetByFormIDAndSubmittedByParams{
+						FormID: p.formID, SubmittedBy: p.userID,
+					}).
+					Return(FormResponse{ID: p.respID, FormID: p.formID, SubmittedBy: p.userID}, nil).Once()
+
+				q.EXPECT().
+					AnswerExists(mock.Anything, AnswerExistsParams{ResponseID: p.respID, QuestionID: p.qSame}).
+					Return(true, nil).Once()
+
+				q.EXPECT().
+					CheckAnswerContent(mock.Anything, CheckAnswerContentParams{
+						ResponseID: p.respID, QuestionID: p.qSame, Value: "bbb",
+					}).
+					Return(true, nil).Once()
+
+				q.EXPECT().Update(mock.Anything, p.respID).Return(nil).Once()
+
+				p.mock = q
+				p.svc = newSvcWithMock(q)
+				return context.Background()
+			},
+			validate: func(t *testing.T, p Params, got FormResponse) {
+				require.Equal(t, p.formID, got.FormID)
+				require.Equal(t, p.userID, got.SubmittedBy)
+				p.mock.AssertNotCalled(t, "UpdateAnswer", mock.Anything, mock.Anything)
+			},
 		},
-		sameAnswer: map[uuid.UUID]bool{
-			qSame: true,
-			qDiff: false,
+		{
+			name: "Update answer when it exists and content is different",
+			params: Params{
+				formID: uuid.New(),
+				userID: uuid.New(),
+				qDiff:  uuid.New(),
+			},
+			setup: func(t *testing.T, p *Params) context.Context {
+				p.respID = uuid.New()
+				p.ans = []shared.AnswerParam{ap(p.qDiff, "ccc")}
+				p.types = []QuestionType{QuestionTypeShortText}
+				ansID := uuid.New()
+
+				q := mocks.NewQuerier(t)
+
+				q.EXPECT().
+					GetByFormIDAndSubmittedBy(mock.Anything, GetByFormIDAndSubmittedByParams{
+						FormID: p.formID, SubmittedBy: p.userID,
+					}).
+					Return(FormResponse{ID: p.respID, FormID: p.formID, SubmittedBy: p.userID}, nil).Once()
+
+				q.EXPECT().
+					AnswerExists(mock.Anything, AnswerExistsParams{ResponseID: p.respID, QuestionID: p.qDiff}).
+					Return(true, nil).Once()
+
+				q.EXPECT().
+					CheckAnswerContent(mock.Anything, CheckAnswerContentParams{
+						ResponseID: p.respID, QuestionID: p.qDiff, Value: "ccc",
+					}).
+					Return(false, nil).Once()
+
+				q.EXPECT().
+					GetAnswerID(mock.Anything, GetAnswerIDParams{ResponseID: p.respID, QuestionID: p.qDiff}).
+					Return(ansID, nil).Once()
+
+				q.EXPECT().
+					UpdateAnswer(mock.Anything, UpdateAnswerParams{ID: ansID, Value: "ccc"}).
+					Return(Answer{ID: ansID, Value: "ccc"}, nil).Once()
+
+				q.EXPECT().Update(mock.Anything, p.respID).Return(nil).Once()
+
+				p.mock = q
+				p.svc = newSvcWithMock(q)
+				return context.Background()
+			},
+			validate: func(t *testing.T, p Params, got FormResponse) {
+				require.Equal(t, p.formID, got.FormID)
+				require.Equal(t, p.userID, got.SubmittedBy)
+			},
 		},
-		answerIDByQuestion: map[uuid.UUID]uuid.UUID{
-			qDiff: answerIDDiff,
-		},
-	}
-	svc := newSvcWithFake(&f)
-
-	answers := []shared.AnswerParam{
-		ap(qNew, "aaa"),
-		ap(qSame, "bbb"),
-		ap(qDiff, "ccc"),
-	}
-	qtypes := []QuestionType{
-		QuestionTypeShortText,
-		QuestionTypeShortText,
-		QuestionTypeShortText,
 	}
 
-	got, err := svc.CreateOrUpdate(context.Background(), formID, userID, answers, qtypes)
-	require.NoError(t, err)
-	require.Equal(t, respID, got.ID)
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			params := tc.params
+			if tc.setup != nil {
+				ctx = tc.setup(t, &params)
+			}
 
-	require.Equal(t, 1, countCreateForQuestion(f.createAnswerCalls, qNew))
+			result, err := params.svc.Update(ctx, params.formID, params.userID, params.ans, params.types)
+			require.Equal(t, tc.expectedErr, err != nil, "expected error: %v, got: %v", tc.expectedErr, err)
 
-	require.Equal(t, 0, countUpdateForQuestion(f.updateAnswerCalls, qSame, f.answerIDByQuestion))
-
-	require.Equal(t, 1, countUpdateForQuestion(f.updateAnswerCalls, qDiff, f.answerIDByQuestion))
-	require.Equal(t, answerIDDiff, f.updateAnswerCalls[0].ID)
-
-	require.Len(t, f.updateResponseIDs, 1)
-	require.Equal(t, respID, f.updateResponseIDs[0])
-}
-
-func countCreateForQuestion(calls []CreateAnswerParams, qid uuid.UUID) int {
-	n := 0
-	for _, c := range calls {
-		if c.QuestionID == qid {
-			n++
-		}
+			if tc.expectedErr {
+				return
+			}
+			if tc.validate != nil {
+				tc.validate(t, params, result)
+			}
+		})
 	}
-	return n
-}
-
-func countUpdateForQuestion(
-	calls []UpdateAnswerParams,
-	qid uuid.UUID,
-	mapping map[uuid.UUID]uuid.UUID,
-) int {
-	wantID, ok := mapping[qid]
-	if !ok {
-		return 0
-	}
-	n := 0
-	for _, c := range calls {
-		if c.ID == wantID {
-			n++
-		}
-	}
-	return n
 }
