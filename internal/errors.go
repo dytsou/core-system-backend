@@ -28,8 +28,13 @@ var (
 	ErrInvalidAuthUser         = errors.New("invalid authenticated user")
 
 	// User Errors
-	ErrUserNotFound    = errors.New("user not found")
-	ErrNoUserInContext = errors.New("no user found in request context")
+	ErrUserNotFound       = errors.New("user not found")
+	ErrNoUserInContext    = errors.New("no user found in request context")
+	ErrEmailAlreadyExists = errors.New("email already exists for different user")
+
+	// OAuth Email Errors
+	ErrFailedToExtractEmail = errors.New("failed to extract email from OAuth token")
+	ErrFailedToCreateEmail  = errors.New("failed to create email record for OAuth user")
 
 	// Unit Errors
 	ErrOrgSlugNotFound      = errors.New("org slug not found")
@@ -78,6 +83,14 @@ func ErrorHandler(err error) problem.Problem {
 		return problem.NewNotFoundProblem("user not found")
 	case errors.Is(err, ErrNoUserInContext):
 		return problem.NewUnauthorizedProblem("no user found in request context")
+	case errors.Is(err, ErrEmailAlreadyExists):
+		return problem.NewValidateProblem("email already exists for different user")
+
+	// OAuth Email Errors
+	case errors.Is(err, ErrFailedToExtractEmail):
+		return problem.NewInternalServerProblem("failed to extract email from OAuth token")
+	case errors.Is(err, ErrFailedToCreateEmail):
+		return problem.NewInternalServerProblem("failed to create email record for OAuth user")
 
 	// Unit Errors
 	case errors.Is(err, ErrOrgSlugNotFound):
