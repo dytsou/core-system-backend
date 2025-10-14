@@ -6,7 +6,6 @@ import (
 	"NYCU-SDC/core-system-backend/test/testdata"
 	"NYCU-SDC/core-system-backend/test/testdata/dbbuilder"
 	"context"
-	"fmt"
 	"time"
 
 	"testing"
@@ -47,10 +46,6 @@ func (b Builder) Create(unitType unit.UnitType, opts ...Option) unit.Unit {
 		p.ParentIDs = append(p.ParentIDs, uuid.UUID(p.OrgID.Bytes))
 	}
 
-	fmt.Printf("[DEBUG] Init params: OrgID=%v (Valid=%v), OwnerID=%v (Valid=%v)\n",
-		p.OrgID.Bytes, p.OrgID.Valid,
-		p.OwnerID.Bytes, p.OwnerID.Valid)
-
 	unitRow, err := queries.Create(context.Background(), unit.CreateParams{
 		Name:        pgtype.Text{String: p.Name, Valid: p.Name != ""},
 		OrgID:       p.OrgID,
@@ -61,7 +56,6 @@ func (b Builder) Create(unitType unit.UnitType, opts ...Option) unit.Unit {
 	require.NoError(b.t, err)
 
 	if unitType == unit.UnitTypeOrganization {
-		fmt.Println("User ID:", p.OwnerID)
 		_, err = tenantQueries.Create(context.Background(), tenant.CreateParams{
 			ID:         unitRow.ID,
 			Slug:       p.Slug,

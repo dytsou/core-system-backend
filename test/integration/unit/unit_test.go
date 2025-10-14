@@ -86,21 +86,22 @@ func TestUnitService_Create(t *testing.T) {
 			params: params{
 				name:        "department of cs",
 				description: "teaches computer science",
+				slug:        "nycu",
 				metadata:    []byte(`{"building":"EE"}`),
 				unitType:    unit.TypeUnit,
 			},
 			setup: func(t *testing.T, params *params, db dbbuilder.DBTX) context.Context {
 				userBuilder := userbuilder.New(t, db)
 				user := userBuilder.Create()
-				org := unitbuilder.New(t, db).Create(unit.UnitTypeOrganization, unitbuilder.WithOwnerID(user.ID))
+				org := unitbuilder.New(t, db).Create(unit.UnitTypeOrganization, unitbuilder.WithOwnerID(user.ID), unitbuilder.WithSlug(params.slug))
 				params.parentUnitID = org.ID
 
 				return context.Background()
 			},
 			validate: func(t *testing.T, params params, db dbbuilder.DBTX, result unit.Unit) {
 				require.True(t, result.OrgID.Valid)
-				require.Equal(t, params.parentUnitID, result.OrgID.Bytes)
-				require.Equal(t, params.parentUnitID, result.ParentID.Bytes)
+				require.Equal(t, params.parentUnitID, uuid.UUID(result.OrgID.Bytes))
+				require.Equal(t, params.parentUnitID, uuid.UUID(result.ParentID.Bytes))
 				require.Equal(t, unit.UnitTypeUnit, result.Type)
 				require.Equal(t, params.name, result.Name.String)
 				require.Equal(t, params.description, result.Description.String)

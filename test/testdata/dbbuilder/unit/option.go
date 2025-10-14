@@ -71,3 +71,9 @@ func WithOwnerID(ownerID uuid.UUID) Option {
 		p.OwnerID = pgtype.UUID{Bytes: ownerID, Valid: true}
 	}
 }
+
+func WithSlug(slug string) Option {
+	return func(p *FactoryParams) {
+		p.Slug = slug
+	}
+}
