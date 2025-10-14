@@ -59,8 +59,7 @@ func TestSubmitService_Submit(t *testing.T) {
 	type testCase struct {
 		name        string
 		params      Params
-		expected    response.FormResponse
-		expectedErr bool // meaning: errs slice should be non-empty
+		expectedErr bool
 		setup       func(t *testing.T, p *Params) context.Context
 		validate    func(t *testing.T, p Params, got response.FormResponse, errs []error)
 	}

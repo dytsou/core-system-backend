@@ -40,7 +40,6 @@ func TestService_CreateOrUpdate(t *testing.T) {
 	type testCase struct {
 		name        string
 		params      Params
-		expected    response.FormResponse
 		expectedErr bool
 		setup       func(t *testing.T, p *Params) context.Context
 		validate    func(t *testing.T, p Params, got response.FormResponse)
@@ -203,7 +202,6 @@ func TestService_Update(t *testing.T) {
 	type testCase struct {
 		name        string
 		params      Params
-		expected    response.FormResponse
 		expectedErr bool
 		setup       func(t *testing.T, p *Params) context.Context
 		validate    func(t *testing.T, p Params, got response.FormResponse)
