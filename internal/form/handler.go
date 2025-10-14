@@ -268,7 +268,7 @@ func (h *Handler) ListHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) CreateUnderUnitHandler(w http.ResponseWriter, r *http.Request) {
-	traceCtx, span := h.tracer.Start(r.Context(), "CreateFormHandler")
+	traceCtx, span := h.tracer.Start(r.Context(), "CreateUnderUnitHandler")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
