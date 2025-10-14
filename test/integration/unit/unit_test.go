@@ -8,7 +8,6 @@ import (
 	unitbuilder "NYCU-SDC/core-system-backend/test/testdata/dbbuilder/unit"
 	userbuilder "NYCU-SDC/core-system-backend/test/testdata/dbbuilder/user"
 	"context"
-	"fmt"
 	"os"
 	"testing"
 
@@ -37,12 +36,13 @@ func TestMain(m *testing.M) {
 
 func TestUnitService_Create(t *testing.T) {
 	type params struct {
-		name        string
-		orgID       uuid.UUID
-		description string
-		slug        string
-		metadata    []byte
-		unitType    unit.Type
+		name         string
+		parentUnitID uuid.UUID
+		ownerID      uuid.UUID
+		description  string
+		slug         string
+		metadata     []byte
+		unitType     unit.Type
 	}
 	testCases := []struct {
 		name        string
@@ -62,10 +62,7 @@ func TestUnitService_Create(t *testing.T) {
 			setup: func(t *testing.T, params *params, db dbbuilder.DBTX) context.Context {
 				userBuilder := userbuilder.New(t, db)
 				user := userBuilder.Create()
-				fmt.Println("User ID:", user.ID)
-
-				org := unitbuilder.New(t, db).Create(unit.UnitTypeOrganization, unitbuilder.WithOwnerID(user.ID))
-				params.orgID = org.ID
+				params.ownerID = user.ID
 
 				return context.Background()
 			},
@@ -96,14 +93,14 @@ func TestUnitService_Create(t *testing.T) {
 				userBuilder := userbuilder.New(t, db)
 				user := userBuilder.Create()
 				org := unitbuilder.New(t, db).Create(unit.UnitTypeOrganization, unitbuilder.WithOwnerID(user.ID))
-				params.orgID = org.ID
+				params.parentUnitID = org.ID
 
 				return context.Background()
 			},
 			validate: func(t *testing.T, params params, db dbbuilder.DBTX, result unit.Unit) {
 				require.True(t, result.OrgID.Valid)
-				require.Equal(t, params.orgID, result.OrgID.Bytes)
-				require.Equal(t, params.orgID, result.ParentID.Bytes)
+				require.Equal(t, params.parentUnitID, result.OrgID.Bytes)
+				require.Equal(t, params.parentUnitID, result.ParentID.Bytes)
 				require.Equal(t, unit.UnitTypeUnit, result.Type)
 				require.Equal(t, params.name, result.Name.String)
 				require.Equal(t, params.description, result.Description.String)
@@ -113,12 +110,12 @@ func TestUnitService_Create(t *testing.T) {
 		{
 			name: "Fail when organization does not exist",
 			params: params{
-				name:        "ghost unit",
-				description: "references a missing org",
-				slug:        "ghost",
-				metadata:    []byte(`{"status":"ghost"}`),
-				orgID:       uuid.New(),
-				unitType:    unit.TypeUnit,
+				name:         "ghost unit",
+				description:  "references a missing org",
+				slug:         "ghost",
+				metadata:     []byte(`{"status":"ghost"}`),
+				parentUnitID: uuid.New(),
+				unitType:     unit.TypeUnit,
 			},
 			expectedErr: true,
 		},
@@ -148,7 +145,7 @@ func TestUnitService_Create(t *testing.T) {
 
 			var result unit.Unit
 			if params.unitType == unit.TypeOrg {
-				result, err = unitService.CreateOrganization(ctx, params.name, params.description, params.slug, params.orgID, params.metadata)
+				result, err = unitService.CreateOrganization(ctx, params.name, params.description, params.slug, params.ownerID, params.metadata)
 				require.Equal(t, tc.expectedErr, err != nil, "expected error: %v, got: %v", tc.expectedErr, err)
 			} else {
 				result, err = unitService.CreateUnit(ctx, params.name, params.description, params.slug, params.metadata)
