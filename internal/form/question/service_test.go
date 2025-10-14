@@ -1,41 +1,17 @@
 package question
 
 import (
+	"context"
+	"testing"
+
+	"NYCU-SDC/core-system-backend/internal/form/question/mocks"
+
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
-	"golang.org/x/net/context"
-	"testing"
 )
-
-type fakeQuerier struct {
-	createReturn Question
-	createErr    error
-
-	listByFormIDReturn []Question
-	listByFormIDErr    error
-}
-
-func (f *fakeQuerier) Create(ctx context.Context, params CreateParams) (Question, error) {
-	return f.createReturn, f.createErr
-}
-
-func (f *fakeQuerier) Update(ctx context.Context, params UpdateParams) (Question, error) {
-	panic("not used in these tests")
-}
-
-func (f *fakeQuerier) Delete(ctx context.Context, params DeleteParams) error {
-	panic("not used in these tests")
-}
-
-func (f *fakeQuerier) ListByFormID(ctx context.Context, formID uuid.UUID) ([]Question, error) {
-	return f.listByFormIDReturn, f.listByFormIDErr
-}
-
-func (f *fakeQuerier) GetByID(ctx context.Context, id uuid.UUID) (Question, error) {
-	panic("not used in these tests")
-}
 
 func mkQuestion(t QuestionType) Question {
 	q := Question{Type: t}
@@ -98,14 +74,19 @@ func TestService_Create_KnownAndUnknown(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			ctx := context.Background()
+			mq := mocks.NewQuerier(t)
+			mq.EXPECT().
+				Create(mock.Anything, CreateParams{}).
+				Return(tt.createReturn, nil).Once()
 			logger := zap.NewNop()
 			svc := &Service{
 				logger:  logger,
-				queries: &fakeQuerier{createReturn: tt.createReturn},
+				queries: mq,
 				tracer:  otel.Tracer("test"),
 			}
 
-			got, err := svc.Create(context.Background(), CreateParams{})
+			got, err := svc.Create(ctx, CreateParams{})
 			if tt.wantErr {
 				require.Error(t, err, "expected error but got nil")
 				require.Nil(t, got)
@@ -159,14 +140,20 @@ func TestService_ListByFormID_AllKnown_And_ContainsUnknown(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			ctx := context.Background()
+			mq := mocks.NewQuerier(t)
+			mq.EXPECT().
+				ListByFormID(mock.Anything, formID).
+				Return(tt.listReturn, nil).Once()
+
 			logger := zap.NewNop()
 			svc := &Service{
 				logger:  logger,
-				queries: &fakeQuerier{listByFormIDReturn: tt.listReturn},
+				queries: mq,
 				tracer:  otel.Tracer("test"),
 			}
 
-			got, err := svc.ListByFormID(context.Background(), formID)
+			got, err := svc.ListByFormID(ctx, formID)
 
 			if tt.wantErr {
 				require.Error(t, err, "expected error but got nil")
