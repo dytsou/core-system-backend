@@ -14,7 +14,7 @@ import (
 )
 
 type Store interface {
-	GetStatusWithHistory(ctx context.Context, slug string) (bool, uuid.UUID, []History, error)
+	GetStatusWithHistory(ctx context.Context, slug string) (bool, uuid.UUID, []SlugHistory, error)
 	GetStatus(ctx context.Context, slug string) (bool, uuid.UUID, error)
 }
 
@@ -47,7 +47,7 @@ type ResponseStatus struct {
 }
 type Response struct {
 	ResponseStatus `json:"current"`
-	History        []History `json:"history"`
+	History        []SlugHistory `json:"history"`
 }
 
 func (h *Handler) GetStatusWithHistory(w http.ResponseWriter, r *http.Request) {

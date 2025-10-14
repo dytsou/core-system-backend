@@ -265,14 +265,6 @@ type FormResponse struct {
 	UpdatedAt   pgtype.Timestamptz
 }
 
-type History struct {
-	Slug      string
-	OrgID     pgtype.UUID
-	Orgname   pgtype.Text
-	CreatedAt pgtype.Timestamptz
-	EndedAt   pgtype.Timestamptz
-}
-
 type InboxMessage struct {
 	ID        uuid.UUID
 	PostedBy  uuid.UUID
@@ -300,6 +292,14 @@ type RefreshToken struct {
 	UserID         uuid.UUID
 	IsActive       pgtype.Bool
 	ExpirationDate pgtype.Timestamptz
+}
+
+type SlugHistory struct {
+	Slug      string
+	OrgID     pgtype.UUID
+	Orgname   pgtype.Text
+	CreatedAt pgtype.Timestamptz
+	EndedAt   pgtype.Timestamptz
 }
 
 type Tenant struct {

@@ -22,9 +22,9 @@ type Querier interface {
 	Update(ctx context.Context, param UpdateParams) (Tenant, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 	GetBySlug(ctx context.Context, slug string) (Tenant, error)
-	GetHistory(ctx context.Context, slug string) ([]History, error)
-	CreateHistory(ctx context.Context, arg CreateHistoryParams) (History, error)
-	UpdateHistory(ctx context.Context, arg UpdateHistoryParams) (History, error)
+	GetSlugHistory(ctx context.Context, slug string) ([]SlugHistory, error)
+	CreateSlugHistory(ctx context.Context, arg CreateSlugHistoryParams) (SlugHistory, error)
+	UpdateSlugHistory(ctx context.Context, arg UpdateSlugHistoryParams) (SlugHistory, error)
 }
 
 type Service struct {
@@ -97,7 +97,7 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, slug string, dbStrat
 	logger.Info("tenant updated", zap.String("tenant_id", tenant.ID.String()), zap.String("db_strategy", string(tenant.DbStrategy)), zap.String("slug", slug))
 
 	// current tenant stop using the slug
-	_, err = s.query.UpdateHistory(traceCtx, UpdateHistoryParams{
+	_, err = s.query.UpdateSlugHistory(traceCtx, UpdateSlugHistoryParams{
 		Slug:    slug,
 		OrgID:   pgtype.UUID{Bytes: tenant.ID, Valid: true},
 		EndedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
@@ -156,7 +156,7 @@ func (s *Service) GetBySlug(ctx context.Context, slug string) (Tenant, error) {
 	return org, nil
 }
 
-func deriveStatus(history []History) (bool, string) {
+func deriveStatus(history []SlugHistory) (bool, string) {
 	for _, h := range history {
 		if !h.EndedAt.Valid {
 			return false, h.OrgID.String() // currently assigned
@@ -165,12 +165,12 @@ func deriveStatus(history []History) (bool, string) {
 	return true, ""
 }
 
-func (s *Service) GetHistoryBySlug(ctx context.Context, slug string) ([]History, error) {
+func (s *Service) GetHistoryBySlug(ctx context.Context, slug string) ([]SlugHistory, error) {
 	traceCtx, span := s.tracer.Start(ctx, "GetHistoryBySlug")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	history, err := s.query.GetHistory(traceCtx, slug)
+	history, err := s.query.GetSlugHistory(traceCtx, slug)
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "get slug history")
 		span.RecordError(err)
@@ -180,7 +180,7 @@ func (s *Service) GetHistoryBySlug(ctx context.Context, slug string) ([]History,
 	return history, nil
 }
 
-func (s *Service) GetStatusWithHistory(ctx context.Context, slug string) (bool, uuid.UUID, []History, error) {
+func (s *Service) GetStatusWithHistory(ctx context.Context, slug string) (bool, uuid.UUID, []SlugHistory, error) {
 	history, err := s.GetHistoryBySlug(ctx, slug)
 	if err != nil {
 		return true, uuid.UUID{}, nil, err
@@ -209,12 +209,12 @@ func (s *Service) GetStatus(ctx context.Context, slug string) (bool, uuid.UUID, 
 	return available, currentOrgID, nil
 }
 
-func (s *Service) CreateHistory(ctx context.Context, slug string, orgID uuid.UUID, orgName string) (History, error) {
+func (s *Service) CreateHistory(ctx context.Context, slug string, orgID uuid.UUID, orgName string) (SlugHistory, error) {
 	traceCtx, span := s.tracer.Start(ctx, "CreateHistory")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	history, err := s.query.CreateHistory(traceCtx, CreateHistoryParams{
+	history, err := s.query.CreateSlugHistory(traceCtx, CreateSlugHistoryParams{
 		Slug:      slug,
 		OrgID:     pgtype.UUID{Bytes: orgID, Valid: true},
 		Orgname:   pgtype.Text{String: orgName, Valid: true},
@@ -224,7 +224,7 @@ func (s *Service) CreateHistory(ctx context.Context, slug string, orgID uuid.UUI
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "create history")
 		span.RecordError(err)
-		return History{}, err
+		return SlugHistory{}, err
 	}
 
 	logger.Info("history created", zap.String("slug", slug), zap.String("org_id", orgID.String()), zap.String("org_name", orgName))

@@ -134,7 +134,7 @@ CREATE TABLE IF NOT EXISTS tenants
     db_strategy db_strategy NOT NULL,
     owner_id UUID REFERENCES users(id) ON DELETE SET NULL
 );
-CREATE TABLE IF NOT EXISTS history
+CREATE TABLE IF NOT EXISTS slug_history
 (
     slug TEXT UNIQUE NOT NULL,
     org_id UUID REFERENCES units(id) ON DELETE CASCADE,

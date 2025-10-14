@@ -42,13 +42,13 @@ func (q *Queries) Create(ctx context.Context, arg CreateParams) (Tenant, error) 
 	return i, err
 }
 
-const createHistory = `-- name: CreateHistory :one
-INSERT INTO history (slug, org_id, orgName, created_at, ended_at)
+const createSlugHistory = `-- name: CreateSlugHistory :one
+INSERT INTO slug_history (slug, org_id, orgName, created_at, ended_at)
 VALUES ($1, $2, $3, $4, $5)
 RETURNING slug, org_id, orgname, created_at, ended_at
 `
 
-type CreateHistoryParams struct {
+type CreateSlugHistoryParams struct {
 	Slug      string
 	OrgID     pgtype.UUID
 	Orgname   pgtype.Text
@@ -56,15 +56,15 @@ type CreateHistoryParams struct {
 	EndedAt   pgtype.Timestamptz
 }
 
-func (q *Queries) CreateHistory(ctx context.Context, arg CreateHistoryParams) (History, error) {
-	row := q.db.QueryRow(ctx, createHistory,
+func (q *Queries) CreateSlugHistory(ctx context.Context, arg CreateSlugHistoryParams) (SlugHistory, error) {
+	row := q.db.QueryRow(ctx, createSlugHistory,
 		arg.Slug,
 		arg.OrgID,
 		arg.Orgname,
 		arg.CreatedAt,
 		arg.EndedAt,
 	)
-	var i History
+	var i SlugHistory
 	err := row.Scan(
 		&i.Slug,
 		&i.OrgID,
@@ -128,19 +128,19 @@ func (q *Queries) GetBySlug(ctx context.Context, slug string) (Tenant, error) {
 	return i, err
 }
 
-const getHistory = `-- name: GetHistory :many
-SELECT slug, org_id, orgname, created_at, ended_at FROM history WHERE slug = $1
+const getSlugHistory = `-- name: GetSlugHistory :many
+SELECT slug, org_id, orgname, created_at, ended_at FROM slug_history WHERE slug = $1
 `
 
-func (q *Queries) GetHistory(ctx context.Context, slug string) ([]History, error) {
-	rows, err := q.db.Query(ctx, getHistory, slug)
+func (q *Queries) GetSlugHistory(ctx context.Context, slug string) ([]SlugHistory, error) {
+	rows, err := q.db.Query(ctx, getSlugHistory, slug)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []History
+	var items []SlugHistory
 	for rows.Next() {
-		var i History
+		var i SlugHistory
 		if err := rows.Scan(
 			&i.Slug,
 			&i.OrgID,
@@ -183,22 +183,22 @@ func (q *Queries) Update(ctx context.Context, arg UpdateParams) (Tenant, error) 
 	return i, err
 }
 
-const updateHistory = `-- name: UpdateHistory :one
-UPDATE history
+const updateSlugHistory = `-- name: UpdateSlugHistory :one
+UPDATE slug_history
 SET ended_at = $3
 WHERE slug = $1 AND org_id = $2
 RETURNING slug, org_id, orgname, created_at, ended_at
 `
 
-type UpdateHistoryParams struct {
+type UpdateSlugHistoryParams struct {
 	Slug    string
 	OrgID   pgtype.UUID
 	EndedAt pgtype.Timestamptz
 }
 
-func (q *Queries) UpdateHistory(ctx context.Context, arg UpdateHistoryParams) (History, error) {
-	row := q.db.QueryRow(ctx, updateHistory, arg.Slug, arg.OrgID, arg.EndedAt)
-	var i History
+func (q *Queries) UpdateSlugHistory(ctx context.Context, arg UpdateSlugHistoryParams) (SlugHistory, error) {
+	row := q.db.QueryRow(ctx, updateSlugHistory, arg.Slug, arg.OrgID, arg.EndedAt)
+	var i SlugHistory
 	err := row.Scan(
 		&i.Slug,
 		&i.OrgID,

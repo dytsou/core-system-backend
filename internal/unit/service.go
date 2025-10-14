@@ -35,7 +35,7 @@ type tenantStore interface {
 	Create(ctx context.Context, slug string, id uuid.UUID, ownerID uuid.UUID, ownerName string) (tenant.Tenant, error)
 	SlugExists(ctx context.Context, slug string) (bool, error)
 	GetBySlug(ctx context.Context, slug string) (tenant.Tenant, error)
-	CreateHistory(ctx context.Context, slug string, orgID uuid.UUID, orgName string) (tenant.History, error)
+	CreateHistory(ctx context.Context, slug string, orgID uuid.UUID, orgName string) (tenant.SlugHistory, error)
 }
 type Service struct {
 	logger      *zap.Logger
