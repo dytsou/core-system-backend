@@ -1,11 +1,13 @@
 package unitbuilder
 
 import (
-	"context"
-
+	"NYCU-SDC/core-system-backend/internal/tenant"
 	"NYCU-SDC/core-system-backend/internal/unit"
 	"NYCU-SDC/core-system-backend/test/testdata"
 	"NYCU-SDC/core-system-backend/test/testdata/dbbuilder"
+	"context"
+	"fmt"
+	"time"
 
 	"testing"
 
@@ -29,10 +31,12 @@ func (b Builder) Queries() *unit.Queries {
 
 func (b Builder) Create(unitType unit.UnitType, opts ...Option) unit.Unit {
 	queries := b.Queries()
+	tenantQueries := tenant.New(b.db)
 
 	p := &FactoryParams{
 		Name:        testdata.RandomName(),
 		Description: testdata.RandomDescription(),
+		Slug:        testdata.RandomSlug(),
 		Metadata:    []byte("{}"),
 	}
 	for _, opt := range opts {
@@ -43,6 +47,10 @@ func (b Builder) Create(unitType unit.UnitType, opts ...Option) unit.Unit {
 		p.ParentIDs = append(p.ParentIDs, uuid.UUID(p.OrgID.Bytes))
 	}
 
+	fmt.Printf("[DEBUG] Init params: OrgID=%v (Valid=%v), OwnerID=%v (Valid=%v)\n",
+		p.OrgID.Bytes, p.OrgID.Valid,
+		p.OwnerID.Bytes, p.OwnerID.Valid)
+
 	unitRow, err := queries.Create(context.Background(), unit.CreateParams{
 		Name:        pgtype.Text{String: p.Name, Valid: p.Name != ""},
 		OrgID:       p.OrgID,
@@ -51,6 +59,26 @@ func (b Builder) Create(unitType unit.UnitType, opts ...Option) unit.Unit {
 		Type:        unitType,
 	})
 	require.NoError(b.t, err)
+
+	if unitType == unit.UnitTypeOrganization {
+		fmt.Println("User ID:", p.OwnerID)
+		_, err = tenantQueries.Create(context.Background(), tenant.CreateParams{
+			ID:         unitRow.ID,
+			Slug:       p.Slug,
+			DbStrategy: tenant.DbStrategyShared,
+			OwnerID:    p.OwnerID,
+		})
+		require.NoError(b.t, err)
+
+		_, err = tenantQueries.CreateHistory(context.Background(), tenant.CreateHistoryParams{
+			Slug:      p.Slug,
+			OrgID:     pgtype.UUID{Bytes: unitRow.ID, Valid: true},
+			Orgname:   pgtype.Text{String: p.Name, Valid: p.Name != ""},
+			CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+			EndedAt:   pgtype.Timestamptz{Valid: false},
+		})
+		require.NoError(b.t, err)
+	}
 
 	for _, parentID := range p.ParentIDs {
 		parent := parentID

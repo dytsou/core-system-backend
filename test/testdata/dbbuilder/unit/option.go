@@ -11,9 +11,11 @@ type FactoryParams struct {
 	Name        string
 	Description string
 	OrgID       pgtype.UUID
+	Slug        string
 	Metadata    []byte
 	ParentIDs   []uuid.UUID
 	ChildIDs    []uuid.UUID
+	OwnerID     pgtype.UUID
 }
 
 func WithName(name string) Option {
@@ -61,5 +63,11 @@ func WithChild(childID uuid.UUID) Option {
 			return
 		}
 		p.ChildIDs = append(p.ChildIDs, childID)
+	}
+}
+
+func WithOwnerID(ownerID uuid.UUID) Option {
+	return func(p *FactoryParams) {
+		p.OwnerID = pgtype.UUID{Bytes: ownerID, Valid: true}
 	}
 }

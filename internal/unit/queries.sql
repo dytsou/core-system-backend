@@ -1,3 +1,6 @@
+-- name: ExistsByID :one
+SELECT EXISTS(SELECT 1 FROM units WHERE id = $1);
+
 -- name: Create :one
 INSERT INTO units (name, org_id, description, metadata, type, parent_id)
 VALUES ($1, $2, $3, $4, $5, $6)
