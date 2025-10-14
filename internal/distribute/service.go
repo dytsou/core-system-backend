@@ -2,7 +2,7 @@ package distribute
 
 import (
 	"NYCU-SDC/core-system-backend/internal"
-	"NYCU-SDC/core-system-backend/internal/unit"
+	"NYCU-SDC/core-system-backend/internal/user"
 	"context"
 
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
@@ -14,7 +14,7 @@ import (
 )
 
 type UnitStore interface {
-	ListMembers(ctx context.Context, id uuid.UUID) ([]unit.ListMembersRow, error)
+	ListMembers(ctx context.Context, id uuid.UUID) ([]user.Profile, error)
 	ListUnitsMembers(ctx context.Context, unitIDs []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error)
 }
 
@@ -50,7 +50,7 @@ func (s *Service) GetOrgRecipients(ctx context.Context, orgID uuid.UUID) ([]uuid
 
 	ids := make([]uuid.UUID, 0, len(recipients))
 	for _, r := range recipients {
-		ids = append(ids, r.MemberID)
+		ids = append(ids, r.ID)
 	}
 
 	return ids, nil

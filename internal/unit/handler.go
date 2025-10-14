@@ -35,7 +35,7 @@ type Store interface {
 	ListSubUnits(ctx context.Context, id uuid.UUID, unitType Type) ([]Unit, error)
 	ListSubUnitIDs(ctx context.Context, id uuid.UUID, unitType Type) ([]uuid.UUID, error)
 	AddMember(ctx context.Context, unitType Type, id uuid.UUID, username string) (AddMemberRow, error)
-	ListMembers(ctx context.Context, id uuid.UUID) ([]ListMembersRow, error)
+	ListWithEmails(ctx context.Context, id uuid.UUID) ([]ListMembersRow, error)
 	RemoveMember(ctx context.Context, unitType Type, id uuid.UUID, memberID uuid.UUID) error
 	GetOrganizationByIDWithSlug(ctx context.Context, id uuid.UUID) (Organization, error)
 }
@@ -786,7 +786,7 @@ func (h *Handler) ListOrgMembers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Todo: Need to recursively obtain members of the entire organization
-	members, err := h.store.ListMembers(traceCtx, orgTenant.ID)
+	members, err := h.store.ListWithEmails(traceCtx, orgTenant.ID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list org members: %w", err), h.logger)
 		return
@@ -818,7 +818,7 @@ func (h *Handler) ListUnitMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	members, err := h.store.ListMembers(traceCtx, id)
+	members, err := h.store.ListWithEmails(traceCtx, id)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list unit members: %w", err), h.logger)
 		return
