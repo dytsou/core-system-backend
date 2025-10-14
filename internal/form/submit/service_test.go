@@ -1,6 +1,7 @@
-package submit
+package submit_test
 
 import (
+	"NYCU-SDC/core-system-backend/internal/form/submit"
 	"context"
 	"errors"
 	"testing"
@@ -50,9 +51,9 @@ func TestSubmitService_Submit(t *testing.T) {
 		answers []shared.AnswerParam
 		qs      []question.Answerable
 
-		qStore *mocks.QuestionStore
-		rStore *mocks.FormResponseStore
-		svc    *Service
+		qStore *mocks.MockQuestionStore
+		rStore *mocks.MockFormResponseStore
+		svc    *submit.Service
 	}
 
 	type testCase struct {
@@ -79,8 +80,8 @@ func TestSubmitService_Submit(t *testing.T) {
 				answers: []shared.AnswerParam{ans(q1, "hello"), ans(q2, "world")},
 			},
 			setup: func(t *testing.T, p *Params) context.Context {
-				qm := mocks.NewQuestionStore(t)
-				rm := mocks.NewFormResponseStore(t)
+				qm := mocks.NewMockQuestionStore(t)
+				rm := mocks.NewMockFormResponseStore(t)
 
 				qm.EXPECT().
 					ListByFormID(mock.Anything, p.formID).
@@ -103,7 +104,7 @@ func TestSubmitService_Submit(t *testing.T) {
 
 				p.qStore = qm
 				p.rStore = rm
-				p.svc = NewService(zap.NewNop(), qm, rm)
+				p.svc = submit.NewService(zap.NewNop(), qm, rm)
 				return context.Background()
 			},
 			validate: func(t *testing.T, p Params, got response.FormResponse, errs []error) {
@@ -123,8 +124,8 @@ func TestSubmitService_Submit(t *testing.T) {
 			},
 			expectedErr: true,
 			setup: func(t *testing.T, p *Params) context.Context {
-				qm := mocks.NewQuestionStore(t)
-				rm := mocks.NewFormResponseStore(t)
+				qm := mocks.NewMockQuestionStore(t)
+				rm := mocks.NewMockFormResponseStore(t)
 
 				qm.EXPECT().
 					ListByFormID(mock.Anything, p.formID).
@@ -132,7 +133,7 @@ func TestSubmitService_Submit(t *testing.T) {
 
 				p.qStore = qm
 				p.rStore = rm
-				p.svc = NewService(zap.NewNop(), qm, rm)
+				p.svc = submit.NewService(zap.NewNop(), qm, rm)
 				return context.Background()
 			},
 			validate: func(t *testing.T, p Params, got response.FormResponse, errs []error) {
@@ -152,8 +153,8 @@ func TestSubmitService_Submit(t *testing.T) {
 			},
 			expectedErr: true,
 			setup: func(t *testing.T, p *Params) context.Context {
-				qm := mocks.NewQuestionStore(t)
-				rm := mocks.NewFormResponseStore(t)
+				qm := mocks.NewMockQuestionStore(t)
+				rm := mocks.NewMockFormResponseStore(t)
 
 				qm.EXPECT().
 					ListByFormID(mock.Anything, p.formID).
@@ -161,7 +162,7 @@ func TestSubmitService_Submit(t *testing.T) {
 
 				p.qStore = qm
 				p.rStore = rm
-				p.svc = NewService(zap.NewNop(), qm, rm)
+				p.svc = submit.NewService(zap.NewNop(), qm, rm)
 				return context.Background()
 			},
 			validate: func(t *testing.T, p Params, got response.FormResponse, errs []error) {
@@ -180,8 +181,8 @@ func TestSubmitService_Submit(t *testing.T) {
 			},
 			expectedErr: true,
 			setup: func(t *testing.T, p *Params) context.Context {
-				qm := mocks.NewQuestionStore(t)
-				rm := mocks.NewFormResponseStore(t)
+				qm := mocks.NewMockQuestionStore(t)
+				rm := mocks.NewMockFormResponseStore(t)
 
 				qm.EXPECT().
 					ListByFormID(mock.Anything, p.formID).
@@ -189,7 +190,7 @@ func TestSubmitService_Submit(t *testing.T) {
 
 				p.qStore = qm
 				p.rStore = rm
-				p.svc = NewService(zap.NewNop(), qm, rm)
+				p.svc = submit.NewService(zap.NewNop(), qm, rm)
 				return context.Background()
 			},
 			validate: func(t *testing.T, p Params, got response.FormResponse, errs []error) {
@@ -208,8 +209,8 @@ func TestSubmitService_Submit(t *testing.T) {
 			},
 			expectedErr: true,
 			setup: func(t *testing.T, p *Params) context.Context {
-				qm := mocks.NewQuestionStore(t)
-				rm := mocks.NewFormResponseStore(t)
+				qm := mocks.NewMockQuestionStore(t)
+				rm := mocks.NewMockFormResponseStore(t)
 
 				qm.EXPECT().
 					ListByFormID(mock.Anything, p.formID).
@@ -228,7 +229,7 @@ func TestSubmitService_Submit(t *testing.T) {
 
 				p.qStore = qm
 				p.rStore = rm
-				p.svc = NewService(zap.NewNop(), qm, rm)
+				p.svc = submit.NewService(zap.NewNop(), qm, rm)
 				return context.Background()
 			},
 			validate: func(t *testing.T, p Params, got response.FormResponse, errs []error) {

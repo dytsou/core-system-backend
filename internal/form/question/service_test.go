@@ -1,27 +1,27 @@
-package question
+package question_test
 
 import (
 	"context"
 	"testing"
 
+	"NYCU-SDC/core-system-backend/internal/form/question"
 	"NYCU-SDC/core-system-backend/internal/form/question/mocks"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 )
 
-func mkQuestion(t QuestionType) Question {
-	q := Question{Type: t}
+func mkQuestion(t question.QuestionType) question.Question {
+	q := question.Question{Type: t}
 
 	switch t {
-	case QuestionTypeSingleChoice:
-		md, _ := GenerateMetadata("single_choice", []ChoiceOption{{Name: "A"}, {Name: "B"}})
+	case question.QuestionTypeSingleChoice:
+		md, _ := question.GenerateMetadata("single_choice", []question.ChoiceOption{{Name: "A"}, {Name: "B"}})
 		q.Metadata = md
-	case QuestionTypeMultipleChoice:
-		md, _ := GenerateMetadata("multiple_choice", []ChoiceOption{{Name: "A"}, {Name: "B"}})
+	case question.QuestionTypeMultipleChoice:
+		md, _ := question.GenerateMetadata("multiple_choice", []question.ChoiceOption{{Name: "A"}, {Name: "B"}})
 		q.Metadata = md
 	default:
 		q.Metadata = []byte(`{}`)
@@ -34,37 +34,37 @@ func TestService_Create_KnownAndUnknown(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		createReturn Question
+		createReturn question.Question
 		wantErr      bool
 	}{
 		{
 			name:         "Known type (ShortText) -> success",
-			createReturn: mkQuestion(QuestionTypeShortText),
+			createReturn: mkQuestion(question.QuestionTypeShortText),
 			wantErr:      false,
 		},
 		{
 			name:         "Known type (LongText) -> success)",
-			createReturn: mkQuestion(QuestionTypeLongText),
+			createReturn: mkQuestion(question.QuestionTypeLongText),
 			wantErr:      false,
 		},
 		{
 			name:         "Known type (SingleChoice) -> success)",
-			createReturn: mkQuestion(QuestionTypeSingleChoice),
+			createReturn: mkQuestion(question.QuestionTypeSingleChoice),
 			wantErr:      false,
 		},
 		{
 			name:         "Known type (MultipleChoice) -> success)",
-			createReturn: mkQuestion(QuestionTypeMultipleChoice),
+			createReturn: mkQuestion(question.QuestionTypeMultipleChoice),
 			wantErr:      false,
 		},
 		{
 			name:         "Known type (Date) -> success)",
-			createReturn: mkQuestion(QuestionTypeDate),
+			createReturn: mkQuestion(question.QuestionTypeDate),
 			wantErr:      false,
 		},
 		{
 			name:         "Unknown type (Unknown) -> error",
-			createReturn: mkQuestion(QuestionType("___UNKNOWN___")),
+			createReturn: mkQuestion(question.QuestionType("___UNKNOWN___")),
 			wantErr:      true,
 		},
 	}
@@ -75,18 +75,14 @@ func TestService_Create_KnownAndUnknown(t *testing.T) {
 			t.Parallel()
 
 			ctx := context.Background()
-			mq := mocks.NewQuerier(t)
+			mq := mocks.NewMockQuerier(t)
 			mq.EXPECT().
-				Create(mock.Anything, CreateParams{}).
+				Create(mock.Anything, question.CreateParams{}).
 				Return(tt.createReturn, nil).Once()
 			logger := zap.NewNop()
-			svc := &Service{
-				logger:  logger,
-				queries: mq,
-				tracer:  otel.Tracer("test"),
-			}
+			svc := question.NewService(logger, mq)
 
-			got, err := svc.Create(ctx, CreateParams{})
+			got, err := svc.Create(ctx, question.CreateParams{})
 			if tt.wantErr {
 				require.Error(t, err, "expected error but got nil")
 				require.Nil(t, got)
@@ -105,19 +101,19 @@ func TestService_ListByFormID_AllKnown_And_ContainsUnknown(t *testing.T) {
 
 	formID := uuid.New()
 
-	allKnown := []Question{
-		mkQuestion(QuestionTypeShortText),
-		mkQuestion(QuestionTypeSingleChoice),
+	allKnown := []question.Question{
+		mkQuestion(question.QuestionTypeShortText),
+		mkQuestion(question.QuestionTypeSingleChoice),
 	}
 
-	withUnknown := []Question{
-		mkQuestion(QuestionTypeLongText),
-		mkQuestion(QuestionType("___UNKNOWN___")),
+	withUnknown := []question.Question{
+		mkQuestion(question.QuestionTypeLongText),
+		mkQuestion(question.QuestionType("___UNKNOWN___")),
 	}
 
 	tests := []struct {
 		name       string
-		listReturn []Question
+		listReturn []question.Question
 		wantCount  int
 		wantErr    bool
 	}{
@@ -141,17 +137,13 @@ func TestService_ListByFormID_AllKnown_And_ContainsUnknown(t *testing.T) {
 			t.Parallel()
 
 			ctx := context.Background()
-			mq := mocks.NewQuerier(t)
+			mq := mocks.NewMockQuerier(t)
 			mq.EXPECT().
 				ListByFormID(mock.Anything, formID).
 				Return(tt.listReturn, nil).Once()
 
 			logger := zap.NewNop()
-			svc := &Service{
-				logger:  logger,
-				queries: mq,
-				tracer:  otel.Tracer("test"),
-			}
+			svc := question.NewService(logger, mq)
 
 			got, err := svc.ListByFormID(ctx, formID)
 
