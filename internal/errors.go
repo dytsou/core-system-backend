@@ -44,6 +44,7 @@ var (
 	// Question Errors
 	ErrQuestionNotFound = errors.New("question not found")
 	ErrQuestionRequired = errors.New("question is required but not answered")
+	ErrValidationFailed = errors.New("validation failed")
 
 	// Response Errors
 	ErrResponseNotFound = errors.New("response not found")
@@ -114,6 +115,9 @@ func ErrorHandler(err error) problem.Problem {
 	case errors.Is(err, ErrResponseNotFound):
 		return problem.NewNotFoundProblem("response not found")
 
+	// Validation Errors
+	case errors.Is(err, ErrValidationFailed):
+		return problem.NewValidateProblem("validation failed")
 	}
 	return problem.Problem{}
 }

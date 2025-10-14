@@ -94,7 +94,7 @@ func (s *Service) Submit(ctx context.Context, formID uuid.UUID, userID uuid.UUID
 				// Validate answer value
 				err := q.Validate(ans.Value)
 				if err != nil {
-					validationErrors = append(validationErrors, err)
+					validationErrors = append(validationErrors, fmt.Errorf("validation error for question ID %s: %w", ans.QuestionID, err))
 				}
 
 				questionTypes = append(questionTypes, response.QuestionType(q.Question().Type))
@@ -104,21 +104,21 @@ func (s *Service) Submit(ctx context.Context, formID uuid.UUID, userID uuid.UUID
 		}
 
 		if !found {
-			err := fmt.Errorf("question with ID %s not found in form %s", ans.QuestionID, formID)
-			validationErrors = append(validationErrors, err)
+			validationErrors = append(validationErrors, fmt.Errorf("question with ID %s not found in form %s", ans.QuestionID, formID))
 		}
 	}
 
 	// Check for required questions that were not answered
 	for _, q := range questions {
 		if q.Question().Required && !answeredQuestionIDs[q.Question().ID.String()] {
-			validationErrors = append(validationErrors, internal.ErrQuestionRequired)
+			validationErrors = append(validationErrors, fmt.Errorf("question ID %s is required but not answered", q.Question().ID.String()))
 		}
 	}
 
 	if len(validationErrors) > 0 {
 		logger.Error("validation errors occurred", zap.Error(fmt.Errorf("validation errors occurred")), zap.Any("errors", validationErrors))
 		span.RecordError(fmt.Errorf("validation errors occurred"))
+		validationErrors = append([]error{internal.ErrValidationFailed}, validationErrors...)
 		return response.FormResponse{}, validationErrors
 	}
 
