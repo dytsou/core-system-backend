@@ -13,9 +13,9 @@ import (
 )
 
 const create = `-- name: Create :one
-INSERT INTO users (name, username, avatar_url, role, email)
-VALUES ($1, $2, $3, $4, $5) 
-RETURNING id, name, username, email, avatar_url, role, created_at, updated_at
+INSERT INTO users (name, username, avatar_url, role)
+VALUES ($1, $2, $3, $4) 
+RETURNING id, name, username, avatar_url, role, created_at, updated_at
 `
 
 type CreateParams struct {
@@ -23,7 +23,6 @@ type CreateParams struct {
 	Username  pgtype.Text
 	AvatarUrl pgtype.Text
 	Role      []string
-	Email     []string
 }
 
 func (q *Queries) Create(ctx context.Context, arg CreateParams) (User, error) {
@@ -32,14 +31,12 @@ func (q *Queries) Create(ctx context.Context, arg CreateParams) (User, error) {
 		arg.Username,
 		arg.AvatarUrl,
 		arg.Role,
-		arg.Email,
 	)
 	var i User
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
 		&i.Username,
-		&i.Email,
 		&i.AvatarUrl,
 		&i.Role,
 		&i.CreatedAt,
@@ -66,6 +63,38 @@ func (q *Queries) CreateAuth(ctx context.Context, arg CreateAuthParams) (Auth, e
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
+		&i.Provider,
+		&i.ProviderID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const createEmail = `-- name: CreateEmail :one
+INSERT INTO emails (user_id, value, provider, provider_id)
+VALUES ($1, $2, $3, $4)
+RETURNING user_id, value, provider, provider_id, created_at, updated_at
+`
+
+type CreateEmailParams struct {
+	UserID     uuid.UUID
+	Value      string
+	Provider   string
+	ProviderID string
+}
+
+func (q *Queries) CreateEmail(ctx context.Context, arg CreateEmailParams) (Email, error) {
+	row := q.db.QueryRow(ctx, createEmail,
+		arg.UserID,
+		arg.Value,
+		arg.Provider,
+		arg.ProviderID,
+	)
+	var i Email
+	err := row.Scan(
+		&i.UserID,
+		&i.Value,
 		&i.Provider,
 		&i.ProviderID,
 		&i.CreatedAt,
@@ -102,7 +131,7 @@ func (q *Queries) ExistsByID(ctx context.Context, id uuid.UUID) (bool, error) {
 }
 
 const getByID = `-- name: GetByID :one
-SELECT id, name, username, email, avatar_url, role, created_at, updated_at FROM users WHERE id = $1
+SELECT id, name, username, avatar_url, role, created_at, updated_at FROM users WHERE id = $1
 `
 
 func (q *Queries) GetByID(ctx context.Context, id uuid.UUID) (User, error) {
@@ -112,13 +141,61 @@ func (q *Queries) GetByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.ID,
 		&i.Name,
 		&i.Username,
-		&i.Email,
 		&i.AvatarUrl,
 		&i.Role,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const getEmailByAddress = `-- name: GetEmailByAddress :one
+SELECT user_id, value, provider, provider_id, created_at, updated_at FROM emails WHERE value = $1
+`
+
+func (q *Queries) GetEmailByAddress(ctx context.Context, value string) (Email, error) {
+	row := q.db.QueryRow(ctx, getEmailByAddress, value)
+	var i Email
+	err := row.Scan(
+		&i.UserID,
+		&i.Value,
+		&i.Provider,
+		&i.ProviderID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getEmailsByID = `-- name: GetEmailsByID :many
+SELECT user_id, value, provider, provider_id, created_at, updated_at FROM emails WHERE user_id = $1
+`
+
+func (q *Queries) GetEmailsByID(ctx context.Context, userID uuid.UUID) ([]Email, error) {
+	rows, err := q.db.Query(ctx, getEmailsByID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Email
+	for rows.Next() {
+		var i Email
+		if err := rows.Scan(
+			&i.UserID,
+			&i.Value,
+			&i.Provider,
+			&i.ProviderID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getIDByAuth = `-- name: GetIDByAuth :one
@@ -140,14 +217,9 @@ func (q *Queries) GetIDByAuth(ctx context.Context, arg GetIDByAuthParams) (uuid.
 const update = `-- name: Update :one
 UPDATE users
 SET name = $2, username = $3, avatar_url = $4, 
-    email = CASE
-      WHEN COALESCE(cardinality($5::varchar[]), 0) > 0 THEN
-        array_remove($5::varchar[], '')
-      ELSE email
-    END,
     updated_at = now()
 WHERE id = $1
-RETURNING id, name, username, email, avatar_url, role, created_at, updated_at
+RETURNING id, name, username, avatar_url, role, created_at, updated_at
 `
 
 type UpdateParams struct {
@@ -155,7 +227,6 @@ type UpdateParams struct {
 	Name      pgtype.Text
 	Username  pgtype.Text
 	AvatarUrl pgtype.Text
-	Email     []string
 }
 
 func (q *Queries) Update(ctx context.Context, arg UpdateParams) (User, error) {
@@ -164,14 +235,12 @@ func (q *Queries) Update(ctx context.Context, arg UpdateParams) (User, error) {
 		arg.Name,
 		arg.Username,
 		arg.AvatarUrl,
-		arg.Email,
 	)
 	var i User
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
 		&i.Username,
-		&i.Email,
 		&i.AvatarUrl,
 		&i.Role,
 		&i.CreatedAt,

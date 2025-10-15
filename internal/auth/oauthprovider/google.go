@@ -87,15 +87,9 @@ func (g *GoogleConfig) GetUserInfo(ctx context.Context, token *oauth2.Token) (us
 	}
 
 	// Create User struct with Google data
-	var emailArray []string
-	if googleUser.Email != "" {
-		emailArray = []string{googleUser.Email}
-	}
-
 	userInfo := user.User{
 		Name:      pgtype.Text{String: googleUser.Name, Valid: googleUser.Name != ""},
 		Username:  pgtype.Text{String: GetUsername(googleUser.Email), Valid: googleUser.Email != ""},
-		Email:     emailArray,
 		AvatarUrl: pgtype.Text{String: googleUser.Picture, Valid: googleUser.Picture != ""},
 		Role:      []string{"user"}, // Default role
 	}
@@ -107,4 +101,28 @@ func (g *GoogleConfig) GetUserInfo(ctx context.Context, token *oauth2.Token) (us
 	}
 
 	return userInfo, authInfo, nil
+}
+
+// GetEmailFromToken extracts the email from the OAuth token response
+func (g *GoogleConfig) GetEmailFromToken(ctx context.Context, token *oauth2.Token) (string, error) {
+	client := g.config.Client(ctx, token)
+	response, err := client.Get("https://www.googleapis.com/oauth2/v3/userinfo")
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		_ = response.Body.Close()
+	}()
+
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		return "", err
+	}
+
+	var googleUser GoogleUserInfo
+	if err := json.Unmarshal(body, &googleUser); err != nil {
+		return "", err
+	}
+
+	return googleUser.Email, nil
 }

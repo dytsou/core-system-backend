@@ -1,6 +1,7 @@
 package user
 
 import (
+	"NYCU-SDC/core-system-backend/internal"
 	"context"
 	"net/url"
 
@@ -21,6 +22,9 @@ type Querier interface {
 	Create(ctx context.Context, arg CreateParams) (User, error)
 	CreateAuth(ctx context.Context, arg CreateAuthParams) (Auth, error)
 	Update(ctx context.Context, arg UpdateParams) (User, error)
+	GetEmailsByID(ctx context.Context, userID uuid.UUID) ([]Email, error)
+	GetEmailByAddress(ctx context.Context, email string) (Email, error)
+	CreateEmail(ctx context.Context, arg CreateEmailParams) (Email, error)
 }
 
 type Service struct {
@@ -34,7 +38,7 @@ type Profile struct {
 	Name      string
 	Username  string
 	AvatarURL string
-	Email     []string
+	Emails    []string
 }
 
 func NewService(logger *zap.Logger, db DBTX) *Service {
@@ -80,7 +84,7 @@ func resolveAvatarUrl(name, avatarUrl string) string {
 	return avatarUrl
 }
 
-func (s *Service) FindOrCreate(ctx context.Context, name, username, avatarUrl string, role []string, email []string, oauthProvider, oauthProviderID string) (uuid.UUID, error) {
+func (s *Service) FindOrCreate(ctx context.Context, name, username, avatarUrl string, role []string, oauthProvider, oauthProviderID string) (uuid.UUID, error) {
 	traceCtx, span := s.tracer.Start(ctx, "FindOrCreate")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
@@ -111,7 +115,6 @@ func (s *Service) FindOrCreate(ctx context.Context, name, username, avatarUrl st
 			ID:        existingUserID,
 			Name:      pgtype.Text{String: name, Valid: name != ""},
 			Username:  pgtype.Text{String: username, Valid: username != ""},
-			Email:     email,
 			AvatarUrl: pgtype.Text{String: avatarUrl, Valid: avatarUrl != ""},
 		})
 		if err != nil {
@@ -120,7 +123,7 @@ func (s *Service) FindOrCreate(ctx context.Context, name, username, avatarUrl st
 			return uuid.UUID{}, err
 		}
 
-		logger.Debug("Updated existing user", zap.String("provider", oauthProvider), zap.String("provider_id", oauthProviderID), zap.String("user_id", existingUserID.String()), zap.Strings("added_emails", email))
+		logger.Debug("Updated existing user", zap.String("provider", oauthProvider), zap.String("provider_id", oauthProviderID), zap.String("user_id", existingUserID.String()))
 		return existingUserID, nil
 	}
 
@@ -134,7 +137,6 @@ func (s *Service) FindOrCreate(ctx context.Context, name, username, avatarUrl st
 	newUser, err := s.queries.Create(traceCtx, CreateParams{
 		Name:      pgtype.Text{String: name, Valid: name != ""},
 		Username:  pgtype.Text{String: username, Valid: username != ""},
-		Email:     email,
 		AvatarUrl: pgtype.Text{String: avatarUrl, Valid: avatarUrl != ""},
 		Role:      role,
 	})
@@ -160,4 +162,58 @@ func (s *Service) FindOrCreate(ctx context.Context, name, username, avatarUrl st
 
 	logger.Debug("Created auth entry", zap.String("user_id", newUser.ID.String()), zap.String("provider", oauthProvider), zap.String("provider_id", oauthProviderID))
 	return newUser.ID, err
+}
+
+func (s *Service) CreateEmail(ctx context.Context, userID uuid.UUID, email, provider, providerID string) error {
+	traceCtx, span := s.tracer.Start(ctx, "CreateEmailIfNotExists")
+	defer span.End()
+	logger := logutil.WithContext(traceCtx, s.logger)
+
+	// Check if email already exists
+	existingEmail, err := s.queries.GetEmailByAddress(traceCtx, email)
+	if err == nil && existingEmail.UserID != uuid.Nil {
+		// Email already exists, check if it belongs to the same user
+		if existingEmail.UserID == userID {
+			logger.Debug("Email already exists for user", zap.String("user_id", userID.String()), zap.String("email", email))
+			return nil
+		}
+		// Email exists for a different user - this shouldn't happen in normal OAuth flow
+		logger.Warn("Email already exists for different user", zap.String("email", email), zap.String("existing_user_id", existingEmail.UserID.String()), zap.String("new_user_id", userID.String()))
+		return internal.ErrEmailAlreadyExists
+	}
+
+	// Create email record
+	_, err = s.queries.CreateEmail(traceCtx, CreateEmailParams{
+		UserID:     userID,
+		Value:      email,
+		Provider:   provider,
+		ProviderID: providerID,
+	})
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "create email")
+		span.RecordError(err)
+		return err
+	}
+
+	return nil
+}
+
+func (s *Service) GetEmailsByID(ctx context.Context, userID uuid.UUID) ([]string, error) {
+	traceCtx, span := s.tracer.Start(ctx, "GetEmailsByID")
+	defer span.End()
+	logger := logutil.WithContext(traceCtx, s.logger)
+
+	emails, err := s.queries.GetEmailsByID(traceCtx, userID)
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "get emails by user id")
+		span.RecordError(err)
+		return nil, err
+	}
+
+	emailAddresses := make([]string, len(emails))
+	for i, email := range emails {
+		emailAddresses[i] = email.Value
+	}
+
+	return emailAddresses, nil
 }

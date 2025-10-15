@@ -1,6 +1,7 @@
 package unit
 
 import (
+	"context"
 	"fmt"
 
 	"NYCU-SDC/core-system-backend/internal/user"
@@ -9,7 +10,6 @@ import (
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
-	"golang.org/x/net/context"
 )
 
 // AddMember adds a member to an organization or a unit
@@ -34,13 +34,13 @@ func (s *Service) AddMember(ctx context.Context, unitType Type, id uuid.UUID, me
 	return memberRow, nil
 }
 
-// ListMembers lists all members of an organization or a unit
+// ListMembers lists all members of an organization or a unit with their emails
+// This method now returns []user.Profile to implement distribute.UnitStore interface
 func (s *Service) ListMembers(ctx context.Context, id uuid.UUID) ([]user.Profile, error) {
 	traceCtx, span := s.tracer.Start(ctx, "ListMembers")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	var simpleUsers []user.Profile
 	members, err := s.queries.ListMembers(traceCtx, id)
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "list org members")
@@ -48,23 +48,63 @@ func (s *Service) ListMembers(ctx context.Context, id uuid.UUID) ([]user.Profile
 		return nil, err
 	}
 
-	simpleUsers = make([]user.Profile, len(members))
-	for i, member := range members {
-		simpleUsers[i] = user.Profile{
+	if members == nil {
+		members = []ListMembersRow{}
+	}
+
+	profiles := make([]user.Profile, 0, len(members))
+	for _, member := range members {
+		// Convert emails from interface{} to []string
+		var emails []string
+		if member.Emails != nil {
+			if emailSlice, ok := member.Emails.([]string); ok {
+				emails = emailSlice
+			}
+		}
+		if emails == nil {
+			emails = []string{}
+		}
+
+		profiles = append(profiles, user.Profile{
 			ID:        member.MemberID,
 			Name:      member.Name.String,
 			Username:  member.Username.String,
 			AvatarURL: member.AvatarUrl.String,
-			Email:     member.Email,
-		}
+			Emails:    emails,
+		})
 	}
 
 	logger.Info("Listed unit members",
 		zap.String("id", id.String()),
-		zap.Int("count", len(simpleUsers)),
+		zap.Int("count", len(profiles)),
 	)
 
-	return simpleUsers, nil
+	return profiles, nil
+}
+
+// ListMembersWithEmails lists all members as ListMembersRow for internal use
+func (s *Service) ListWithEmails(ctx context.Context, id uuid.UUID) ([]ListMembersRow, error) {
+	traceCtx, span := s.tracer.Start(ctx, "ListMembersWithEmails")
+	defer span.End()
+	logger := logutil.WithContext(traceCtx, s.logger)
+
+	members, err := s.queries.ListMembers(traceCtx, id)
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "list org members with emails")
+		span.RecordError(err)
+		return nil, err
+	}
+
+	if members == nil {
+		members = []ListMembersRow{}
+	}
+
+	logger.Info("Listed unit members with emails",
+		zap.String("id", id.String()),
+		zap.Int("count", len(members)),
+	)
+
+	return members, nil
 }
 
 // ListUnitsMembers lists members for multiple units at once

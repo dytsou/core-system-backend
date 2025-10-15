@@ -15,14 +15,14 @@ import (
 const addMember = `-- name: AddMember :one
 WITH inserted_member AS (
     INSERT INTO unit_members (unit_id, member_id)
-    SELECT $1, u.id
-    FROM users u
-        WHERE $2::text = ANY(u.email)
+    SELECT $1, emails.user_id
+    FROM emails
+        WHERE emails.value = $2
     ON CONFLICT (unit_id, member_id) DO UPDATE
         SET member_id = EXCLUDED.member_id
     RETURNING unit_id, member_id
 )
-SELECT um.unit_id, um.member_id, u.name, u.username, u.avatar_url, u.email
+SELECT um.unit_id, um.member_id, u.name, u.username, u.avatar_url
 FROM inserted_member um
 LEFT JOIN users u ON u.id = um.member_id
 `
@@ -38,7 +38,6 @@ type AddMemberRow struct {
 	Name      pgtype.Text
 	Username  pgtype.Text
 	AvatarUrl pgtype.Text
-	Email     []string
 }
 
 func (q *Queries) AddMember(ctx context.Context, arg AddMemberParams) (AddMemberRow, error) {
@@ -50,7 +49,6 @@ func (q *Queries) AddMember(ctx context.Context, arg AddMemberParams) (AddMember
 		&i.Name,
 		&i.Username,
 		&i.AvatarUrl,
-		&i.Email,
 	)
 	return i, err
 }
@@ -218,10 +216,12 @@ SELECT m.member_id,
        u.name,
        u.username,
        u.avatar_url,
-       u.email
+       COALESCE(array_agg(emails.value) FILTER (WHERE emails.value IS NOT NULL), ARRAY[]::text[]) as emails
 FROM unit_members m
 JOIN users u ON u.id = m.member_id
+LEFT JOIN emails ON emails.user_id = m.member_id
 WHERE m.unit_id = $1
+GROUP BY m.member_id, u.name, u.username, u.avatar_url
 `
 
 type ListMembersRow struct {
@@ -229,7 +229,7 @@ type ListMembersRow struct {
 	Name      pgtype.Text
 	Username  pgtype.Text
 	AvatarUrl pgtype.Text
-	Email     []string
+	Emails    interface{}
 }
 
 func (q *Queries) ListMembers(ctx context.Context, unitID uuid.UUID) ([]ListMembersRow, error) {
@@ -246,7 +246,7 @@ func (q *Queries) ListMembers(ctx context.Context, unitID uuid.UUID) ([]ListMemb
 			&i.Name,
 			&i.Username,
 			&i.AvatarUrl,
-			&i.Email,
+			&i.Emails,
 		); err != nil {
 			return nil, err
 		}
@@ -321,8 +321,7 @@ SELECT m.unit_id,
        m.member_id,
        u.name,
        u.username,
-       u.avatar_url,
-       u.email
+       u.avatar_url
 FROM unit_members m
 JOIN users u ON u.id = m.member_id
 WHERE m.unit_id = ANY($1::uuid[])
@@ -334,7 +333,6 @@ type ListUnitsMembersRow struct {
 	Name      pgtype.Text
 	Username  pgtype.Text
 	AvatarUrl pgtype.Text
-	Email     []string
 }
 
 func (q *Queries) ListUnitsMembers(ctx context.Context, dollar_1 []uuid.UUID) ([]ListUnitsMembersRow, error) {
@@ -352,7 +350,6 @@ func (q *Queries) ListUnitsMembers(ctx context.Context, dollar_1 []uuid.UUID) ([
 			&i.Name,
 			&i.Username,
 			&i.AvatarUrl,
-			&i.Email,
 		); err != nil {
 			return nil, err
 		}

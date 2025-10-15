@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -34,7 +35,7 @@ type Store interface {
 	ListSubUnits(ctx context.Context, id uuid.UUID, unitType Type) ([]Unit, error)
 	ListSubUnitIDs(ctx context.Context, id uuid.UUID, unitType Type) ([]uuid.UUID, error)
 	AddMember(ctx context.Context, unitType Type, id uuid.UUID, username string) (AddMemberRow, error)
-	ListMembers(ctx context.Context, id uuid.UUID) ([]user.Profile, error)
+	ListWithEmails(ctx context.Context, id uuid.UUID) ([]ListMembersRow, error)
 	RemoveMember(ctx context.Context, unitType Type, id uuid.UUID, memberID uuid.UUID) error
 	GetOrganizationByIDWithSlug(ctx context.Context, id uuid.UUID) (Organization, error)
 }
@@ -46,6 +47,7 @@ type Handler struct {
 	problemWriter *problem.HttpWriter
 	store         Store
 	tenantService *tenant.Service
+	userService   *user.Service
 }
 
 func NewHandler(
@@ -54,6 +56,7 @@ func NewHandler(
 	problemWriter *problem.HttpWriter,
 	store Store,
 	tenantService *tenant.Service,
+	userService *user.Service,
 ) *Handler {
 	return &Handler{
 		logger:        logger,
@@ -61,6 +64,7 @@ func NewHandler(
 		problemWriter: problemWriter,
 		store:         store,
 		tenantService: tenantService,
+		userService:   userService,
 		tracer:        otel.Tracer("unit/handler"),
 	}
 }
@@ -106,6 +110,52 @@ type OrgMemberResponse struct {
 type UnitMemberResponse struct {
 	UnitID     uuid.UUID            `json:"unitId"`
 	SimpleUser user.ProfileResponse `json:"member"`
+}
+
+// convertEmailsToSlice converts PostgreSQL array from interface{} to []string
+func convertEmailsToSlice(emails interface{}) []string {
+	if emails == nil {
+		return []string{}
+	}
+
+	// Handle PostgreSQL array which comes as []interface{}
+	emailSlice, ok := emails.([]interface{})
+	if ok {
+		result := make([]string, 0, len(emailSlice))
+		for _, email := range emailSlice {
+			if emailStr, ok := email.(string); ok {
+				result = append(result, emailStr)
+			}
+		}
+		return result
+	}
+
+	// Handle direct []string case (fallback)
+	emailSliceStr, ok := emails.([]string)
+	if ok {
+		return emailSliceStr
+	}
+
+	return []string{}
+}
+
+// createProfileResponseWithEmails creates a ProfileResponse with emails for a user
+func (h *Handler) createProfileResponseWithEmails(ctx context.Context, userID uuid.UUID, name, username, avatarURL string) user.ProfileResponse {
+	emails, err := h.userService.GetEmailsByID(ctx, userID)
+	if err != nil {
+		// Log the error but don't fail the request
+		logger := logutil.WithContext(ctx, h.logger)
+		logger.Warn("Failed to get user emails", zap.Error(err), zap.String("user_id", userID.String()))
+		emails = []string{}
+	}
+
+	return user.ProfileResponse{
+		ID:        userID,
+		Name:      name,
+		Username:  username,
+		AvatarURL: avatarURL,
+		Emails:    emails,
+	}
 }
 
 func convertUnitResponse(u Unit) UnitResponse {
@@ -158,36 +208,36 @@ var slugPattern = `^[a-zA-Z0-9_-]+$`
 func (h *Handler) CreateUnit(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "CreateUnit")
 	defer span.End()
-	h.logger = logutil.WithContext(traceCtx, h.logger)
+	logger := logutil.WithContext(traceCtx, h.logger)
 
 	var req Request
 
 	if err := handlerutil.ParseAndValidateRequestBody(traceCtx, h.validator, r, &req); err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid request body: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid request body: %w", err), logger)
 		return
 	}
 
 	metadataBytes, err := json.Marshal(req.Metadata)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to marshal metadata: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to marshal metadata: %w", err), logger)
 		return
 	}
 
 	orgSlug, err := internal.GetSlugFromContext(traceCtx)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org slug from context: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org slug from context: %w", err), logger)
 		return
 	}
 
 	orgTenant, err := h.tenantService.GetBySlug(traceCtx, orgSlug)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), logger)
 		return
 	}
 
 	createdUnit, err := h.store.CreateUnit(traceCtx, req.Name, pgtype.UUID{Bytes: orgTenant.ID, Valid: true}, req.Description, metadataBytes)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to create unit: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to create unit: %w", err), logger)
 		return
 	}
 
@@ -197,52 +247,52 @@ func (h *Handler) CreateUnit(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) CreateOrg(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "CreateOrg")
 	defer span.End()
-	h.logger = logutil.WithContext(traceCtx, h.logger)
+	logger := logutil.WithContext(traceCtx, h.logger)
 
 	var req OrgRequest
 
 	if err := handlerutil.ParseAndValidateRequestBody(traceCtx, h.validator, r, &req); err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid request body: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid request body: %w", err), logger)
 		return
 	}
 
 	metadataBytes, err := json.Marshal(req.Metadata)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to marshal metadata: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to marshal metadata: %w", err), logger)
 		return
 	}
 
 	currentUser, ok := user.GetFromContext(traceCtx)
 	if !ok {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("no user found in request context"), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("no user found in request context"), logger)
 		return
 	}
 
 	matched, err := regexp.MatchString(slugPattern, req.Slug)
 	if err != nil || !matched {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid slug format: must contain only alphanumeric characters, dashes, and underscores"), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid slug format: must contain only alphanumeric characters, dashes, and underscores"), logger)
 		return
 	}
 
 	exists, err := h.tenantService.SlugExists(traceCtx, req.Slug)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to validate slug uniqueness: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to validate slug uniqueness: %w", err), logger)
 		return
 	}
 	if exists {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("slug already in use"), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("slug already in use"), logger)
 		return
 	}
 
 	createdOrg, err := h.store.CreateOrganization(traceCtx, req.Name, req.Description, metadataBytes)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to create org: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to create org: %w", err), logger)
 		return
 	}
 
 	_, err = h.tenantService.Create(traceCtx, req.Slug, createdOrg.ID, currentUser.ID)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to create tenant for org: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to create tenant for org: %w", err), logger)
 		return
 	}
 
@@ -252,19 +302,19 @@ func (h *Handler) CreateOrg(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetUnitByID(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "GetUnitByID")
 	defer span.End()
-	h.logger = logutil.WithContext(traceCtx, h.logger)
+	logger := logutil.WithContext(traceCtx, h.logger)
 
 	idStr := r.PathValue("id")
 
 	id, err := internal.ParseUUID(idStr)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, err, h.logger)
+		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
 
 	unit, err := h.store.GetByID(traceCtx, id, TypeUnit)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get unit by ID: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get unit by ID: %w", err), logger)
 		return
 	}
 
@@ -274,23 +324,23 @@ func (h *Handler) GetUnitByID(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetOrgByID(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "GetOrgByID")
 	defer span.End()
-	h.logger = logutil.WithContext(traceCtx, h.logger)
+	logger := logutil.WithContext(traceCtx, h.logger)
 
 	slug, err := internal.GetSlugFromContext(traceCtx)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org slug from context: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org slug from context: %w", err), logger)
 		return
 	}
 
 	orgTenant, err := h.tenantService.GetBySlug(traceCtx, slug)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), logger)
 		return
 	}
 
 	orgWithSlug, err := h.store.GetOrganizationByIDWithSlug(traceCtx, orgTenant.ID)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get organization by ID with slug: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get organization by ID with slug: %w", err), logger)
 		return
 	}
 
@@ -300,11 +350,11 @@ func (h *Handler) GetOrgByID(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetAllOrganizations(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "GetAllOrganizations")
 	defer span.End()
-	h.logger = logutil.WithContext(traceCtx, h.logger)
+	logger := logutil.WithContext(traceCtx, h.logger)
 
 	organizationsWithSlug, err := h.store.GetAllOrganizations(traceCtx)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get all organizations: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get all organizations: %w", err), logger)
 		return
 	}
 
@@ -319,30 +369,30 @@ func (h *Handler) GetAllOrganizations(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) UpdateUnit(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "UpdateUnit")
 	defer span.End()
-	h.logger = logutil.WithContext(traceCtx, h.logger)
+	logger := logutil.WithContext(traceCtx, h.logger)
 
 	var req Request
 	if err := handlerutil.ParseAndValidateRequestBody(traceCtx, h.validator, r, &req); err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid request body: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid request body: %w", err), logger)
 		return
 	}
 
 	idStr := r.PathValue("id")
 	id, err := internal.ParseUUID(idStr)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, err, h.logger)
+		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
 
 	metadataBytes, err := json.Marshal(req.Metadata)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to marshal metadata: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to marshal metadata: %w", err), logger)
 		return
 	}
 
 	updatedUnit, err := h.store.Update(traceCtx, id, req.Name, req.Description, metadataBytes)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to update unit: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to update unit: %w", err), logger)
 		return
 	}
 
@@ -352,40 +402,40 @@ func (h *Handler) UpdateUnit(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) UpdateOrg(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "UpdateOrg")
 	defer span.End()
-	h.logger = logutil.WithContext(traceCtx, h.logger)
+	logger := logutil.WithContext(traceCtx, h.logger)
 
 	var req OrgRequest
 	if err := handlerutil.ParseAndValidateRequestBody(traceCtx, h.validator, r, &req); err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid request body: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid request body: %w", err), logger)
 		return
 	}
 
 	slug, err := internal.GetSlugFromContext(traceCtx)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org slug from context: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org slug from context: %w", err), logger)
 		return
 	}
 
 	orgTenant, err := h.tenantService.GetBySlug(traceCtx, slug)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), logger)
 		return
 	}
 
 	if req.Slug != slug {
 		matched, err := regexp.MatchString(slugPattern, req.Slug)
 		if err != nil || !matched {
-			h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid slug format: must contain only alphanumeric characters, dashes, and underscores"), h.logger)
+			h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid slug format: must contain only alphanumeric characters, dashes, and underscores"), logger)
 			return
 		}
 
 		exists, err := h.tenantService.SlugExists(traceCtx, req.Slug)
 		if err != nil {
-			h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to validate slug uniqueness: %w", err), h.logger)
+			h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to validate slug uniqueness: %w", err), logger)
 			return
 		}
 		if exists {
-			h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("slug already in use"), h.logger)
+			h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("slug already in use"), logger)
 			return
 		}
 	}
@@ -393,7 +443,7 @@ func (h *Handler) UpdateOrg(w http.ResponseWriter, r *http.Request) {
 
 	metadataBytes, err := json.Marshal(req.Metadata)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to marshal metadata: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to marshal metadata: %w", err), logger)
 		return
 	}
 
@@ -407,13 +457,13 @@ func (h *Handler) UpdateOrg(w http.ResponseWriter, r *http.Request) {
 
 	_, err = h.tenantService.Update(traceCtx, orgTenant.ID, req.Slug, dbStrategy)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to update organization tenant: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to update organization tenant: %w", err), logger)
 		return
 	}
 
 	updatedOrg, err := h.store.Update(traceCtx, orgTenant.ID, req.Name, req.Description, metadataBytes)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to update organization: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to update organization: %w", err), logger)
 		return
 	}
 
@@ -423,23 +473,23 @@ func (h *Handler) UpdateOrg(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) DeleteOrg(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "DeleteOrg")
 	defer span.End()
-	h.logger = logutil.WithContext(traceCtx, h.logger)
+	logger := logutil.WithContext(traceCtx, h.logger)
 
 	slug, err := internal.GetSlugFromContext(traceCtx)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org slug from context: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org slug from context: %w", err), logger)
 		return
 	}
 
 	orgTenant, err := h.tenantService.GetBySlug(traceCtx, slug)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), logger)
 		return
 	}
 
 	err = h.store.Delete(traceCtx, orgTenant.ID, TypeOrg)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to delete unit: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to delete unit: %w", err), logger)
 		return
 	}
 
@@ -450,18 +500,18 @@ func (h *Handler) DeleteOrg(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) DeleteUnit(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "DeleteUnit")
 	defer span.End()
-	h.logger = logutil.WithContext(traceCtx, h.logger)
+	logger := logutil.WithContext(traceCtx, h.logger)
 
 	idStr := r.PathValue("id")
 	id, err := internal.ParseUUID(idStr)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, err, h.logger)
+		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
 
 	err = h.store.Delete(traceCtx, id, TypeUnit)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to delete unit: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to delete unit: %w", err), logger)
 		return
 	}
 
@@ -471,17 +521,17 @@ func (h *Handler) DeleteUnit(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) AddParentChild(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "AddParent")
 	defer span.End()
-	h.logger = logutil.WithContext(traceCtx, h.logger)
+	logger := logutil.WithContext(traceCtx, h.logger)
 
 	var req ParentChildRequest
 	if err := handlerutil.ParseAndValidateRequestBody(traceCtx, h.validator, r, &req); err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid request body: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid request body: %w", err), logger)
 		return
 	}
 
 	pc, err := h.store.AddParent(traceCtx, req.ParentID, req.ChildID)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to add parent-child relationship: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to add parent-child relationship: %w", err), logger)
 		return
 	}
 
@@ -501,23 +551,23 @@ func (h *Handler) AddParentChild(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) ListOrgSubUnits(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "ListOrgSubUnits")
 	defer span.End()
-	h.logger = logutil.WithContext(traceCtx, h.logger)
+	logger := logutil.WithContext(traceCtx, h.logger)
 
 	slug, err := internal.GetSlugFromContext(traceCtx)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org slug from context: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org slug from context: %w", err), logger)
 		return
 	}
 
 	orgTenant, err := h.tenantService.GetBySlug(traceCtx, slug)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), logger)
 		return
 	}
 
 	subUnits, err := h.store.ListSubUnits(traceCtx, orgTenant.ID, TypeOrg)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list sub-units: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list sub-units: %w", err), logger)
 		return
 	}
 
@@ -532,17 +582,17 @@ func (h *Handler) ListOrgSubUnits(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) ListUnitSubUnits(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "ListUnitSubUnits")
 	defer span.End()
-	h.logger = logutil.WithContext(traceCtx, h.logger)
+	logger := logutil.WithContext(traceCtx, h.logger)
 
 	idStr := r.PathValue("id")
 	id, err := internal.ParseUUID(idStr)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, err, h.logger)
+		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
 	subUnits, err := h.store.ListSubUnits(traceCtx, id, TypeUnit)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list sub-units: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list sub-units: %w", err), logger)
 		return
 	}
 
@@ -557,23 +607,23 @@ func (h *Handler) ListUnitSubUnits(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) ListOrgSubUnitIDs(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "ListOrgSubUnits")
 	defer span.End()
-	h.logger = logutil.WithContext(traceCtx, h.logger)
+	logger := logutil.WithContext(traceCtx, h.logger)
 
 	slug, err := internal.GetSlugFromContext(traceCtx)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org slug from context: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org slug from context: %w", err), logger)
 		return
 	}
 
 	orgTenant, err := h.tenantService.GetBySlug(traceCtx, slug)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), logger)
 		return
 	}
 
 	subUnits, err := h.store.ListSubUnitIDs(traceCtx, orgTenant.ID, TypeOrg)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list sub-units: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list sub-units: %w", err), logger)
 		return
 	}
 
@@ -583,18 +633,18 @@ func (h *Handler) ListOrgSubUnitIDs(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) ListUnitSubUnitIDs(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "ListUnitSubUnits")
 	defer span.End()
-	h.logger = logutil.WithContext(traceCtx, h.logger)
+	logger := logutil.WithContext(traceCtx, h.logger)
 
 	idStr := r.PathValue("id")
 	id, err := internal.ParseUUID(idStr)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, err, h.logger)
+		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
 
 	subUnits, err := h.store.ListSubUnitIDs(traceCtx, id, TypeUnit)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list sub-units: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list sub-units: %w", err), logger)
 		return
 	}
 
@@ -604,17 +654,17 @@ func (h *Handler) ListUnitSubUnitIDs(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) AddOrgMember(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "AddOrgMember")
 	defer span.End()
-	h.logger = logutil.WithContext(traceCtx, h.logger)
+	logger := logutil.WithContext(traceCtx, h.logger)
 
 	slug, err := internal.GetSlugFromContext(traceCtx)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org slug from context: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org slug from context: %w", err), logger)
 		return
 	}
 
 	orgTenant, err := h.tenantService.GetBySlug(traceCtx, slug)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), logger)
 		return
 	}
 
@@ -623,30 +673,29 @@ func (h *Handler) AddOrgMember(w http.ResponseWriter, r *http.Request) {
 		Email string `json:"email"`
 	}
 	if err := handlerutil.ParseAndValidateRequestBody(traceCtx, h.validator, r, &params); err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid request body: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid request body: %w", err), logger)
 		return
 	}
 
 	if orgTenant.ID == uuid.Nil || params.Email == "" {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("org ID or member username cannot be empty"), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("org ID or member username cannot be empty"), logger)
 		return
 	}
 
 	members, err := h.store.AddMember(traceCtx, TypeOrg, orgTenant.ID, params.Email)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to add org member: %w", err), h.logger)
+		if strings.Contains(err.Error(), "no rows in result set") || strings.Contains(err.Error(), "record not found") {
+			h.problemWriter.WriteError(traceCtx, w, internal.ErrUserNotFound, h.logger)
+			return
+		}
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to add org member: %w", err), logger)
+
 		return
 	}
 
 	orgMemberResponse := OrgMemberResponse{
-		OrgID: orgTenant.ID,
-		SimpleUser: user.ProfileResponse{
-			ID:        members.MemberID,
-			Name:      members.Name.String,
-			Username:  members.Username.String,
-			AvatarURL: members.AvatarUrl.String,
-			Email:     members.Email,
-		},
+		OrgID:      orgTenant.ID,
+		SimpleUser: h.createProfileResponseWithEmails(traceCtx, members.MemberID, members.Name.String, members.Username.String, members.AvatarUrl.String),
 	}
 	handlerutil.WriteJSONResponse(w, http.StatusCreated, orgMemberResponse)
 }
@@ -654,12 +703,12 @@ func (h *Handler) AddOrgMember(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) AddUnitMember(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "AddUnitMember")
 	defer span.End()
-	h.logger = logutil.WithContext(traceCtx, h.logger)
+	logger := logutil.WithContext(traceCtx, h.logger)
 
 	idStr := r.PathValue("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid unit ID: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid unit ID: %w", err), logger)
 		return
 	}
 
@@ -667,65 +716,66 @@ func (h *Handler) AddUnitMember(w http.ResponseWriter, r *http.Request) {
 		Email string `json:"email"`
 	}
 	if err := handlerutil.ParseAndValidateRequestBody(traceCtx, h.validator, r, &params); err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid request body: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid request body: %w", err), logger)
 		return
 	}
 
 	if params.Email == "" {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("member username cannot be empty"), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("member username cannot be empty"), logger)
 		return
 	}
 
 	member, err := h.store.AddMember(traceCtx, TypeUnit, id, params.Email)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to add unit member: %w", err), h.logger)
+		if strings.Contains(err.Error(), "no rows in result set") || strings.Contains(err.Error(), "record not found") {
+			h.problemWriter.WriteError(traceCtx, w, internal.ErrUserNotFound, h.logger)
+			return
+		}
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to add unit member: %w", err), logger)
 		return
 	}
 
 	handlerutil.WriteJSONResponse(w, http.StatusCreated, UnitMemberResponse{
-		UnitID: id,
-		SimpleUser: user.ProfileResponse{
-			ID:        member.MemberID,
-			Name:      member.Name.String,
-			Username:  member.Username.String,
-			Email:     member.Email,
-			AvatarURL: member.AvatarUrl.String,
-		},
+		UnitID:     id,
+		SimpleUser: h.createProfileResponseWithEmails(traceCtx, member.MemberID, member.Name.String, member.Username.String, member.AvatarUrl.String),
 	})
 }
 
 func (h *Handler) ListOrgMembers(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "ListOrgMembers")
 	defer span.End()
-	h.logger = logutil.WithContext(traceCtx, h.logger)
+	logger := logutil.WithContext(traceCtx, h.logger)
 
 	slug, err := internal.GetSlugFromContext(traceCtx)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org slug from context: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org slug from context: %w", err), logger)
 		return
 	}
 
 	orgTenant, err := h.tenantService.GetBySlug(traceCtx, slug)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), logger)
 		return
 	}
 
 	// Todo: Need to recursively obtain members of the entire organization
-	members, err := h.store.ListMembers(traceCtx, orgTenant.ID)
+	members, err := h.store.ListWithEmails(traceCtx, orgTenant.ID)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list org members: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list org members: %w", err), logger)
 		return
 	}
 
 	response := make([]user.ProfileResponse, 0, len(members))
 	for _, m := range members {
+		// Convert emails from interface{} to []string
+		emails := convertEmailsToSlice(m.Emails)
+
 		response = append(response, user.ProfileResponse{
-			ID:        m.ID,
-			Name:      m.Name,
-			Username:  m.Username,
-			Email:     m.Email,
-			AvatarURL: m.AvatarURL,
+			ID:        m.MemberID,
+			Name:      m.Name.String,
+			Username:  m.Username.String,
+			AvatarURL: m.AvatarUrl.String,
+			Emails:    emails,
 		})
 	}
 
@@ -735,29 +785,32 @@ func (h *Handler) ListOrgMembers(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) ListUnitMembers(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "ListUnitMembers")
 	defer span.End()
-	h.logger = logutil.WithContext(traceCtx, h.logger)
+	logger := logutil.WithContext(traceCtx, h.logger)
 
 	idStr := r.PathValue("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid unit ID: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid unit ID: %w", err), logger)
 		return
 	}
 
-	members, err := h.store.ListMembers(traceCtx, id)
+	members, err := h.store.ListWithEmails(traceCtx, id)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list unit members: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list unit members: %w", err), logger)
 		return
 	}
 
 	response := make([]user.ProfileResponse, 0, len(members))
 	for _, m := range members {
+		// Convert emails from interface{} to []string
+		emails := convertEmailsToSlice(m.Emails)
+
 		response = append(response, user.ProfileResponse{
-			ID:        m.ID,
-			Name:      m.Name,
-			Username:  m.Username,
-			Email:     m.Email,
-			AvatarURL: m.AvatarURL,
+			ID:        m.MemberID,
+			Name:      m.Name.String,
+			Username:  m.Username.String,
+			AvatarURL: m.AvatarUrl.String,
+			Emails:    emails,
 		})
 	}
 
@@ -767,17 +820,17 @@ func (h *Handler) ListUnitMembers(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) RemoveOrgMember(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "RemoveOrgMember")
 	defer span.End()
-	h.logger = logutil.WithContext(traceCtx, h.logger)
+	logger := logutil.WithContext(traceCtx, h.logger)
 
 	slug, err := internal.GetSlugFromContext(traceCtx)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org slug from context: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org slug from context: %w", err), logger)
 		return
 	}
 
 	orgTenant, err := h.tenantService.GetBySlug(traceCtx, slug)
 	if err != nil || orgTenant.ID == uuid.Nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), logger)
 		return
 	}
 
@@ -789,13 +842,13 @@ func (h *Handler) RemoveOrgMember(w http.ResponseWriter, r *http.Request) {
 	}
 	mID, err := uuid.Parse(mIDStr)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid member ID: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid member ID: %w", err), logger)
 		return
 	}
 
 	err = h.store.RemoveMember(traceCtx, TypeOrg, orgTenant.ID, mID)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to remove org member: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to remove org member: %w", err), logger)
 		return
 	}
 
@@ -805,12 +858,12 @@ func (h *Handler) RemoveOrgMember(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) RemoveUnitMember(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "RemoveUnitMember")
 	defer span.End()
-	h.logger = logutil.WithContext(traceCtx, h.logger)
+	logger := logutil.WithContext(traceCtx, h.logger)
 
 	idStr := r.PathValue("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid unit ID: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid unit ID: %w", err), logger)
 		return
 	}
 
@@ -822,13 +875,13 @@ func (h *Handler) RemoveUnitMember(w http.ResponseWriter, r *http.Request) {
 
 	mID, err := uuid.Parse(mIDStr)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid member ID: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid member ID: %w", err), logger)
 		return
 	}
 
 	err = h.store.RemoveMember(traceCtx, TypeUnit, id, mID)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to remove unit member: %w", err), h.logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to remove unit member: %w", err), logger)
 		return
 	}
 

@@ -46,14 +46,14 @@ SELECT id FROM units WHERE parent_id = $1;
 -- name: AddMember :one
 WITH inserted_member AS (
     INSERT INTO unit_members (unit_id, member_id)
-    SELECT sqlc.arg(unit_id), u.id
-    FROM users u
-        WHERE sqlc.arg(member_email)::text = ANY(u.email)
+    SELECT sqlc.arg(unit_id), emails.user_id
+    FROM emails
+        WHERE emails.value = sqlc.arg(member_email)
     ON CONFLICT (unit_id, member_id) DO UPDATE
         SET member_id = EXCLUDED.member_id
     RETURNING *
 )
-SELECT um.*, u.name, u.username, u.avatar_url, u.email
+SELECT um.*, u.name, u.username, u.avatar_url
 FROM inserted_member um
 LEFT JOIN users u ON u.id = um.member_id;
 
@@ -62,18 +62,19 @@ SELECT m.member_id,
        u.name,
        u.username,
        u.avatar_url,
-       u.email
+       COALESCE(array_agg(emails.value) FILTER (WHERE emails.value IS NOT NULL), ARRAY[]::text[]) as emails
 FROM unit_members m
 JOIN users u ON u.id = m.member_id
-WHERE m.unit_id = $1;
+LEFT JOIN emails ON emails.user_id = m.member_id
+WHERE m.unit_id = $1
+GROUP BY m.member_id, u.name, u.username, u.avatar_url;
 
 -- name: ListUnitsMembers :many
 SELECT m.unit_id,
        m.member_id,
        u.name,
        u.username,
-       u.avatar_url,
-       u.email
+       u.avatar_url
 FROM unit_members m
 JOIN users u ON u.id = m.member_id
 WHERE m.unit_id = ANY($1::uuid[]);

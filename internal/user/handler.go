@@ -26,18 +26,18 @@ type ProfileResponse struct {
 	ID        uuid.UUID `json:"id"`
 	Name      string    `json:"name"`
 	Username  string    `json:"username"`
-	Email     []string  `json:"email"`
 	AvatarURL string    `json:"avatarUrl"`
+	Emails    []string  `json:"emails"`
 }
 
 // MeResponse represents the response format for /user/me endpoint
 type MeResponse struct {
 	ID        string   `json:"id"`
 	Username  string   `json:"username"`
-	Email     []string `json:"email"`
 	Name      string   `json:"name"`
 	AvatarUrl string   `json:"avatarUrl"`
 	Role      string   `json:"role"`
+	Emails    []string `json:"emails"`
 }
 
 type Handler struct {
@@ -82,13 +82,20 @@ func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
 		roleStr = strings.Join(currentUser.Role, ",")
 	}
 
+	// Get user emails
+	emails, err := h.service.GetEmailsByID(traceCtx, currentUser.ID)
+	if err != nil {
+		logger.Warn("Failed to get user emails", zap.Error(err), zap.String("user_id", currentUser.ID.String()))
+		emails = []string{}
+	}
+
 	response := MeResponse{
 		ID:        currentUser.ID.String(),
 		Username:  currentUser.Username.String,
-		Email:     currentUser.Email,
 		Name:      currentUser.Name.String,
 		AvatarUrl: currentUser.AvatarUrl.String,
 		Role:      roleStr,
+		Emails:    emails,
 	}
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, response)

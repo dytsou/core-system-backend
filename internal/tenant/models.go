@@ -244,6 +244,15 @@ type Auth struct {
 	UpdatedAt  pgtype.Timestamptz
 }
 
+type Email struct {
+	UserID     uuid.UUID
+	Value      string
+	Provider   string
+	ProviderID string
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
+}
+
 type Form struct {
 	ID             uuid.UUID
 	Title          string
@@ -322,7 +331,6 @@ type User struct {
 	ID        uuid.UUID
 	Name      pgtype.Text
 	Username  pgtype.Text
-	Email     []string
 	AvatarUrl pgtype.Text
 	Role      []string
 	CreatedAt pgtype.Timestamptz

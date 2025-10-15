@@ -44,7 +44,8 @@ type JWTStore interface {
 type UserStore interface {
 	ExistsByID(ctx context.Context, id uuid.UUID) (bool, error)
 	GetByID(ctx context.Context, id uuid.UUID) (user.User, error)
-	FindOrCreate(ctx context.Context, name, username, avatarUrl string, role []string, email []string, oauthProvider, oauthProviderID string) (uuid.UUID, error)
+	FindOrCreate(ctx context.Context, name, username, avatarUrl string, role []string, oauthProvider, oauthProviderID string) (uuid.UUID, error)
+	CreateEmail(ctx context.Context, userID uuid.UUID, email, provider, providerID string) error
 }
 
 type OAuthProvider interface {
@@ -52,6 +53,7 @@ type OAuthProvider interface {
 	Config() *oauth2.Config
 	Exchange(ctx context.Context, code string) (*oauth2.Token, error)
 	GetUserInfo(ctx context.Context, token *oauth2.Token) (user.User, user.Auth, error)
+	GetEmailFromToken(ctx context.Context, token *oauth2.Token) (string, error)
 }
 
 type callBackInfo struct {
@@ -213,10 +215,19 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, err := h.userStore.FindOrCreate(traceCtx, userInfo.Name.String, userInfo.Username.String, userInfo.AvatarUrl.String, userInfo.Role, userInfo.Email, providerName, auth.ProviderID)
+	userID, err := h.userStore.FindOrCreate(traceCtx, userInfo.Name.String, userInfo.Username.String, userInfo.AvatarUrl.String, userInfo.Role, providerName, auth.ProviderID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
+	}
+
+	// Create email record for Google OAuth users
+	if providerName == "google" {
+		err := h.createEmailRecordForOAuthUser(traceCtx, provider, providerName, token, userID, auth.ProviderID)
+		if err != nil {
+			h.problemWriter.WriteError(traceCtx, w, err, logger)
+			return
+		}
 	}
 
 	accessTokenID, refreshTokenID, err := h.generateJWT(traceCtx, userID)
@@ -459,4 +470,32 @@ func (h *Handler) clearAccessAndRefreshCookies(w http.ResponseWriter) {
 		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
 	})
+}
+
+// createEmailRecordForOAuthUser creates an email record for OAuth users if the provider supports email extraction
+func (h *Handler) createEmailRecordForOAuthUser(
+	ctx context.Context,
+	provider OAuthProvider,
+	providerName string,
+	token *oauth2.Token,
+	userID uuid.UUID,
+	authProviderID string,
+) error {
+	// Extract email from the OAuth token
+	email, err := provider.GetEmailFromToken(ctx, token)
+	if err != nil {
+		return internal.ErrFailedToExtractEmail
+	}
+
+	// No email found in token, skip silently
+	if email == "" {
+		return nil
+	}
+
+	// Create email record in the database
+	if err := h.userStore.CreateEmail(ctx, userID, email, providerName, authProviderID); err != nil {
+		return internal.ErrFailedToCreateEmail
+	}
+
+	return nil
 }
