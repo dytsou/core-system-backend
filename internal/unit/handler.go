@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -747,6 +748,10 @@ func (h *Handler) AddOrgMember(w http.ResponseWriter, r *http.Request) {
 
 	members, err := h.store.AddMember(traceCtx, TypeOrg, orgTenant.ID, params.Email)
 	if err != nil {
+		if strings.Contains(err.Error(), "no rows in result set") || strings.Contains(err.Error(), "record not found") {
+			h.problemWriter.WriteError(traceCtx, w, internal.ErrUserNotFound, h.logger)
+			return
+		}
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to add org member: %w", err), h.logger)
 		return
 	}
@@ -785,6 +790,10 @@ func (h *Handler) AddUnitMember(w http.ResponseWriter, r *http.Request) {
 
 	member, err := h.store.AddMember(traceCtx, TypeUnit, id, params.Email)
 	if err != nil {
+		if strings.Contains(err.Error(), "no rows in result set") || strings.Contains(err.Error(), "record not found") {
+			h.problemWriter.WriteError(traceCtx, w, internal.ErrUserNotFound, h.logger)
+			return
+		}
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to add unit member: %w", err), h.logger)
 		return
 	}
