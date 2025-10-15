@@ -7,6 +7,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/require"
 )
@@ -16,7 +17,6 @@ type FactoryParams struct {
 	Username  string
 	AvatarURL string
 	Role      []string
-	Email     []string
 }
 
 type Builder struct {
@@ -40,7 +40,6 @@ func (b Builder) Create(opts ...Option) user.User {
 		Username:  testdata.RandomName(),
 		AvatarURL: testdata.RandomURL(),
 		Role:      []string{"user"}, // Default role is "user"
-		Email:     []string{testdata.RandomEmail()},
 	}
 	for _, opt := range opts {
 		opt(p)
@@ -51,9 +50,20 @@ func (b Builder) Create(opts ...Option) user.User {
 		Username:  pgtype.Text{String: p.Username, Valid: true},
 		AvatarUrl: pgtype.Text{String: p.AvatarURL, Valid: true},
 		Role:      p.Role,
-		Email:     p.Email,
 	})
 	require.NoError(b.t, err)
 
 	return userRow
+}
+
+// CreateEmail creates an email record for a user
+func (b Builder) CreateEmail(userID uuid.UUID, email, provider, providerID string) {
+	queries := b.Queries()
+	_, err := queries.CreateEmail(context.Background(), user.CreateEmailParams{
+		UserID:     userID,
+		Value:      email,
+		Provider:   provider,
+		ProviderID: providerID,
+	})
+	require.NoError(b.t, err)
 }
