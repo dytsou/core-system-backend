@@ -35,6 +35,7 @@ import (
 	_ "github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -338,7 +339,7 @@ func initOpenTelemetry(appName, version, buildTime, commitHash, environment, ote
 	serviceName := semconv.ServiceNameKey.String(appName)
 	serviceVersion := semconv.ServiceVersionKey.String(version)
 	serviceNamespace := semconv.ServiceNamespaceKey.String("example")
-	serviceCommitHash := semconv.ServiceVersionKey.String(commitHash)
+	serviceCommitHash := attribute.String("service.commit_hash", commitHash)
 	serviceEnvironment := semconv.DeploymentEnvironmentKey.String(environment)
 
 	res, err := resource.New(ctx,
