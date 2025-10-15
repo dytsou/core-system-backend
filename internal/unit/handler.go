@@ -115,6 +115,33 @@ type UnitMemberResponse struct {
 	SimpleUser user.ProfileResponse `json:"member"`
 }
 
+// convertEmailsToSlice converts PostgreSQL array from interface{} to []string
+func convertEmailsToSlice(emails interface{}) []string {
+	if emails == nil {
+		return []string{}
+	}
+
+	// Handle PostgreSQL array which comes as []interface{}
+	emailSlice, ok := emails.([]interface{})
+	if ok {
+		result := make([]string, 0, len(emailSlice))
+		for _, email := range emailSlice {
+			if emailStr, ok := email.(string); ok {
+				result = append(result, emailStr)
+			}
+		}
+		return result
+	}
+
+	// Handle direct []string case (fallback)
+	emailSliceStr, ok := emails.([]string)
+	if ok {
+		return emailSliceStr
+	}
+
+	return []string{}
+}
+
 // createProfileResponseWithEmails creates a ProfileResponse with emails for a user
 func (h *Handler) createProfileResponseWithEmails(ctx context.Context, userID uuid.UUID, name, username, avatarURL string) user.ProfileResponse {
 	emails, err := h.userService.GetEmailsByID(ctx, userID)
@@ -794,12 +821,15 @@ func (h *Handler) ListOrgMembers(w http.ResponseWriter, r *http.Request) {
 
 	response := make([]user.ProfileResponse, 0, len(members))
 	for _, m := range members {
+		// Convert emails from interface{} to []string
+		emails := convertEmailsToSlice(m.Emails)
+
 		response = append(response, user.ProfileResponse{
 			ID:        m.MemberID,
 			Name:      m.Name.String,
 			Username:  m.Username.String,
 			AvatarURL: m.AvatarUrl.String,
-			Emails:    m.Emails.([]string),
+			Emails:    emails,
 		})
 	}
 
@@ -826,12 +856,15 @@ func (h *Handler) ListUnitMembers(w http.ResponseWriter, r *http.Request) {
 
 	response := make([]user.ProfileResponse, 0, len(members))
 	for _, m := range members {
+		// Convert emails from interface{} to []string
+		emails := convertEmailsToSlice(m.Emails)
+
 		response = append(response, user.ProfileResponse{
 			ID:        m.MemberID,
 			Name:      m.Name.String,
 			Username:  m.Username.String,
 			AvatarURL: m.AvatarUrl.String,
-			Emails:    m.Emails.([]string),
+			Emails:    emails,
 		})
 	}
 
