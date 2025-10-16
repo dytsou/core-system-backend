@@ -55,8 +55,8 @@ func (s *Service) Create(ctx context.Context, contentType ContentType, contentID
 	}
 
 	_, err = s.queries.CreateUserInboxBulk(traceCtx, CreateUserInboxBulkParams{
-		Column1: userIDs,
-		Column2: message.ID,
+		UserIds:   userIDs,
+		MessageID: message.ID,
 	})
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "create user inbox messages in bulk")
@@ -85,13 +85,13 @@ func (s *Service) List(ctx context.Context, userID uuid.UUID, filter *InboxFilte
 	// Set filter parameters (nullable booleans and search string)
 	if filter != nil {
 		if filter.IsRead != nil {
-			params.Isread = *filter.IsRead
+			params.IsRead = *filter.IsRead
 		}
 		if filter.IsStarred != nil {
-			params.Isstarred = *filter.IsStarred
+			params.IsStarred = *filter.IsStarred
 		}
 		if filter.IsArchived != nil {
-			params.Isarchived = *filter.IsArchived
+			params.IsArchived = *filter.IsArchived
 		}
 		params.Search = filter.Search
 	}
@@ -116,8 +116,8 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (
 	logger := logutil.WithContext(traceCtx, s.logger)
 
 	message, err := s.queries.GetByID(traceCtx, GetByIDParams{
-		ID:     id,
-		UserID: userID,
+		UserInboxMessageID: id,
+		UserID:             userID,
 	})
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "get the full inbox_message by id")
