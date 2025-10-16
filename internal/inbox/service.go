@@ -93,7 +93,9 @@ func (s *Service) List(ctx context.Context, userID uuid.UUID, filter *InboxFilte
 		if filter.IsArchived != nil {
 			params.IsArchived = *filter.IsArchived
 		}
-		params.Search = filter.Search
+		if filter.Search != "" {
+			params.Search = filter.Search
+		}
 	}
 
 	messages, err := s.queries.List(traceCtx, params)
