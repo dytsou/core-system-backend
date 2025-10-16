@@ -6,6 +6,7 @@ import (
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -79,19 +80,21 @@ func (s *Service) List(ctx context.Context, userID uuid.UUID, filter *InboxFilte
 
 	// Prepare filter parameters
 	params := ListParams{
-		UserID: userID,
+		UserID:     userID,
+		IsRead:     pgtype.Bool{Valid: false},
+		IsStarred:  pgtype.Bool{Valid: false},
+		IsArchived: pgtype.Bool{Valid: false},
 	}
 
-	// Set filter parameters (nullable booleans and search string)
 	if filter != nil {
 		if filter.IsRead != nil {
-			params.IsRead = *filter.IsRead
+			params.IsRead = pgtype.Bool{Bool: *filter.IsRead, Valid: true}
 		}
 		if filter.IsStarred != nil {
-			params.IsStarred = *filter.IsStarred
+			params.IsStarred = pgtype.Bool{Bool: *filter.IsStarred, Valid: true}
 		}
 		if filter.IsArchived != nil {
-			params.IsArchived = *filter.IsArchived
+			params.IsArchived = pgtype.Bool{Bool: *filter.IsArchived, Valid: true}
 		}
 		if filter.Search != "" {
 			params.Search = filter.Search

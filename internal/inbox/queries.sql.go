@@ -154,8 +154,8 @@ LEFT JOIN forms f ON im.type = 'form' AND im.content_id = f.id
 LEFT JOIN units u ON f.unit_id = u.id
 LEFT JOIN units o ON u.org_id = o.id
 WHERE uim.user_id = $1
-  AND ($2::boolean IS NULL OR uim.is_read = $2::boolean)
-  AND ($3::boolean IS NULL OR uim.is_starred = $3::boolean)
+  AND ($2::boolean IS NULL OR uim.is_read = $2)
+  AND ($3::boolean IS NULL OR uim.is_starred = $3)
   AND (uim.is_archived = COALESCE($4::boolean, false))
   AND ($5::text = '' OR $5::text IS NULL OR (
     CASE WHEN im.type = 'form' THEN f.title ELSE '' END ILIKE '%' || $5::text || '%'
@@ -166,9 +166,9 @@ WHERE uim.user_id = $1
 
 type ListParams struct {
 	UserID     uuid.UUID
-	IsRead     bool
-	IsStarred  bool
-	IsArchived bool
+	IsRead     pgtype.Bool
+	IsStarred  pgtype.Bool
+	IsArchived pgtype.Bool
 	Search     string
 }
 
