@@ -144,12 +144,11 @@ func convertEmailsToSlice(emails interface{}) []string {
 }
 
 // createProfileResponseWithEmails creates a ProfileResponse with emails for a user
-func (h *Handler) createProfileResponseWithEmails(ctx context.Context, userID uuid.UUID, name, username, avatarURL string) user.ProfileResponse {
+func (h *Handler) createProfileResponseWithEmails(ctx context.Context, logger *zap.Logger, userID uuid.UUID, name, username, avatarURL string) user.ProfileResponse {
 	emails, err := h.userService.GetEmailsByID(ctx, userID)
 	if err != nil {
 		// Log the error but don't fail the request
-		logger := logutil.WithContext(ctx, h.logger)
-		logger.Warn("Failed to get user emails", zap.Error(err), zap.String("user_id", userID.String()))
+		logger.Warn("failed to get user emails", zap.Error(err), zap.String("user_id", userID.String()))
 		emails = []string{}
 	}
 
@@ -759,7 +758,7 @@ func (h *Handler) AddOrgMember(w http.ResponseWriter, r *http.Request) {
 
 	orgMemberResponse := OrgMemberResponse{
 		OrgID:      orgTenant.ID,
-		SimpleUser: h.createProfileResponseWithEmails(traceCtx, members.MemberID, members.Name.String, members.Username.String, members.AvatarUrl.String),
+		SimpleUser: h.createProfileResponseWithEmails(traceCtx, logger, members.MemberID, members.Name.String, members.Username.String, members.AvatarUrl.String),
 	}
 	handlerutil.WriteJSONResponse(w, http.StatusCreated, orgMemberResponse)
 }
@@ -801,7 +800,7 @@ func (h *Handler) AddUnitMember(w http.ResponseWriter, r *http.Request) {
 
 	handlerutil.WriteJSONResponse(w, http.StatusCreated, UnitMemberResponse{
 		UnitID:     id,
-		SimpleUser: h.createProfileResponseWithEmails(traceCtx, member.MemberID, member.Name.String, member.Username.String, member.AvatarUrl.String),
+		SimpleUser: h.createProfileResponseWithEmails(traceCtx, logger, member.MemberID, member.Name.String, member.Username.String, member.AvatarUrl.String),
 	})
 }
 
