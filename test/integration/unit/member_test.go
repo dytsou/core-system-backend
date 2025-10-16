@@ -37,7 +37,7 @@ func TestUnitService_AddMember(t *testing.T) {
 				org := builder.Create(unit.UnitTypeOrganization, unitbuilder.WithName("student-affairs"))
 				userBuilder := userbuilder.New(t, db)
 				member := userBuilder.Create()
-				userBuilder.CreateEmail(member.ID, "test@example.com", "test", "test-provider-id")
+				userBuilder.CreateEmail(member.ID, "test@example.com")
 
 				params.unitID = org.ID
 				params.memberEmails = []string{"test@example.com"}
@@ -73,8 +73,8 @@ func TestUnitService_AddMember(t *testing.T) {
 				userBuilder := userbuilder.New(t, db)
 				memberOne := userBuilder.Create()
 				memberTwo := userBuilder.Create()
-				userBuilder.CreateEmail(memberOne.ID, "test1@example.com", "test", "test-provider-id-1")
-				userBuilder.CreateEmail(memberTwo.ID, "test2@example.com", "test", "test-provider-id-2")
+				userBuilder.CreateEmail(memberOne.ID, "test1@example.com")
+				userBuilder.CreateEmail(memberTwo.ID, "test2@example.com")
 
 				params.unitID = unitRow.ID
 				params.memberEmails = []string{"test1@example.com", "test2@example.com"}
@@ -111,7 +111,7 @@ func TestUnitService_AddMember(t *testing.T) {
 				unitRow := builder.Create(unit.UnitTypeUnit, unitbuilder.WithOrgID(org.ID), unitbuilder.WithName("duplicate-unit"))
 				userBuilder := userbuilder.New(t, db)
 				member := userBuilder.Create()
-				userBuilder.CreateEmail(member.ID, "test@example.com", "test", "test-provider-id")
+				userBuilder.CreateEmail(member.ID, "test@example.com")
 
 				builder.AddMember(unitRow.ID, "test@example.com")
 
@@ -148,7 +148,7 @@ func TestUnitService_AddMember(t *testing.T) {
 				unitRow := builder.Create(unit.UnitTypeUnit, unitbuilder.WithOrgID(org.ID), unitbuilder.WithName("dept-ee"))
 				userBuilder := userbuilder.New(t, db)
 				member := userBuilder.Create()
-				userBuilder.CreateEmail(member.ID, "secondary@example.com", "test", "test-provider-id")
+				userBuilder.CreateEmail(member.ID, "secondary@example.com")
 
 				params.unitID = unitRow.ID
 				params.memberEmails = []string{"secondary@example.com"} // Using placeholder email
@@ -249,8 +249,8 @@ func TestUnitService_ListMembers(t *testing.T) {
 				org := unitB.Create(unit.UnitTypeOrganization, unitbuilder.WithName("org-members"))
 				memberOne := userB.Create()
 				memberTwo := userB.Create()
-				userB.CreateEmail(memberOne.ID, "test1@example.com", "test", "test-provider-id-1")
-				userB.CreateEmail(memberTwo.ID, "test2@example.com", "test", "test-provider-id-2")
+				userB.CreateEmail(memberOne.ID, "test1@example.com")
+				userB.CreateEmail(memberTwo.ID, "test2@example.com")
 
 				unitB.AddMember(org.ID, "test1@example.com")
 				unitB.AddMember(org.ID, "test2@example.com")
@@ -333,9 +333,9 @@ func TestUnitService_ListUnitsMembers(t *testing.T) {
 				memberA := userB.Create()
 				memberB := userB.Create()
 				memberC := userB.Create()
-				userB.CreateEmail(memberA.ID, "memberA@example.com", "test", "test-provider-id-a")
-				userB.CreateEmail(memberB.ID, "memberB@example.com", "test", "test-provider-id-b")
-				userB.CreateEmail(memberC.ID, "memberC@example.com", "test", "test-provider-id-c")
+				userB.CreateEmail(memberA.ID, "memberA@example.com")
+				userB.CreateEmail(memberB.ID, "memberB@example.com")
+				userB.CreateEmail(memberC.ID, "memberC@example.com")
 
 				unitB.AddMember(unitOne.ID, "memberA@example.com")
 				unitB.AddMember(unitOne.ID, "memberB@example.com")
@@ -420,8 +420,8 @@ func TestUnitService_RemoveMember(t *testing.T) {
 				unitRow := unitB.Create(unit.UnitTypeUnit, unitbuilder.WithOrgID(org.ID), unitbuilder.WithName("unit-to-clean"))
 				member := userB.Create()
 				remaining := userB.Create()
-				userB.CreateEmail(member.ID, "test@example.com", "test", "test-provider-id")
-				userB.CreateEmail(remaining.ID, "remaining@example.com", "test", "test-provider-id-remaining")
+				userB.CreateEmail(member.ID, "test@example.com")
+				userB.CreateEmail(remaining.ID, "remaining@example.com")
 
 				unitB.AddMember(unitRow.ID, "test@example.com")
 				unitB.AddMember(unitRow.ID, "remaining@example.com")

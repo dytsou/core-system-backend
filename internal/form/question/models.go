@@ -245,12 +245,10 @@ type Auth struct {
 }
 
 type Email struct {
-	UserID     uuid.UUID
-	Value      string
-	Provider   string
-	ProviderID string
-	CreatedAt  pgtype.Timestamptz
-	UpdatedAt  pgtype.Timestamptz
+	UserID    uuid.UUID
+	Value     string
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
 }
 
 type Form struct {

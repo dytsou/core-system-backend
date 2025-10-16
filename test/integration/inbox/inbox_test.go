@@ -69,8 +69,8 @@ func TestInboxService_Create(t *testing.T) {
 
 				userA := userBuilder.Create()
 				userB := userBuilder.Create()
-				userBuilder.CreateEmail(userA.ID, "userA@example.com", "test", "test-provider-id-a")
-				userBuilder.CreateEmail(userB.ID, "userB@example.com", "test", "test-provider-id-b")
+				userBuilder.CreateEmail(userA.ID, "userA@example.com")
+				userBuilder.CreateEmail(userB.ID, "userB@example.com")
 
 				unitBuilder.AddMember(unitRow.ID, "userA@example.com")
 				unitBuilder.AddMember(unitRow.ID, "userB@example.com")
@@ -128,7 +128,7 @@ func TestInboxService_Create(t *testing.T) {
 				org := unitBuilder.Create(unit.UnitTypeOrganization, unitbuilder.WithName("invalid-user-org"))
 				unitRow := unitBuilder.Create(unit.UnitTypeUnit, unitbuilder.WithOrgID(org.ID), unitbuilder.WithName("invalid-user-unit"))
 				user := userBuilder.Create()
-				userBuilder.CreateEmail(user.ID, "user@example.com", "test", "test-provider-id")
+				userBuilder.CreateEmail(user.ID, "user@example.com")
 
 				unitBuilder.AddMember(unitRow.ID, "user@example.com")
 
@@ -237,7 +237,7 @@ func TestInboxService_List(t *testing.T) {
 				org := unitBuilder.Create(unit.UnitTypeOrganization, unitbuilder.WithName("empty-org"))
 				unitRow := unitBuilder.Create(unit.UnitTypeUnit, unitbuilder.WithOrgID(org.ID), unitbuilder.WithName("empty-unit"))
 				user := userBuilder.Create()
-				userBuilder.CreateEmail(user.ID, "user@example.com", "test", "test-provider-id")
+				userBuilder.CreateEmail(user.ID, "user@example.com")
 
 				unitBuilder.AddMember(unitRow.ID, "user@example.com")
 
@@ -264,7 +264,7 @@ func TestInboxService_List(t *testing.T) {
 				org := unitBuilder.Create(unit.UnitTypeOrganization, unitbuilder.WithName("message-org"))
 				unitRow := unitBuilder.Create(unit.UnitTypeUnit, unitbuilder.WithOrgID(org.ID), unitbuilder.WithName("message-unit"))
 				user := userBuilder.Create()
-				userBuilder.CreateEmail(user.ID, "user@example.com", "test", "test-provider-id")
+				userBuilder.CreateEmail(user.ID, "user@example.com")
 
 				unitBuilder.AddMember(unitRow.ID, "user@example.com")
 
@@ -371,7 +371,7 @@ func TestInboxService_UpdateByID(t *testing.T) {
 				org := unitBuilder.Create(unit.UnitTypeOrganization, unitbuilder.WithName("update-org"))
 				unitRow := unitBuilder.Create(unit.UnitTypeUnit, unitbuilder.WithOrgID(org.ID), unitbuilder.WithName("update-unit"))
 				user := userBuilder.Create()
-				userBuilder.CreateEmail(user.ID, "user@example.com", "test", "test-provider-id")
+				userBuilder.CreateEmail(user.ID, "user@example.com")
 
 				unitBuilder.AddMember(unitRow.ID, "user@example.com")
 
@@ -410,7 +410,7 @@ func TestInboxService_UpdateByID(t *testing.T) {
 				org := unitBuilder.Create(unit.UnitTypeOrganization, unitbuilder.WithName("archive-org"))
 				unitRow := unitBuilder.Create(unit.UnitTypeUnit, unitbuilder.WithOrgID(org.ID), unitbuilder.WithName("archive-unit"))
 				user := userBuilder.Create()
-				userBuilder.CreateEmail(user.ID, "user@example.com", "test", "test-provider-id")
+				userBuilder.CreateEmail(user.ID, "user@example.com")
 
 				unitBuilder.AddMember(unitRow.ID, "user@example.com")
 
@@ -449,7 +449,7 @@ func TestInboxService_UpdateByID(t *testing.T) {
 				org := unitBuilder.Create(unit.UnitTypeOrganization, unitbuilder.WithName("unstar-org"))
 				unitRow := unitBuilder.Create(unit.UnitTypeUnit, unitbuilder.WithOrgID(org.ID), unitbuilder.WithName("unstar-unit"))
 				user := userBuilder.Create()
-				userBuilder.CreateEmail(user.ID, "user@example.com", "test", "test-provider-id")
+				userBuilder.CreateEmail(user.ID, "user@example.com")
 
 				unitBuilder.AddMember(unitRow.ID, "user@example.com")
 
@@ -486,7 +486,7 @@ func TestInboxService_UpdateByID(t *testing.T) {
 				org := unitBuilder.Create(unit.UnitTypeOrganization, unitbuilder.WithName("invalid-message-org"))
 				unitRow := unitBuilder.Create(unit.UnitTypeUnit, unitbuilder.WithOrgID(org.ID), unitbuilder.WithName("invalid-message-unit"))
 				user := userBuilder.Create()
-				userBuilder.CreateEmail(user.ID, "user@example.com", "test", "test-provider-id")
+				userBuilder.CreateEmail(user.ID, "user@example.com")
 				unitBuilder.AddMember(unitRow.ID, "user@example.com")
 
 				// Use a non-existent message ID
@@ -511,7 +511,7 @@ func TestInboxService_UpdateByID(t *testing.T) {
 				org := unitBuilder.Create(unit.UnitTypeOrganization, unitbuilder.WithName("invalid-user-org"))
 				unitRow := unitBuilder.Create(unit.UnitTypeUnit, unitbuilder.WithOrgID(org.ID), unitbuilder.WithName("invalid-user-unit"))
 				user := userBuilder.Create()
-				userBuilder.CreateEmail(user.ID, "user@example.com", "test", "test-provider-id")
+				userBuilder.CreateEmail(user.ID, "user@example.com")
 
 				unitBuilder.AddMember(unitRow.ID, "user@example.com")
 
@@ -591,7 +591,7 @@ func TestInboxService_DuplicateCreatesProduceMultipleMessages(t *testing.T) {
 				org := unitBuilder.Create(unit.UnitTypeOrganization, unitbuilder.WithName("duplicate-org"))
 				unitRow := unitBuilder.Create(unit.UnitTypeUnit, unitbuilder.WithOrgID(org.ID), unitbuilder.WithName("duplicate-unit"))
 				user := userBuilder.Create()
-				userBuilder.CreateEmail(user.ID, "user@example.com", "test", "test-provider-id")
+				userBuilder.CreateEmail(user.ID, "user@example.com")
 
 				unitBuilder.AddMember(unitRow.ID, "user@example.com")
 
@@ -636,7 +636,7 @@ func TestInboxService_DuplicateCreatesProduceMultipleMessages(t *testing.T) {
 				org := unitBuilder.Create(unit.UnitTypeOrganization, unitbuilder.WithName("invalid-duplicate-org"))
 				unitRow := unitBuilder.Create(unit.UnitTypeUnit, unitbuilder.WithOrgID(org.ID), unitbuilder.WithName("invalid-duplicate-unit"))
 				user := userBuilder.Create()
-				userBuilder.CreateEmail(user.ID, "user@example.com", "test", "test-provider-id")
+				userBuilder.CreateEmail(user.ID, "user@example.com")
 
 				unitBuilder.AddMember(unitRow.ID, "user@example.com")
 
@@ -719,7 +719,7 @@ func TestInboxService_ArchiveVisibilityInList(t *testing.T) {
 				org := unitBuilder.Create(unit.UnitTypeOrganization, unitbuilder.WithName("archive-visibility-org"))
 				unitRow := unitBuilder.Create(unit.UnitTypeUnit, unitbuilder.WithOrgID(org.ID), unitbuilder.WithName("archive-visibility-unit"))
 				user := userBuilder.Create()
-				userBuilder.CreateEmail(user.ID, "user@example.com", "test", "test-provider-id")
+				userBuilder.CreateEmail(user.ID, "user@example.com")
 
 				unitBuilder.AddMember(unitRow.ID, "user@example.com")
 

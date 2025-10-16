@@ -72,31 +72,22 @@ func (q *Queries) CreateAuth(ctx context.Context, arg CreateAuthParams) (Auth, e
 }
 
 const createEmail = `-- name: CreateEmail :one
-INSERT INTO emails (user_id, value, provider, provider_id)
-VALUES ($1, $2, $3, $4)
-RETURNING user_id, value, provider, provider_id, created_at, updated_at
+INSERT INTO emails (user_id, value)
+VALUES ($1, $2)
+RETURNING user_id, value, created_at, updated_at
 `
 
 type CreateEmailParams struct {
-	UserID     uuid.UUID
-	Value      string
-	Provider   string
-	ProviderID string
+	UserID uuid.UUID
+	Value  string
 }
 
 func (q *Queries) CreateEmail(ctx context.Context, arg CreateEmailParams) (Email, error) {
-	row := q.db.QueryRow(ctx, createEmail,
-		arg.UserID,
-		arg.Value,
-		arg.Provider,
-		arg.ProviderID,
-	)
+	row := q.db.QueryRow(ctx, createEmail, arg.UserID, arg.Value)
 	var i Email
 	err := row.Scan(
 		&i.UserID,
 		&i.Value,
-		&i.Provider,
-		&i.ProviderID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -130,6 +121,22 @@ func (q *Queries) ExistsByID(ctx context.Context, id uuid.UUID) (bool, error) {
 	return exists, err
 }
 
+const existsEmail = `-- name: ExistsEmail :one
+SELECT EXISTS(SELECT 1 FROM emails WHERE user_id = $1 AND value = $2)
+`
+
+type ExistsEmailParams struct {
+	UserID uuid.UUID
+	Value  string
+}
+
+func (q *Queries) ExistsEmail(ctx context.Context, arg ExistsEmailParams) (bool, error) {
+	row := q.db.QueryRow(ctx, existsEmail, arg.UserID, arg.Value)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const getByID = `-- name: GetByID :one
 SELECT id, name, username, avatar_url, role, created_at, updated_at FROM users WHERE id = $1
 `
@@ -149,26 +156,8 @@ func (q *Queries) GetByID(ctx context.Context, id uuid.UUID) (User, error) {
 	return i, err
 }
 
-const getEmailByAddress = `-- name: GetEmailByAddress :one
-SELECT user_id, value, provider, provider_id, created_at, updated_at FROM emails WHERE value = $1
-`
-
-func (q *Queries) GetEmailByAddress(ctx context.Context, value string) (Email, error) {
-	row := q.db.QueryRow(ctx, getEmailByAddress, value)
-	var i Email
-	err := row.Scan(
-		&i.UserID,
-		&i.Value,
-		&i.Provider,
-		&i.ProviderID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
 const getEmailsByID = `-- name: GetEmailsByID :many
-SELECT user_id, value, provider, provider_id, created_at, updated_at FROM emails WHERE user_id = $1
+SELECT user_id, value, created_at, updated_at FROM emails WHERE user_id = $1
 `
 
 func (q *Queries) GetEmailsByID(ctx context.Context, userID uuid.UUID) ([]Email, error) {
@@ -183,8 +172,6 @@ func (q *Queries) GetEmailsByID(ctx context.Context, userID uuid.UUID) ([]Email,
 		if err := rows.Scan(
 			&i.UserID,
 			&i.Value,
-			&i.Provider,
-			&i.ProviderID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {

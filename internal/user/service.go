@@ -1,9 +1,10 @@
 package user
 
 import (
-	"NYCU-SDC/core-system-backend/internal"
 	"context"
 	"net/url"
+
+	"NYCU-SDC/core-system-backend/internal"
 
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
@@ -23,7 +24,7 @@ type Querier interface {
 	CreateAuth(ctx context.Context, arg CreateAuthParams) (Auth, error)
 	Update(ctx context.Context, arg UpdateParams) (User, error)
 	GetEmailsByID(ctx context.Context, userID uuid.UUID) ([]Email, error)
-	GetEmailByAddress(ctx context.Context, email string) (Email, error)
+	ExistsEmail(ctx context.Context, arg ExistsEmailParams) (bool, error)
 	CreateEmail(ctx context.Context, arg CreateEmailParams) (Email, error)
 }
 
@@ -164,30 +165,32 @@ func (s *Service) FindOrCreate(ctx context.Context, name, username, avatarUrl st
 	return newUser.ID, err
 }
 
-func (s *Service) CreateEmail(ctx context.Context, userID uuid.UUID, email, provider, providerID string) error {
+func (s *Service) CreateEmail(ctx context.Context, userID uuid.UUID, email string) error {
 	traceCtx, span := s.tracer.Start(ctx, "CreateEmailIfNotExists")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
 	// Check if email already exists
-	existingEmail, err := s.queries.GetEmailByAddress(traceCtx, email)
-	if err == nil && existingEmail.UserID != uuid.Nil {
-		// Email already exists, check if it belongs to the same user
-		if existingEmail.UserID == userID {
-			logger.Debug("Email already exists for user", zap.String("user_id", userID.String()), zap.String("email", email))
-			return nil
-		}
-		// Email exists for a different user - this shouldn't happen in normal OAuth flow
-		logger.Warn("Email already exists for different user", zap.String("email", email), zap.String("existing_user_id", existingEmail.UserID.String()), zap.String("new_user_id", userID.String()))
-		return internal.ErrEmailAlreadyExists
+	exists, err := s.queries.ExistsEmail(traceCtx, ExistsEmailParams{
+		UserID: userID,
+		Value:  email,
+	})
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "check email existence")
+		span.RecordError(err)
+		return err
+	}
+
+	if exists {
+		err = internal.ErrEmailAlreadyExists
+		span.RecordError(err)
+		return err
 	}
 
 	// Create email record
 	_, err = s.queries.CreateEmail(traceCtx, CreateEmailParams{
-		UserID:     userID,
-		Value:      email,
-		Provider:   provider,
-		ProviderID: providerID,
+		UserID: userID,
+		Value:  email,
 	})
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "create email")
