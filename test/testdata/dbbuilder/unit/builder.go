@@ -64,7 +64,7 @@ func (b Builder) Create(unitType unit.UnitType, opts ...Option) unit.Unit {
 		})
 		require.NoError(b.t, err)
 
-		_, err = tenantQueries.CreateHistory(context.Background(), tenant.CreateHistoryParams{
+		_, err = tenantQueries.CreateSlugHistory(context.Background(), tenant.CreateSlugHistoryParams{
 			Slug:      p.Slug,
 			OrgID:     pgtype.UUID{Bytes: unitRow.ID, Valid: true},
 			Orgname:   pgtype.Text{String: p.Name, Valid: p.Name != ""},

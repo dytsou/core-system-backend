@@ -55,7 +55,6 @@ func (h *Handler) GetStatusWithHistory(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	h.logger = logutil.WithContext(traceCtx, h.logger)
 
-	//h.logger.Info("GetStatusWithHistory", zap.String("slug", r.PathValue("slug")))
 	available, orgID, history, err := h.store.GetStatusWithHistory(traceCtx, r.PathValue("slug"))
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, h.logger)

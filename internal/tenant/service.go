@@ -56,7 +56,7 @@ func (s *Service) Get(ctx context.Context, id uuid.UUID) (Tenant, error) {
 	return tenant, nil
 }
 
-func (s *Service) Create(ctx context.Context, slug string, id uuid.UUID, ownerID uuid.UUID, ownerName string) (Tenant, error) {
+func (s *Service) Create(ctx context.Context, slug string, id uuid.UUID, ownerID uuid.UUID) (Tenant, error) {
 	traceCtx, span := s.tracer.Start(ctx, "Create")
 	defer span.End()
 	logger := internal.WithContext(traceCtx, s.logger)
@@ -181,14 +181,19 @@ func (s *Service) GetHistoryBySlug(ctx context.Context, slug string) ([]SlugHist
 }
 
 func (s *Service) GetStatusWithHistory(ctx context.Context, slug string) (bool, uuid.UUID, []SlugHistory, error) {
-	history, err := s.GetHistoryBySlug(ctx, slug)
+	traceCtx, span := s.tracer.Start(ctx, "GetStatusWithHistory")
+	defer span.End()
+
+	history, err := s.GetHistoryBySlug(traceCtx, slug)
 	if err != nil {
+		span.RecordError(err)
 		return true, uuid.UUID{}, nil, err
 	}
 
 	available, currentOrgIDStr := deriveStatus(history)
 	currentOrgID, err := uuid.Parse(currentOrgIDStr)
 	if err != nil {
+		span.RecordError(err)
 		return true, uuid.UUID{}, nil, err
 	}
 
@@ -196,14 +201,19 @@ func (s *Service) GetStatusWithHistory(ctx context.Context, slug string) (bool, 
 }
 
 func (s *Service) GetStatus(ctx context.Context, slug string) (bool, uuid.UUID, error) {
-	history, err := s.GetHistoryBySlug(ctx, slug)
+	traceCtx, span := s.tracer.Start(ctx, "GetStatus")
+	defer span.End()
+
+	history, err := s.GetHistoryBySlug(traceCtx, slug)
 	if err != nil {
+		span.RecordError(err)
 		return true, uuid.UUID{}, err
 	}
 
 	available, currentOrgIDStr := deriveStatus(history)
 	currentOrgID, err := uuid.Parse(currentOrgIDStr)
 	if err != nil {
+		span.RecordError(err)
 		return true, uuid.UUID{}, err
 	}
 	return available, currentOrgID, nil

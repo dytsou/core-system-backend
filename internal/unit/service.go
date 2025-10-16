@@ -1,6 +1,7 @@
 package unit
 
 import (
+	"NYCU-SDC/core-system-backend/internal"
 	"NYCU-SDC/core-system-backend/internal/tenant"
 	"context"
 	"fmt"
@@ -32,7 +33,7 @@ type Querier interface {
 }
 
 type tenantStore interface {
-	Create(ctx context.Context, slug string, id uuid.UUID, ownerID uuid.UUID, ownerName string) (tenant.Tenant, error)
+	Create(ctx context.Context, slug string, id uuid.UUID, ownerID uuid.UUID) (tenant.Tenant, error)
 	SlugExists(ctx context.Context, slug string) (bool, error)
 	GetBySlug(ctx context.Context, slug string) (tenant.Tenant, error)
 	CreateHistory(ctx context.Context, slug string, orgID uuid.UUID, orgName string) (tenant.SlugHistory, error)
@@ -88,12 +89,13 @@ func (s *Service) CreateOrganization(ctx context.Context, name string, descripti
 
 	exists, err := s.tenantStore.SlugExists(traceCtx, slug)
 	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "validate slug uniqueness")
+		span.RecordError(err)
 		return Unit{}, err
 	}
+
 	if exists {
-		err = databaseutil.WrapDBError(err, logger, "slug already in use")
-		return Unit{}, err
+		span.RecordError(internal.ErrOrgSlugAlreadyExists)
+		return Unit{}, internal.ErrOrgSlugAlreadyExists
 	}
 
 	org, err := s.queries.Create(traceCtx, CreateParams{
@@ -109,15 +111,15 @@ func (s *Service) CreateOrganization(ctx context.Context, name string, descripti
 		return Unit{}, err
 	}
 
-	_, err = s.tenantStore.Create(traceCtx, slug, org.ID, currentUserID, name)
+	_, err = s.tenantStore.Create(traceCtx, slug, org.ID, currentUserID)
 	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "create tenant for org")
+		span.RecordError(err)
 		return Unit{}, err
 	}
 
 	_, err = s.tenantStore.CreateHistory(traceCtx, slug, org.ID, name)
 	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "create tenant history for org")
+		span.RecordError(err)
 		return Unit{}, err
 	}
 
@@ -138,6 +140,7 @@ func (s *Service) CreateUnit(ctx context.Context, name string, description strin
 
 	orgTenant, err := s.tenantStore.GetBySlug(traceCtx, slug)
 	if err != nil {
+		span.RecordError(err)
 		return Unit{}, err
 	}
 
