@@ -25,7 +25,7 @@ import (
 
 //go:generate mockery --name Store
 type Store interface {
-	List(ctx context.Context, userID uuid.UUID) ([]ListRow, error)
+	List(ctx context.Context, userID uuid.UUID, filter *InboxFilterRequest) ([]ListRow, error)
 	GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (GetByIDRow, error)
 	UpdateByID(ctx context.Context, id uuid.UUID, userID uuid.UUID, arg UserInboxMessageFilter) (UpdateByIDRow, error)
 }
@@ -181,13 +181,20 @@ func (h *Handler) ListHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Parse filter parameters
+	filter, err := ParseFilterRequest(r)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, err, logger)
+		return
+	}
+
 	currentUser, ok := user.GetFromContext(traceCtx)
 	if !ok {
 		h.problemWriter.WriteError(traceCtx, w, internal.ErrNoUserInContext, logger)
 		return
 	}
 
-	messages, err := h.store.List(traceCtx, currentUser.ID)
+	messages, err := h.store.List(traceCtx, currentUser.ID, filter)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return

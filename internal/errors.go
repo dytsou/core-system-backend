@@ -2,7 +2,6 @@ package internal
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/NYCU-SDC/summer/pkg/problem"
 )
@@ -42,7 +41,10 @@ var (
 	ErrUnitNotFound         = errors.New("unit not found")
 
 	// Publish Errors
-	ErrFormNotDraft = fmt.Errorf("form is not in draft status")
+	ErrFormNotDraft = errors.New("form is not in draft status")
+
+	// Inbox Errors
+	ErrSearchTooLong = errors.New("search string exceeds maximum length")
 )
 
 func NewProblemWriter() *problem.HttpWriter {
@@ -103,6 +105,10 @@ func ErrorHandler(err error) problem.Problem {
 	// Publish Errors
 	case errors.Is(err, ErrFormNotDraft):
 		return problem.NewValidateProblem("form is not in draft status")
+
+	// Inbox Errors
+	case errors.Is(err, ErrSearchTooLong):
+		return problem.NewValidateProblem("search string exceeds maximum length")
 	}
 	return problem.Problem{}
 }

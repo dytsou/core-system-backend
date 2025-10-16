@@ -14,7 +14,7 @@ import (
 type Querier interface {
 	CreateMessage(ctx context.Context, arg CreateMessageParams) (InboxMessage, error)
 	CreateUserInboxBulk(ctx context.Context, arg CreateUserInboxBulkParams) ([]UserInboxMessage, error)
-	List(ctx context.Context, userID uuid.UUID) ([]ListRow, error)
+	List(ctx context.Context, arg ListParams) ([]ListRow, error)
 	GetByID(ctx context.Context, arg GetByIDParams) (GetByIDRow, error)
 	UpdateByID(ctx context.Context, arg UpdateByIDParams) (UpdateByIDRow, error)
 }
@@ -72,12 +72,31 @@ func (s *Service) Create(ctx context.Context, contentType ContentType, contentID
 	return message.ID, nil
 }
 
-func (s *Service) List(ctx context.Context, userID uuid.UUID) ([]ListRow, error) {
+func (s *Service) List(ctx context.Context, userID uuid.UUID, filter *InboxFilterRequest) ([]ListRow, error) {
 	traceCtx, span := s.tracer.Start(ctx, "List")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	messages, err := s.queries.List(traceCtx, userID)
+	// Prepare filter parameters
+	params := ListParams{
+		UserID: userID,
+	}
+
+	// Set filter parameters (nullable booleans and search string)
+	if filter != nil {
+		if filter.IsRead != nil {
+			params.Isread = *filter.IsRead
+		}
+		if filter.IsStarred != nil {
+			params.Isstarred = *filter.IsStarred
+		}
+		if filter.IsArchived != nil {
+			params.Isarchived = *filter.IsArchived
+		}
+		params.Search = filter.Search
+	}
+
+	messages, err := s.queries.List(traceCtx, params)
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "list all user inbox messages")
 		span.RecordError(err)
