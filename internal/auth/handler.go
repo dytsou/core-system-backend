@@ -43,7 +43,7 @@ type JWTStore interface {
 
 type UserStore interface {
 	ExistsByID(ctx context.Context, id uuid.UUID) (bool, error)
-	GetByID(ctx context.Context, id uuid.UUID) (user.User, error)
+	GetByID(ctx context.Context, id uuid.UUID) (user.GetByIDRow, error)
 	FindOrCreate(ctx context.Context, name, username, avatarUrl string, role []string, oauthProvider, oauthProviderID string) (uuid.UUID, error)
 	CreateEmail(ctx context.Context, userID uuid.UUID, email string) error
 }
@@ -262,9 +262,20 @@ func (h *Handler) generateJWT(ctx context.Context, userID uuid.UUID) (string, st
 	traceCtx, span := h.tracer.Start(ctx, "generateJWT")
 	defer span.End()
 
-	userEntity, err := h.userStore.GetByID(traceCtx, userID)
+	userEntityRow, err := h.userStore.GetByID(traceCtx, userID)
 	if err != nil {
 		return "", "", err
+	}
+
+	// Convert GetByIDRow to user.User expected by JWTIssuer
+	userEntity := user.User{
+		ID:        userEntityRow.ID,
+		Name:      userEntityRow.Name,
+		Username:  userEntityRow.Username,
+		AvatarUrl: userEntityRow.AvatarUrl,
+		Role:      userEntityRow.Role,
+		CreatedAt: userEntityRow.CreatedAt,
+		UpdatedAt: userEntityRow.UpdatedAt,
 	}
 
 	jwtToken, err := h.jwtIssuer.New(traceCtx, userEntity)

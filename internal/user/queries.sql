@@ -7,7 +7,10 @@ RETURNING *;
 SELECT EXISTS(SELECT 1 FROM users WHERE id = $1);
 
 -- name: GetByID :one
-SELECT * FROM users WHERE id = $1;
+SELECT users.*, user_emails.value as email
+FROM users
+LEFT JOIN user_emails ON users.id = user_emails.user_id
+WHERE users.id = $1;
 
 -- name: Update :one
 UPDATE users
@@ -33,7 +36,7 @@ VALUES ($1, $2)
 RETURNING *;
 
 -- name: GetEmailsByID :many
-SELECT * FROM user_emails WHERE user_id = $1;
+SELECT user_emails.value as email FROM user_emails WHERE user_id = $1;
 
 -- name: ExistsEmail :one
 SELECT EXISTS(SELECT 1 FROM user_emails WHERE user_id = $1 AND value = $2);

@@ -17,13 +17,13 @@ import (
 
 type Querier interface {
 	ExistsByID(ctx context.Context, id uuid.UUID) (bool, error)
-	GetByID(ctx context.Context, id uuid.UUID) (User, error)
+	GetByID(ctx context.Context, id uuid.UUID) (GetByIDRow, error)
 	GetIDByAuth(ctx context.Context, arg GetIDByAuthParams) (uuid.UUID, error)
 	ExistsByAuth(ctx context.Context, arg ExistsByAuthParams) (bool, error)
 	Create(ctx context.Context, arg CreateParams) (User, error)
 	CreateAuth(ctx context.Context, arg CreateAuthParams) (Auth, error)
 	Update(ctx context.Context, arg UpdateParams) (User, error)
-	GetEmailsByID(ctx context.Context, userID uuid.UUID) ([]UserEmail, error)
+	GetEmailsByID(ctx context.Context, userID uuid.UUID) ([]string, error)
 	ExistsEmail(ctx context.Context, arg ExistsEmailParams) (bool, error)
 	CreateEmail(ctx context.Context, arg CreateEmailParams) (UserEmail, error)
 }
@@ -64,18 +64,18 @@ func (s *Service) ExistsByID(ctx context.Context, id uuid.UUID) (bool, error) {
 	return exists, nil
 }
 
-func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (User, error) {
+func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (GetByIDRow, error) {
 	traceCtx, span := s.tracer.Start(ctx, "GetByID")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	currentUser, err := s.queries.GetByID(traceCtx, id)
+	profile, err := s.queries.GetByID(traceCtx, id)
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "get user by id")
 		span.RecordError(err)
-		return User{}, err
+		return GetByIDRow{}, err
 	}
-	return currentUser, nil
+	return profile, nil
 }
 
 func resolveAvatarUrl(name, avatarUrl string) string {
@@ -213,10 +213,5 @@ func (s *Service) GetEmailsByID(ctx context.Context, userID uuid.UUID) ([]string
 		return nil, err
 	}
 
-	emailAddresses := make([]string, len(emails))
-	for i, email := range emails {
-		emailAddresses[i] = email.Value
-	}
-
-	return emailAddresses, nil
+	return emails, nil
 }
