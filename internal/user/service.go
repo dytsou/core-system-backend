@@ -166,7 +166,7 @@ func (s *Service) FindOrCreate(ctx context.Context, name, username, avatarUrl st
 }
 
 func (s *Service) CreateEmail(ctx context.Context, userID uuid.UUID, email string) error {
-	traceCtx, span := s.tracer.Start(ctx, "CreateEmailIfNotExists")
+	traceCtx, span := s.tracer.Start(ctx, "CreateEmail")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
