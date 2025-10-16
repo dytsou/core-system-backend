@@ -84,13 +84,13 @@ func (s *Service) ListMembers(ctx context.Context, id uuid.UUID) ([]user.Profile
 
 // ListMembersWithEmails lists all members as ListMembersRow for internal use
 func (s *Service) ListWithEmails(ctx context.Context, id uuid.UUID) ([]ListMembersRow, error) {
-	traceCtx, span := s.tracer.Start(ctx, "ListMembersWithEmails")
+	traceCtx, span := s.tracer.Start(ctx, "ListWithEmails")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
 	members, err := s.queries.ListMembers(traceCtx, id)
 	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "list org members with emails")
+		err = databaseutil.WrapDBError(err, logger, "list members with emails")
 		span.RecordError(err)
 		return nil, err
 	}
@@ -99,7 +99,7 @@ func (s *Service) ListWithEmails(ctx context.Context, id uuid.UUID) ([]ListMembe
 		members = []ListMembersRow{}
 	}
 
-	logger.Info("Listed unit members with emails",
+	logger.Info("Listed members with emails",
 		zap.String("id", id.String()),
 		zap.Int("count", len(members)),
 	)
