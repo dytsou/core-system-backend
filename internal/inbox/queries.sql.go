@@ -153,8 +153,24 @@ JOIN inbox_message im ON uim.message_id = im.id
 LEFT JOIN forms f ON im.type = 'form' AND im.content_id = f.id
 LEFT JOIN units u ON f.unit_id = u.id
 LEFT JOIN units o ON u.org_id = o.id
-WHERE uim.user_id = $1 AND uim.is_archived = false
+WHERE uim.user_id = $1
+  AND ($2 IS NULL OR uim.is_read = $2)
+  AND ($3 IS NULL OR uim.is_starred = $3)
+  AND ($4 IS NULL OR uim.is_archived = $4)
+  AND ($5 = '' OR (
+    CASE WHEN im.type = 'form' THEN f.title ELSE '' END ILIKE '%' || $5 || '%'
+    OR CASE WHEN im.type = 'form' THEN f.description ELSE '' END ILIKE '%' || $5 || '%'
+    OR CASE WHEN im.type = 'form' THEN COALESCE(f.preview_message, LEFT(f.description, 25)) ELSE '' END ILIKE '%' || $5 || '%'
+  ))
 `
+
+type ListParams struct {
+	UserID     uuid.UUID
+	Isread     interface{}
+	Isstarred  interface{}
+	Isarchived interface{}
+	Search     interface{}
+}
 
 type ListRow struct {
 	ID             uuid.UUID
@@ -175,8 +191,14 @@ type ListRow struct {
 	UnitName       interface{}
 }
 
-func (q *Queries) List(ctx context.Context, userID uuid.UUID) ([]ListRow, error) {
-	rows, err := q.db.Query(ctx, list, userID)
+func (q *Queries) List(ctx context.Context, arg ListParams) ([]ListRow, error) {
+	rows, err := q.db.Query(ctx, list,
+		arg.UserID,
+		arg.Isread,
+		arg.Isstarred,
+		arg.Isarchived,
+		arg.Search,
+	)
 	if err != nil {
 		return nil, err
 	}
