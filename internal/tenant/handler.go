@@ -1,6 +1,7 @@
 package tenant
 
 import (
+	"NYCU-SDC/core-system-backend/internal"
 	"context"
 	handlerutil "github.com/NYCU-SDC/summer/pkg/handler"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
@@ -55,7 +56,8 @@ func (h *Handler) GetStatusWithHistory(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	h.logger = logutil.WithContext(traceCtx, h.logger)
 
-	available, orgID, history, err := h.store.GetStatusWithHistory(traceCtx, r.PathValue("slug"))
+	slug := traceCtx.Value(internal.OrgSlugContextKey).(string)
+	available, orgID, history, err := h.store.GetStatusWithHistory(traceCtx, slug)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, h.logger)
 		return
@@ -75,7 +77,8 @@ func (h *Handler) GetStatus(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	h.logger = logutil.WithContext(traceCtx, h.logger)
 
-	available, orgID, err := h.store.GetStatus(traceCtx, r.PathValue("slug"))
+	slug := traceCtx.Value(internal.OrgSlugContextKey).(string)
+	available, orgID, err := h.store.GetStatus(traceCtx, slug)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, h.logger)
 		return
