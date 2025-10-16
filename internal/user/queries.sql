@@ -28,12 +28,12 @@ SELECT user_id FROM auth WHERE provider = $1 AND provider_id = $2;
 SELECT EXISTS(SELECT 1 FROM auth WHERE provider = $1 AND provider_id = $2);
 
 -- name: CreateEmail :one
-INSERT INTO emails (user_id, value)
+INSERT INTO user_emails (user_id, value)
 VALUES ($1, $2)
 RETURNING *;
 
 -- name: GetEmailsByID :many
-SELECT * FROM emails WHERE user_id = $1;
+SELECT * FROM user_emails WHERE user_id = $1;
 
 -- name: ExistsEmail :one
-SELECT EXISTS(SELECT 1 FROM emails WHERE user_id = $1 AND value = $2);
+SELECT EXISTS(SELECT 1 FROM user_emails WHERE user_id = $1 AND value = $2);

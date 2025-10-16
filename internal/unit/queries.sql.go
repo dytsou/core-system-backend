@@ -15,9 +15,9 @@ import (
 const addMember = `-- name: AddMember :one
 WITH inserted_member AS (
     INSERT INTO unit_members (unit_id, member_id)
-    SELECT $1, emails.user_id
-    FROM emails
-        WHERE emails.value = $2
+    SELECT $1, user_emails.user_id
+    FROM user_emails
+        WHERE user_emails.value = $2
     ON CONFLICT (unit_id, member_id) DO UPDATE
         SET member_id = EXCLUDED.member_id
     RETURNING unit_id, member_id
@@ -216,10 +216,10 @@ SELECT m.member_id,
        u.name,
        u.username,
        u.avatar_url,
-       COALESCE(array_agg(emails.value) FILTER (WHERE emails.value IS NOT NULL), ARRAY[]::text[]) as emails
+       COALESCE(array_agg(user_emails.value) FILTER (WHERE user_emails.value IS NOT NULL), ARRAY[]::text[]) as emails
 FROM unit_members m
 JOIN users u ON u.id = m.member_id
-LEFT JOIN emails ON emails.user_id = m.member_id
+LEFT JOIN user_emails ON user_emails.user_id = m.member_id
 WHERE m.unit_id = $1
 GROUP BY m.member_id, u.name, u.username, u.avatar_url
 `

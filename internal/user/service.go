@@ -23,9 +23,9 @@ type Querier interface {
 	Create(ctx context.Context, arg CreateParams) (User, error)
 	CreateAuth(ctx context.Context, arg CreateAuthParams) (Auth, error)
 	Update(ctx context.Context, arg UpdateParams) (User, error)
-	GetEmailsByID(ctx context.Context, userID uuid.UUID) ([]Email, error)
+	GetEmailsByID(ctx context.Context, userID uuid.UUID) ([]UserEmail, error)
 	ExistsEmail(ctx context.Context, arg ExistsEmailParams) (bool, error)
-	CreateEmail(ctx context.Context, arg CreateEmailParams) (Email, error)
+	CreateEmail(ctx context.Context, arg CreateEmailParams) (UserEmail, error)
 }
 
 type Service struct {

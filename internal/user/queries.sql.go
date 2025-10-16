@@ -72,7 +72,7 @@ func (q *Queries) CreateAuth(ctx context.Context, arg CreateAuthParams) (Auth, e
 }
 
 const createEmail = `-- name: CreateEmail :one
-INSERT INTO emails (user_id, value)
+INSERT INTO user_emails (user_id, value)
 VALUES ($1, $2)
 RETURNING user_id, value, created_at, updated_at
 `
@@ -82,9 +82,9 @@ type CreateEmailParams struct {
 	Value  string
 }
 
-func (q *Queries) CreateEmail(ctx context.Context, arg CreateEmailParams) (Email, error) {
+func (q *Queries) CreateEmail(ctx context.Context, arg CreateEmailParams) (UserEmail, error) {
 	row := q.db.QueryRow(ctx, createEmail, arg.UserID, arg.Value)
-	var i Email
+	var i UserEmail
 	err := row.Scan(
 		&i.UserID,
 		&i.Value,
@@ -122,7 +122,7 @@ func (q *Queries) ExistsByID(ctx context.Context, id uuid.UUID) (bool, error) {
 }
 
 const existsEmail = `-- name: ExistsEmail :one
-SELECT EXISTS(SELECT 1 FROM emails WHERE user_id = $1 AND value = $2)
+SELECT EXISTS(SELECT 1 FROM user_emails WHERE user_id = $1 AND value = $2)
 `
 
 type ExistsEmailParams struct {
@@ -157,18 +157,18 @@ func (q *Queries) GetByID(ctx context.Context, id uuid.UUID) (User, error) {
 }
 
 const getEmailsByID = `-- name: GetEmailsByID :many
-SELECT user_id, value, created_at, updated_at FROM emails WHERE user_id = $1
+SELECT user_id, value, created_at, updated_at FROM user_emails WHERE user_id = $1
 `
 
-func (q *Queries) GetEmailsByID(ctx context.Context, userID uuid.UUID) ([]Email, error) {
+func (q *Queries) GetEmailsByID(ctx context.Context, userID uuid.UUID) ([]UserEmail, error) {
 	rows, err := q.db.Query(ctx, getEmailsByID, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Email
+	var items []UserEmail
 	for rows.Next() {
-		var i Email
+		var i UserEmail
 		if err := rows.Scan(
 			&i.UserID,
 			&i.Value,

@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS auth (
     UNIQUE(provider, provider_id)
 );
 
-CREATE TABLE IF NOT EXISTS emails (
+CREATE TABLE IF NOT EXISTS user_emails (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     value VARCHAR(255) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
