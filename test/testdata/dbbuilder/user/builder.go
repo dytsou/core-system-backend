@@ -57,13 +57,11 @@ func (b Builder) Create(opts ...Option) user.User {
 }
 
 // CreateEmail creates an email record for a user
-func (b Builder) CreateEmail(userID uuid.UUID, email, provider, providerID string) {
+func (b Builder) CreateEmail(userID uuid.UUID, email string) {
 	queries := b.Queries()
 	_, err := queries.CreateEmail(context.Background(), user.CreateEmailParams{
-		UserID:     userID,
-		Value:      email,
-		Provider:   provider,
-		ProviderID: providerID,
+		UserID: userID,
+		Value:  email,
 	})
 	require.NoError(b.t, err)
 }

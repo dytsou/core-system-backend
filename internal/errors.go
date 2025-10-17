@@ -29,7 +29,7 @@ var (
 	// User Errors
 	ErrUserNotFound       = errors.New("user not found")
 	ErrNoUserInContext    = errors.New("no user found in request context")
-	ErrEmailAlreadyExists = errors.New("email already exists for different user")
+	ErrEmailAlreadyExists = errors.New("email already exists")
 
 	// OAuth Email Errors
 	ErrFailedToExtractEmail = errors.New("failed to extract email from OAuth token")
@@ -86,7 +86,7 @@ func ErrorHandler(err error) problem.Problem {
 	case errors.Is(err, ErrNoUserInContext):
 		return problem.NewUnauthorizedProblem("no user found in request context")
 	case errors.Is(err, ErrEmailAlreadyExists):
-		return problem.NewValidateProblem("email already exists for different user")
+		return problem.NewValidateProblem("email already exists")
 
 	// OAuth Email Errors
 	case errors.Is(err, ErrFailedToExtractEmail):

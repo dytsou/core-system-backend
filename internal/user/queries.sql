@@ -7,7 +7,10 @@ RETURNING *;
 SELECT EXISTS(SELECT 1 FROM users WHERE id = $1);
 
 -- name: GetByID :one
-SELECT * FROM users WHERE id = $1;
+SELECT users.*, user_emails.value as email
+FROM users
+LEFT JOIN user_emails ON users.id = user_emails.user_id
+WHERE users.id = $1;
 
 -- name: Update :one
 UPDATE users
@@ -28,12 +31,12 @@ SELECT user_id FROM auth WHERE provider = $1 AND provider_id = $2;
 SELECT EXISTS(SELECT 1 FROM auth WHERE provider = $1 AND provider_id = $2);
 
 -- name: CreateEmail :one
-INSERT INTO emails (user_id, value, provider, provider_id)
-VALUES ($1, $2, $3, $4)
+INSERT INTO user_emails (user_id, value)
+VALUES ($1, $2)
 RETURNING *;
 
 -- name: GetEmailsByID :many
-SELECT * FROM emails WHERE user_id = $1;
+SELECT user_emails.value as email FROM user_emails WHERE user_id = $1;
 
--- name: GetEmailByAddress :one
-SELECT * FROM emails WHERE value = $1;
+-- name: ExistsEmail :one
+SELECT EXISTS(SELECT 1 FROM user_emails WHERE user_id = $1 AND value = $2);

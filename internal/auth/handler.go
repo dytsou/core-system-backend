@@ -43,9 +43,9 @@ type JWTStore interface {
 
 type UserStore interface {
 	ExistsByID(ctx context.Context, id uuid.UUID) (bool, error)
-	GetByID(ctx context.Context, id uuid.UUID) (user.User, error)
+	GetByID(ctx context.Context, id uuid.UUID) (user.GetByIDRow, error)
 	FindOrCreate(ctx context.Context, name, username, avatarUrl string, role []string, oauthProvider, oauthProviderID string) (uuid.UUID, error)
-	CreateEmail(ctx context.Context, userID uuid.UUID, email, provider, providerID string) error
+	CreateEmail(ctx context.Context, userID uuid.UUID, email string) error
 }
 
 type OAuthProvider interface {
@@ -223,7 +223,7 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 
 	// Create email record for Google OAuth users
 	if providerName == "google" {
-		err := h.createEmailRecordForOAuthUser(traceCtx, provider, providerName, token, userID, auth.ProviderID)
+		err := h.createEmailRecordForOAuthUser(traceCtx, provider, token, userID)
 		if err != nil {
 			h.problemWriter.WriteError(traceCtx, w, err, logger)
 			return
@@ -262,9 +262,20 @@ func (h *Handler) generateJWT(ctx context.Context, userID uuid.UUID) (string, st
 	traceCtx, span := h.tracer.Start(ctx, "generateJWT")
 	defer span.End()
 
-	userEntity, err := h.userStore.GetByID(traceCtx, userID)
+	userEntityRow, err := h.userStore.GetByID(traceCtx, userID)
 	if err != nil {
 		return "", "", err
+	}
+
+	// Convert GetByIDRow to user.User expected by JWTIssuer
+	userEntity := user.User{
+		ID:        userEntityRow.ID,
+		Name:      userEntityRow.Name,
+		Username:  userEntityRow.Username,
+		AvatarUrl: userEntityRow.AvatarUrl,
+		Role:      userEntityRow.Role,
+		CreatedAt: userEntityRow.CreatedAt,
+		UpdatedAt: userEntityRow.UpdatedAt,
 	}
 
 	jwtToken, err := h.jwtIssuer.New(traceCtx, userEntity)
@@ -476,10 +487,8 @@ func (h *Handler) clearAccessAndRefreshCookies(w http.ResponseWriter) {
 func (h *Handler) createEmailRecordForOAuthUser(
 	ctx context.Context,
 	provider OAuthProvider,
-	providerName string,
 	token *oauth2.Token,
 	userID uuid.UUID,
-	authProviderID string,
 ) error {
 	// Extract email from the OAuth token
 	email, err := provider.GetEmailFromToken(ctx, token)
@@ -493,7 +502,8 @@ func (h *Handler) createEmailRecordForOAuthUser(
 	}
 
 	// Create email record in the database
-	if err := h.userStore.CreateEmail(ctx, userID, email, providerName, authProviderID); err != nil {
+	err = h.userStore.CreateEmail(ctx, userID, email)
+	if err != nil {
 		return internal.ErrFailedToCreateEmail
 	}
 

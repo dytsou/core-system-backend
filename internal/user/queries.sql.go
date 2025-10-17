@@ -72,31 +72,22 @@ func (q *Queries) CreateAuth(ctx context.Context, arg CreateAuthParams) (Auth, e
 }
 
 const createEmail = `-- name: CreateEmail :one
-INSERT INTO emails (user_id, value, provider, provider_id)
-VALUES ($1, $2, $3, $4)
-RETURNING user_id, value, provider, provider_id, created_at, updated_at
+INSERT INTO user_emails (user_id, value)
+VALUES ($1, $2)
+RETURNING user_id, value, created_at, updated_at
 `
 
 type CreateEmailParams struct {
-	UserID     uuid.UUID
-	Value      string
-	Provider   string
-	ProviderID string
+	UserID uuid.UUID
+	Value  string
 }
 
-func (q *Queries) CreateEmail(ctx context.Context, arg CreateEmailParams) (Email, error) {
-	row := q.db.QueryRow(ctx, createEmail,
-		arg.UserID,
-		arg.Value,
-		arg.Provider,
-		arg.ProviderID,
-	)
-	var i Email
+func (q *Queries) CreateEmail(ctx context.Context, arg CreateEmailParams) (UserEmail, error) {
+	row := q.db.QueryRow(ctx, createEmail, arg.UserID, arg.Value)
+	var i UserEmail
 	err := row.Scan(
 		&i.UserID,
 		&i.Value,
-		&i.Provider,
-		&i.ProviderID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -130,13 +121,43 @@ func (q *Queries) ExistsByID(ctx context.Context, id uuid.UUID) (bool, error) {
 	return exists, err
 }
 
-const getByID = `-- name: GetByID :one
-SELECT id, name, username, avatar_url, role, created_at, updated_at FROM users WHERE id = $1
+const existsEmail = `-- name: ExistsEmail :one
+SELECT EXISTS(SELECT 1 FROM user_emails WHERE user_id = $1 AND value = $2)
 `
 
-func (q *Queries) GetByID(ctx context.Context, id uuid.UUID) (User, error) {
+type ExistsEmailParams struct {
+	UserID uuid.UUID
+	Value  string
+}
+
+func (q *Queries) ExistsEmail(ctx context.Context, arg ExistsEmailParams) (bool, error) {
+	row := q.db.QueryRow(ctx, existsEmail, arg.UserID, arg.Value)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const getByID = `-- name: GetByID :one
+SELECT users.id, users.name, users.username, users.avatar_url, users.role, users.created_at, users.updated_at, user_emails.value as email
+FROM users
+LEFT JOIN user_emails ON users.id = user_emails.user_id
+WHERE users.id = $1
+`
+
+type GetByIDRow struct {
+	ID        uuid.UUID
+	Name      pgtype.Text
+	Username  pgtype.Text
+	AvatarUrl pgtype.Text
+	Role      []string
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+	Email     pgtype.Text
+}
+
+func (q *Queries) GetByID(ctx context.Context, id uuid.UUID) (GetByIDRow, error) {
 	row := q.db.QueryRow(ctx, getByID, id)
-	var i User
+	var i GetByIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
@@ -145,52 +166,28 @@ func (q *Queries) GetByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.Role,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const getEmailByAddress = `-- name: GetEmailByAddress :one
-SELECT user_id, value, provider, provider_id, created_at, updated_at FROM emails WHERE value = $1
-`
-
-func (q *Queries) GetEmailByAddress(ctx context.Context, value string) (Email, error) {
-	row := q.db.QueryRow(ctx, getEmailByAddress, value)
-	var i Email
-	err := row.Scan(
-		&i.UserID,
-		&i.Value,
-		&i.Provider,
-		&i.ProviderID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
+		&i.Email,
 	)
 	return i, err
 }
 
 const getEmailsByID = `-- name: GetEmailsByID :many
-SELECT user_id, value, provider, provider_id, created_at, updated_at FROM emails WHERE user_id = $1
+SELECT user_emails.value as email FROM user_emails WHERE user_id = $1
 `
 
-func (q *Queries) GetEmailsByID(ctx context.Context, userID uuid.UUID) ([]Email, error) {
+func (q *Queries) GetEmailsByID(ctx context.Context, userID uuid.UUID) ([]string, error) {
 	rows, err := q.db.Query(ctx, getEmailsByID, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Email
+	var items []string
 	for rows.Next() {
-		var i Email
-		if err := rows.Scan(
-			&i.UserID,
-			&i.Value,
-			&i.Provider,
-			&i.ProviderID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
+		var email string
+		if err := rows.Scan(&email); err != nil {
 			return nil, err
 		}
-		items = append(items, i)
+		items = append(items, email)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
