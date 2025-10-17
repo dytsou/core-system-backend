@@ -65,7 +65,7 @@ func (b Builder) GetUserInboxMessages(userID uuid.UUID) []inbox.ListRow {
 	queries := b.Queries()
 	params := inbox.ListParams{
 		UserID:     userID,
-		PageLimit:  10,
+		PageLimit:  50,
 		PageOffset: 0,
 	}
 	messages, err := queries.List(context.Background(), params)
