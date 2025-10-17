@@ -61,11 +61,14 @@ func (b Builder) CreateUserInboxBulk(userIDs []uuid.UUID, messageID uuid.UUID) [
 }
 
 // GetUserInboxMessages retrieves user inbox messages directly from the database
-func (b Builder) GetUserInboxMessages(userID uuid.UUID) []inbox.ListRow {
+func (b Builder) GetUserInboxMessages(ctx context.Context, userID uuid.UUID) []inbox.ListRow {
 	queries := b.Queries()
-	messages, err := queries.List(context.Background(), inbox.ListParams{
-		UserID: userID,
-	})
+	params := inbox.ListParams{
+		UserID:     userID,
+		PageLimit:  50, // Set a reasonable default limit instead of 0
+		PageOffset: 0,
+	}
+	messages, err := queries.List(ctx, params)
 	require.NoError(b.t, err)
 	return messages
 }
