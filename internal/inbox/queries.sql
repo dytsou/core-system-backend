@@ -45,7 +45,7 @@ WHERE uim.user_id = @user_id
     OR CASE WHEN im.type = 'form' THEN f.description ELSE '' END ILIKE '%' || @search::text || '%'
     OR CASE WHEN im.type = 'form' THEN COALESCE(f.preview_message, LEFT(f.description, 25)) ELSE '' END ILIKE '%' || @search::text || '%'
   ))
-LIMIT COALESCE(@page_limit::int, 50)
+LIMIT COALESCE(@page_limit::int, 10)
 OFFSET COALESCE(@page_offset::int, 0);
 
 -- name: ListCount :one
