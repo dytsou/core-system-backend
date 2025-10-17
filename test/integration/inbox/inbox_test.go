@@ -49,7 +49,7 @@ func TestInboxService_Create(t *testing.T) {
 		name        string
 		params      Params
 		setup       func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context
-		validate    func(t *testing.T, params Params, db dbbuilder.DBTX, result uuid.UUID, ctx context.Context)
+		validate    func(t *testing.T, params Params, db dbbuilder.DBTX, result uuid.UUID)
 		expectedErr bool
 	}{
 		{
@@ -60,7 +60,6 @@ func TestInboxService_Create(t *testing.T) {
 				previewMessage: "test-preview-message",
 			},
 			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
-				ctx := context.Background()
 				unitBuilder := unitbuilder.New(t, db)
 				userBuilder := userbuilder.New(t, db)
 				formBuilder := formbuilder.New(t, db)
@@ -87,14 +86,14 @@ func TestInboxService_Create(t *testing.T) {
 				params.recipients = []uuid.UUID{userA.ID, userB.ID}
 				params.unitID = unitRow.ID
 
-				return ctx
+				return context.Background()
 			},
-			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result uuid.UUID, ctx context.Context) {
+			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result uuid.UUID) {
 				require.NotEqual(t, uuid.Nil, result)
 
 				inboxBuilder := inboxbuilder.New(t, db)
 				for _, recipientID := range params.recipients {
-					rows := inboxBuilder.GetUserInboxMessages(ctx, recipientID)
+					rows := inboxBuilder.GetUserInboxMessages(recipientID)
 					require.Equal(t, 1, len(rows))
 
 					found := false
@@ -208,7 +207,7 @@ func TestInboxService_Create(t *testing.T) {
 			require.Equal(t, tc.expectedErr, err != nil, "expected error: %v, got: %v", tc.expectedErr, err)
 
 			if tc.validate != nil {
-				tc.validate(t, params, db, result, ctx)
+				tc.validate(t, params, db, result)
 			}
 		})
 	}
@@ -612,7 +611,7 @@ func TestInboxService_DuplicateCreatesProduceMultipleMessages(t *testing.T) {
 				require.NotEqual(t, results[0], results[1], "message IDs should be different")
 
 				inboxBuilder := inboxbuilder.New(t, db)
-				rows := inboxBuilder.GetUserInboxMessages(context.Background(), params.userID)
+				rows := inboxBuilder.GetUserInboxMessages(params.userID)
 
 				count := 0
 				for _, r := range rows {
@@ -746,7 +745,7 @@ func TestInboxService_ArchiveVisibilityInList(t *testing.T) {
 				inboxBuilder.UpdateUserInboxMessage(params.messageID, params.userID, inbox.UserInboxMessageFilter{IsRead: true, IsStarred: false, IsArchived: true})
 
 				// Service List (no filters) should not return archived messages
-				rows := inboxBuilder.GetUserInboxMessages(context.Background(), params.userID)
+				rows := inboxBuilder.GetUserInboxMessages(params.userID)
 
 				found := false
 				for _, r := range rows {
@@ -781,7 +780,7 @@ func TestInboxService_ArchiveVisibilityInList(t *testing.T) {
 			}
 
 			inboxBuilder := inboxbuilder.New(t, db)
-			results := inboxBuilder.GetUserInboxMessages(context.Background(), params.userID)
+			results := inboxBuilder.GetUserInboxMessages(params.userID)
 
 			if tc.validate != nil {
 				tc.validate(t, params, db, results)
