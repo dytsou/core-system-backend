@@ -162,6 +162,8 @@ WHERE uim.user_id = $1
     OR CASE WHEN im.type = 'form' THEN f.description ELSE '' END ILIKE '%' || $5::text || '%'
     OR CASE WHEN im.type = 'form' THEN COALESCE(f.preview_message, LEFT(f.description, 25)) ELSE '' END ILIKE '%' || $5::text || '%'
   ))
+LIMIT COALESCE($7::int, 50)
+OFFSET COALESCE($6::int, 0)
 `
 
 type ListParams struct {
@@ -170,6 +172,8 @@ type ListParams struct {
 	IsStarred  pgtype.Bool
 	IsArchived pgtype.Bool
 	Search     string
+	PageOffset int32
+	PageLimit  int32
 }
 
 type ListRow struct {
@@ -198,6 +202,8 @@ func (q *Queries) List(ctx context.Context, arg ListParams) ([]ListRow, error) {
 		arg.IsStarred,
 		arg.IsArchived,
 		arg.Search,
+		arg.PageOffset,
+		arg.PageLimit,
 	)
 	if err != nil {
 		return nil, err
@@ -232,6 +238,46 @@ func (q *Queries) List(ctx context.Context, arg ListParams) ([]ListRow, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const listCount = `-- name: ListCount :one
+SELECT 
+    COUNT(*) AS total
+FROM user_inbox_messages uim
+JOIN inbox_message im ON uim.message_id = im.id
+LEFT JOIN forms f ON im.type = 'form' AND im.content_id = f.id
+LEFT JOIN units u ON f.unit_id = u.id
+LEFT JOIN units o ON u.org_id = o.id
+WHERE uim.user_id = $1
+  AND ($2::boolean IS NULL OR uim.is_read = $2)
+  AND ($3::boolean IS NULL OR uim.is_starred = $3)
+  AND (uim.is_archived = COALESCE($4::boolean, false))
+  AND ($5::text = '' OR $5::text IS NULL OR (
+    CASE WHEN im.type = 'form' THEN f.title ELSE '' END ILIKE '%' || $5::text || '%'
+    OR CASE WHEN im.type = 'form' THEN f.description ELSE '' END ILIKE '%' || $5::text || '%'
+    OR CASE WHEN im.type = 'form' THEN COALESCE(f.preview_message, LEFT(f.description, 25)) ELSE '' END ILIKE '%' || $5::text || '%'
+  ))
+`
+
+type ListCountParams struct {
+	UserID     uuid.UUID
+	IsRead     pgtype.Bool
+	IsStarred  pgtype.Bool
+	IsArchived pgtype.Bool
+	Search     string
+}
+
+func (q *Queries) ListCount(ctx context.Context, arg ListCountParams) (int64, error) {
+	row := q.db.QueryRow(ctx, listCount,
+		arg.UserID,
+		arg.IsRead,
+		arg.IsStarred,
+		arg.IsArchived,
+		arg.Search,
+	)
+	var total int64
+	err := row.Scan(&total)
+	return total, err
 }
 
 const updateByID = `-- name: UpdateByID :one

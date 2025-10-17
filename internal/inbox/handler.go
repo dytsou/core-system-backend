@@ -25,7 +25,8 @@ import (
 
 //go:generate mockery --name Store
 type Store interface {
-	List(ctx context.Context, userID uuid.UUID, filter *InboxFilterRequest) ([]ListRow, error)
+	List(ctx context.Context, userID uuid.UUID, filter *InboxFilterRequest, page int, size int) ([]ListRow, error)
+	Count(ctx context.Context, userID uuid.UUID, filter *InboxFilterRequest) (int64, error)
 	GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (GetByIDRow, error)
 	UpdateByID(ctx context.Context, id uuid.UUID, userID uuid.UUID, arg UserInboxMessageFilter) (UpdateByIDRow, error)
 }
@@ -194,7 +195,14 @@ func (h *Handler) ListHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	messages, err := h.store.List(traceCtx, currentUser.ID, filter)
+	// Get total count for pagination
+	total, err := h.store.Count(traceCtx, currentUser.ID, filter)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, err, logger)
+		return
+	}
+
+	messages, err := h.store.List(traceCtx, currentUser.ID, filter, request.Page, request.Size)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
@@ -209,7 +217,7 @@ func (h *Handler) ListHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	response := factory.NewResponse(mappedMessage, len(mappedMessage), request.Page, request.Size)
+	response := factory.NewResponse(mappedMessage, int(total), request.Page, request.Size)
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
 }

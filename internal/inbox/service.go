@@ -16,6 +16,7 @@ type Querier interface {
 	CreateMessage(ctx context.Context, arg CreateMessageParams) (InboxMessage, error)
 	CreateUserInboxBulk(ctx context.Context, arg CreateUserInboxBulkParams) ([]UserInboxMessage, error)
 	List(ctx context.Context, arg ListParams) ([]ListRow, error)
+	ListCount(ctx context.Context, arg ListCountParams) (int64, error)
 	GetByID(ctx context.Context, arg GetByIDParams) (GetByIDRow, error)
 	UpdateByID(ctx context.Context, arg UpdateByIDParams) (UpdateByIDRow, error)
 }
@@ -40,7 +41,7 @@ func NewService(logger *zap.Logger, db DBTX) *Service {
 // a message entity and ensuring it is visible in the inbox of all target users.
 // On success, it returns the unique identifier of the created message.
 func (s *Service) Create(ctx context.Context, contentType ContentType, contentID uuid.UUID, userIDs []uuid.UUID, postByUnitID uuid.UUID) (uuid.UUID, error) {
-	traceCtx, span := s.tracer.Start(ctx, "List")
+	traceCtx, span := s.tracer.Start(ctx, "Create")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
@@ -73,7 +74,7 @@ func (s *Service) Create(ctx context.Context, contentType ContentType, contentID
 	return message.ID, nil
 }
 
-func (s *Service) List(ctx context.Context, userID uuid.UUID, filter *InboxFilterRequest) ([]ListRow, error) {
+func (s *Service) List(ctx context.Context, userID uuid.UUID, filter *InboxFilterRequest, page int, size int) ([]ListRow, error) {
 	traceCtx, span := s.tracer.Start(ctx, "List")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
@@ -101,6 +102,15 @@ func (s *Service) List(ctx context.Context, userID uuid.UUID, filter *InboxFilte
 		}
 	}
 
+	// Apply pagination
+	if size > 0 {
+		params.PageLimit = int32(size)
+	}
+	if page > 0 && size > 0 {
+		offset := (page - 1) * size
+		params.PageOffset = int32(offset)
+	}
+
 	messages, err := s.queries.List(traceCtx, params)
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "list all user inbox messages")
@@ -113,6 +123,44 @@ func (s *Service) List(ctx context.Context, userID uuid.UUID, filter *InboxFilte
 	}
 
 	return messages, err
+}
+
+func (s *Service) Count(ctx context.Context, userID uuid.UUID, filter *InboxFilterRequest) (int64, error) {
+	traceCtx, span := s.tracer.Start(ctx, "Count")
+	defer span.End()
+	logger := logutil.WithContext(traceCtx, s.logger)
+
+	params := ListCountParams{
+		UserID:     userID,
+		IsRead:     pgtype.Bool{Valid: false},
+		IsStarred:  pgtype.Bool{Valid: false},
+		IsArchived: pgtype.Bool{Valid: false},
+		Search:     "",
+	}
+
+	if filter != nil {
+		if filter.IsRead != nil {
+			params.IsRead = pgtype.Bool{Bool: *filter.IsRead, Valid: true}
+		}
+		if filter.IsStarred != nil {
+			params.IsStarred = pgtype.Bool{Bool: *filter.IsStarred, Valid: true}
+		}
+		if filter.IsArchived != nil {
+			params.IsArchived = pgtype.Bool{Bool: *filter.IsArchived, Valid: true}
+		}
+		if filter.Search != "" {
+			params.Search = filter.Search
+		}
+	}
+
+	total, err := s.queries.ListCount(traceCtx, params)
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "count user inbox messages")
+		span.RecordError(err)
+		return 0, err
+	}
+
+	return total, nil
 }
 
 func (s *Service) GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (GetByIDRow, error) {
