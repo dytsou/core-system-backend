@@ -51,9 +51,9 @@ func TestSubmitService_Submit(t *testing.T) {
 		answers []shared.AnswerParam
 		qs      []question.Answerable
 
-		qStore *mocks.MockQuestionStore
-		rStore *mocks.MockFormResponseStore
-		svc    *submit.Service
+		qStore  *mocks.MockQuestionStore
+		rStore  *mocks.MockFormResponseStore
+		service *submit.Service
 	}
 
 	type testCase struct {
@@ -103,7 +103,7 @@ func TestSubmitService_Submit(t *testing.T) {
 
 				p.qStore = qm
 				p.rStore = rm
-				p.svc = submit.NewService(zap.NewNop(), qm, rm)
+				p.service = submit.NewService(zap.NewNop(), qm, rm)
 				return context.Background()
 			},
 			validate: func(t *testing.T, p Params, got response.FormResponse, errs []error) {
@@ -132,7 +132,7 @@ func TestSubmitService_Submit(t *testing.T) {
 
 				p.qStore = qm
 				p.rStore = rm
-				p.svc = submit.NewService(zap.NewNop(), qm, rm)
+				p.service = submit.NewService(zap.NewNop(), qm, rm)
 				return context.Background()
 			},
 			validate: func(t *testing.T, p Params, got response.FormResponse, errs []error) {
@@ -161,7 +161,7 @@ func TestSubmitService_Submit(t *testing.T) {
 
 				p.qStore = qm
 				p.rStore = rm
-				p.svc = submit.NewService(zap.NewNop(), qm, rm)
+				p.service = submit.NewService(zap.NewNop(), qm, rm)
 				return context.Background()
 			},
 			validate: func(t *testing.T, p Params, got response.FormResponse, errs []error) {
@@ -189,7 +189,7 @@ func TestSubmitService_Submit(t *testing.T) {
 
 				p.qStore = qm
 				p.rStore = rm
-				p.svc = submit.NewService(zap.NewNop(), qm, rm)
+				p.service = submit.NewService(zap.NewNop(), qm, rm)
 				return context.Background()
 			},
 			validate: func(t *testing.T, p Params, got response.FormResponse, errs []error) {
@@ -228,7 +228,7 @@ func TestSubmitService_Submit(t *testing.T) {
 
 				p.qStore = qm
 				p.rStore = rm
-				p.svc = submit.NewService(zap.NewNop(), qm, rm)
+				p.service = submit.NewService(zap.NewNop(), qm, rm)
 				return context.Background()
 			},
 			validate: func(t *testing.T, p Params, got response.FormResponse, errs []error) {
@@ -239,7 +239,6 @@ func TestSubmitService_Submit(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 			params := tc.params

@@ -19,7 +19,7 @@ func newSvcWithMock(q response.Querier) *response.Service {
 	return response.NewService(zap.NewNop(), q)
 }
 
-func ap(qID uuid.UUID, val string) shared.AnswerParam {
+func newTestAnswerParam(qID uuid.UUID, val string) shared.AnswerParam {
 	return shared.AnswerParam{
 		QuestionID: qID.String(),
 		Value:      val,
@@ -33,8 +33,8 @@ func TestService_CreateOrUpdate(t *testing.T) {
 		ans    []shared.AnswerParam
 		types  []response.QuestionType
 
-		svc  *response.Service
-		mock *mocks.MockQuerier
+		service *response.Service
+		mock    *mocks.MockQuerier
 	}
 
 	type testCase struct {
@@ -51,14 +51,14 @@ func TestService_CreateOrUpdate(t *testing.T) {
 			params: Params{
 				formID: uuid.New(),
 				userID: uuid.New(),
-				ans:    []shared.AnswerParam{ap(uuid.New(), "A")}, // len=1
-				types:  []response.QuestionType{},                 // len=0
+				ans:    []shared.AnswerParam{newTestAnswerParam(uuid.New(), "A")}, // len=1
+				types:  []response.QuestionType{},                                 // len=0
 			},
 			expectedErr: true,
 			setup: func(t *testing.T, p *Params) context.Context {
 				q := mocks.NewMockQuerier(t)
 				p.mock = q
-				p.svc = newSvcWithMock(q)
+				p.service = newSvcWithMock(q)
 				return context.Background()
 			},
 		},
@@ -72,7 +72,7 @@ func TestService_CreateOrUpdate(t *testing.T) {
 				respID := uuid.New()
 				q1, q2 := uuid.New(), uuid.New()
 
-				p.ans = []shared.AnswerParam{ap(q1, "v1"), ap(q2, "v2")}
+				p.ans = []shared.AnswerParam{newTestAnswerParam(q1, "v1"), newTestAnswerParam(q2, "v2")}
 				p.types = []response.QuestionType{response.QuestionTypeShortText, response.QuestionTypeLongText}
 
 				q := mocks.NewMockQuerier(t)
@@ -100,7 +100,7 @@ func TestService_CreateOrUpdate(t *testing.T) {
 					Return(response.Answer{ID: uuid.New(), ResponseID: respID, QuestionID: q2}, nil).Once()
 
 				p.mock = q
-				p.svc = newSvcWithMock(q)
+				p.service = newSvcWithMock(q)
 				return context.Background()
 			},
 			validate: func(t *testing.T, p Params, got response.FormResponse) {
@@ -134,7 +134,7 @@ func TestService_CreateOrUpdate(t *testing.T) {
 				q.EXPECT().Update(mock.Anything, respID).Return(nil).Once()
 
 				p.mock = q
-				p.svc = newSvcWithMock(q)
+				p.service = newSvcWithMock(q)
 				return context.Background()
 			},
 			validate: func(t *testing.T, p Params, got response.FormResponse) {
@@ -155,7 +155,7 @@ func TestService_CreateOrUpdate(t *testing.T) {
 					Exists(mock.Anything, response.ExistsParams{FormID: p.formID, SubmittedBy: p.userID}).
 					Return(false, errors.New("db down")).Once()
 				p.mock = q
-				p.svc = newSvcWithMock(q)
+				p.service = newSvcWithMock(q)
 				return context.Background()
 			},
 		},
@@ -170,7 +170,7 @@ func TestService_CreateOrUpdate(t *testing.T) {
 				ctx = tc.setup(t, &params)
 			}
 
-			result, err := params.svc.CreateOrUpdate(ctx, params.formID, params.userID, params.ans, params.types)
+			result, err := params.service.CreateOrUpdate(ctx, params.formID, params.userID, params.ans, params.types)
 			require.Equal(t, tc.expectedErr, err != nil, "expected error: %v, got: %v", tc.expectedErr, err)
 
 			if tc.expectedErr {
@@ -195,8 +195,8 @@ func TestService_Update(t *testing.T) {
 		qSame  uuid.UUID
 		qDiff  uuid.UUID
 
-		svc  *response.Service
-		mock *mocks.MockQuerier
+		service *response.Service
+		mock    *mocks.MockQuerier
 	}
 
 	type testCase struct {
@@ -217,7 +217,7 @@ func TestService_Update(t *testing.T) {
 			},
 			setup: func(t *testing.T, p *Params) context.Context {
 				p.respID = uuid.New()
-				p.ans = []shared.AnswerParam{ap(p.qNew, "aaa")}
+				p.ans = []shared.AnswerParam{newTestAnswerParam(p.qNew, "aaa")}
 				p.types = []response.QuestionType{response.QuestionTypeShortText}
 
 				q := mocks.NewMockQuerier(t)
@@ -241,7 +241,7 @@ func TestService_Update(t *testing.T) {
 				q.EXPECT().Update(mock.Anything, p.respID).Return(nil).Once()
 
 				p.mock = q
-				p.svc = newSvcWithMock(q)
+				p.service = newSvcWithMock(q)
 				return context.Background()
 			},
 			validate: func(t *testing.T, p Params, got response.FormResponse) {
@@ -258,7 +258,7 @@ func TestService_Update(t *testing.T) {
 			},
 			setup: func(t *testing.T, p *Params) context.Context {
 				p.respID = uuid.New()
-				p.ans = []shared.AnswerParam{ap(p.qSame, "bbb")}
+				p.ans = []shared.AnswerParam{newTestAnswerParam(p.qSame, "bbb")}
 				p.types = []response.QuestionType{response.QuestionTypeShortText}
 
 				q := mocks.NewMockQuerier(t)
@@ -282,7 +282,7 @@ func TestService_Update(t *testing.T) {
 				q.EXPECT().Update(mock.Anything, p.respID).Return(nil).Once()
 
 				p.mock = q
-				p.svc = newSvcWithMock(q)
+				p.service = newSvcWithMock(q)
 				return context.Background()
 			},
 			validate: func(t *testing.T, p Params, got response.FormResponse) {
@@ -300,7 +300,7 @@ func TestService_Update(t *testing.T) {
 			},
 			setup: func(t *testing.T, p *Params) context.Context {
 				p.respID = uuid.New()
-				p.ans = []shared.AnswerParam{ap(p.qDiff, "ccc")}
+				p.ans = []shared.AnswerParam{newTestAnswerParam(p.qDiff, "ccc")}
 				p.types = []response.QuestionType{response.QuestionTypeShortText}
 				ansID := uuid.New()
 
@@ -333,7 +333,7 @@ func TestService_Update(t *testing.T) {
 				q.EXPECT().Update(mock.Anything, p.respID).Return(nil).Once()
 
 				p.mock = q
-				p.svc = newSvcWithMock(q)
+				p.service = newSvcWithMock(q)
 				return context.Background()
 			},
 			validate: func(t *testing.T, p Params, got response.FormResponse) {
@@ -344,7 +344,6 @@ func TestService_Update(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 			params := tc.params
@@ -352,7 +351,7 @@ func TestService_Update(t *testing.T) {
 				ctx = tc.setup(t, &params)
 			}
 
-			result, err := params.svc.Update(ctx, params.formID, params.userID, params.ans, params.types)
+			result, err := params.service.Update(ctx, params.formID, params.userID, params.ans, params.types)
 			require.Equal(t, tc.expectedErr, err != nil, "expected error: %v, got: %v", tc.expectedErr, err)
 
 			if tc.expectedErr {
