@@ -246,7 +246,7 @@ func TestSubmitService_Submit(t *testing.T) {
 				ctx = tc.setup(t, &params)
 			}
 
-			got, errs := params.svc.Submit(ctx, params.formID, params.userID, params.answers)
+			got, errs := params.service.Submit(ctx, params.formID, params.userID, params.answers)
 			require.Equal(t, tc.expectedErr, len(errs) > 0, "expectedErr=%v, errs=%v", tc.expectedErr, errs)
 
 			if tc.validate != nil {
