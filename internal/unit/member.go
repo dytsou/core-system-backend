@@ -35,7 +35,7 @@ func (s *Service) AddMember(ctx context.Context, unitType Type, id uuid.UUID, me
 }
 
 // ListMembers lists all members of an organization or a unit with their emails
-// This method now returns []user.Profile to implement distribute.UnitStore interface
+// This method returns []user.Profile to implement the Store interface
 func (s *Service) ListMembers(ctx context.Context, id uuid.UUID) ([]user.Profile, error) {
 	traceCtx, span := s.tracer.Start(ctx, "ListMembers")
 	defer span.End()
@@ -43,7 +43,7 @@ func (s *Service) ListMembers(ctx context.Context, id uuid.UUID) ([]user.Profile
 
 	members, err := s.queries.ListMembers(traceCtx, id)
 	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "list org members")
+		err = databaseutil.WrapDBError(err, logger, "list members")
 		span.RecordError(err)
 		return nil, err
 	}
@@ -54,23 +54,12 @@ func (s *Service) ListMembers(ctx context.Context, id uuid.UUID) ([]user.Profile
 
 	profiles := make([]user.Profile, 0, len(members))
 	for _, member := range members {
-		// Convert emails from interface{} to []string
-		var emails []string
-		if member.Emails != nil {
-			if emailSlice, ok := member.Emails.([]string); ok {
-				emails = emailSlice
-			}
-		}
-		if emails == nil {
-			emails = []string{}
-		}
-
 		profiles = append(profiles, user.Profile{
 			ID:        member.MemberID,
 			Name:      member.Name.String,
 			Username:  member.Username.String,
 			AvatarURL: member.AvatarUrl.String,
-			Emails:    emails,
+			Emails:    user.ConvertEmailsToSlice(member.Emails),
 		})
 	}
 
@@ -80,31 +69,6 @@ func (s *Service) ListMembers(ctx context.Context, id uuid.UUID) ([]user.Profile
 	)
 
 	return profiles, nil
-}
-
-// ListMembersWithEmails lists all members as ListMembersRow for internal use
-func (s *Service) ListWithEmails(ctx context.Context, id uuid.UUID) ([]ListMembersRow, error) {
-	traceCtx, span := s.tracer.Start(ctx, "ListWithEmails")
-	defer span.End()
-	logger := logutil.WithContext(traceCtx, s.logger)
-
-	members, err := s.queries.ListMembers(traceCtx, id)
-	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "list members with emails")
-		span.RecordError(err)
-		return nil, err
-	}
-
-	if members == nil {
-		members = []ListMembersRow{}
-	}
-
-	logger.Info("Listed members with emails",
-		zap.String("id", id.String()),
-		zap.Int("count", len(members)),
-	)
-
-	return members, nil
 }
 
 // ListUnitsMembers lists members for multiple units at once

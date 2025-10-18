@@ -22,6 +22,24 @@ func GetFromContext(ctx context.Context) (*User, bool) {
 	return userData, ok
 }
 
+func ConvertEmailsToSlice(emails interface{}) []string {
+	if emails == nil {
+		return []string{}
+	}
+
+	// Handle PostgreSQL array which comes as []interface{}
+	slice, ok := emails.([]string)
+	if !ok {
+		return []string{}
+	}
+
+	if slice == nil {
+		return []string{}
+	}
+
+	return slice
+}
+
 type ProfileResponse struct {
 	ID        uuid.UUID `json:"id"`
 	Name      string    `json:"name"`

@@ -2,7 +2,6 @@ package unit
 
 import (
 	"NYCU-SDC/core-system-backend/internal"
-	"NYCU-SDC/core-system-backend/internal/form"
 	"NYCU-SDC/core-system-backend/internal/tenant"
 	"NYCU-SDC/core-system-backend/internal/user"
 	"context"
@@ -36,7 +35,7 @@ type Store interface {
 	ListSubUnits(ctx context.Context, id uuid.UUID, unitType Type) ([]Unit, error)
 	ListSubUnitIDs(ctx context.Context, id uuid.UUID, unitType Type) ([]uuid.UUID, error)
 	AddMember(ctx context.Context, unitType Type, id uuid.UUID, username string) (AddMemberRow, error)
-	ListWithEmails(ctx context.Context, id uuid.UUID) ([]ListMembersRow, error)
+	ListMembers(ctx context.Context, id uuid.UUID) ([]user.Profile, error)
 	RemoveMember(ctx context.Context, unitType Type, id uuid.UUID, memberID uuid.UUID) error
 	GetOrganizationByIDWithSlug(ctx context.Context, id uuid.UUID) (Organization, error)
 }
@@ -47,7 +46,6 @@ type Handler struct {
 	validator     *validator.Validate
 	problemWriter *problem.HttpWriter
 	store         Store
-	formService   *form.Service
 	tenantService *tenant.Service
 	userService   *user.Service
 }
@@ -57,7 +55,6 @@ func NewHandler(
 	validator *validator.Validate,
 	problemWriter *problem.HttpWriter,
 	store Store,
-	formService *form.Service,
 	tenantService *tenant.Service,
 	userService *user.Service,
 ) *Handler {
@@ -66,7 +63,6 @@ func NewHandler(
 		validator:     validator,
 		problemWriter: problemWriter,
 		store:         store,
-		formService:   formService,
 		tenantService: tenantService,
 		userService:   userService,
 		tracer:        otel.Tracer("unit/handler"),
@@ -114,33 +110,6 @@ type OrgMemberResponse struct {
 type UnitMemberResponse struct {
 	UnitID     uuid.UUID            `json:"unitId"`
 	SimpleUser user.ProfileResponse `json:"member"`
-}
-
-// convertEmailsToSlice converts PostgreSQL array from interface{} to []string
-func convertEmailsToSlice(emails interface{}) []string {
-	if emails == nil {
-		return []string{}
-	}
-
-	// Handle PostgreSQL array which comes as []interface{}
-	emailSlice, ok := emails.([]interface{})
-	if ok {
-		result := make([]string, 0, len(emailSlice))
-		for _, email := range emailSlice {
-			if emailStr, ok := email.(string); ok {
-				result = append(result, emailStr)
-			}
-		}
-		return result
-	}
-
-	// Handle direct []string case (fallback)
-	emailSliceStr, ok := emails.([]string)
-	if ok {
-		return emailSliceStr
-	}
-
-	return []string{}
 }
 
 // createProfileResponseWithEmails creates a ProfileResponse with emails for a user
@@ -654,66 +623,6 @@ func (h *Handler) ListUnitSubUnitIDs(w http.ResponseWriter, r *http.Request) {
 	handlerutil.WriteJSONResponse(w, http.StatusOK, subUnits)
 }
 
-func (h *Handler) CreateFormUnderUnit(w http.ResponseWriter, r *http.Request) {
-	traceCtx, span := h.tracer.Start(r.Context(), "CreateFormHandler")
-	defer span.End()
-	logger := logutil.WithContext(traceCtx, h.logger)
-
-	var req form.Request
-	if err := handlerutil.ParseAndValidateRequestBody(traceCtx, h.validator, r, &req); err != nil {
-		h.problemWriter.WriteError(traceCtx, w, err, logger)
-		return
-	}
-
-	unitIDStr := r.PathValue("unitId")
-	currentUnitID, err := handlerutil.ParseUUID(unitIDStr)
-	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, err, logger)
-		return
-	}
-
-	currentUser, ok := user.GetFromContext(traceCtx)
-	if !ok {
-		h.problemWriter.WriteError(traceCtx, w, internal.ErrNoUserInContext, logger)
-		return
-	}
-
-	newForm, err := h.formService.Create(traceCtx, req, currentUnitID, currentUser.ID)
-	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, err, logger)
-		return
-	}
-
-	response := form.ToResponse(newForm)
-	handlerutil.WriteJSONResponse(w, http.StatusCreated, response)
-}
-
-func (h *Handler) ListFormsByUnit(w http.ResponseWriter, r *http.Request) {
-	traceCtx, span := h.tracer.Start(r.Context(), "ListFormsByUnitHandler")
-	defer span.End()
-	logger := logutil.WithContext(traceCtx, h.logger)
-
-	unitIDStr := r.PathValue("unitId")
-	unitID, err := handlerutil.ParseUUID(unitIDStr)
-	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, err, logger)
-		return
-	}
-
-	forms, err := h.formService.ListByUnit(traceCtx, unitID)
-	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, err, logger)
-		return
-	}
-
-	responses := make([]form.Response, len(forms))
-	for i, currentForm := range forms {
-		responses[i] = form.ToResponse(currentForm)
-	}
-
-	handlerutil.WriteJSONResponse(w, http.StatusOK, responses)
-}
-
 func (h *Handler) AddOrgMember(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "AddOrgMember")
 	defer span.End()
@@ -822,24 +731,15 @@ func (h *Handler) ListOrgMembers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Todo: Need to recursively obtain members of the entire organization
-	members, err := h.store.ListWithEmails(traceCtx, orgTenant.ID)
+	members, err := h.store.ListMembers(traceCtx, orgTenant.ID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list org members: %w", err), logger)
 		return
 	}
 
 	response := make([]user.ProfileResponse, 0, len(members))
-	for _, m := range members {
-		// Convert emails from interface{} to []string
-		emails := convertEmailsToSlice(m.Emails)
-
-		response = append(response, user.ProfileResponse{
-			ID:        m.MemberID,
-			Name:      m.Name.String,
-			Username:  m.Username.String,
-			AvatarURL: m.AvatarUrl.String,
-			Emails:    emails,
-		})
+	for _, member := range members {
+		response = append(response, user.ProfileResponse(member))
 	}
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
@@ -857,24 +757,15 @@ func (h *Handler) ListUnitMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	members, err := h.store.ListWithEmails(traceCtx, id)
+	members, err := h.store.ListMembers(traceCtx, id)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list unit members: %w", err), logger)
 		return
 	}
 
 	response := make([]user.ProfileResponse, 0, len(members))
-	for _, m := range members {
-		// Convert emails from interface{} to []string
-		emails := convertEmailsToSlice(m.Emails)
-
-		response = append(response, user.ProfileResponse{
-			ID:        m.MemberID,
-			Name:      m.Name.String,
-			Username:  m.Username.String,
-			AvatarURL: m.AvatarUrl.String,
-			Emails:    emails,
-		})
+	for _, memberProfile := range members {
+		response = append(response, user.ProfileResponse(memberProfile))
 	}
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
