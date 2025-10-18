@@ -5,8 +5,7 @@ import (
 )
 
 func NewValidator() *validator.Validate {
-	v := validator.New()
-	return v
+	return validator.New()
 }
 
 func ValidateStruct(v *validator.Validate, s interface{}) error {

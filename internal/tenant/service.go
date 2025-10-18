@@ -3,10 +3,9 @@ package tenant
 import (
 	"NYCU-SDC/core-system-backend/internal"
 	"context"
-	"time"
-
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/jackc/pgx/v5/pgtype"
+	"time"
 
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
 	"github.com/google/uuid"

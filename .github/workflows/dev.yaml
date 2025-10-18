@@ -73,7 +73,7 @@ jobs:
         run: |
           go mod download
           make gen
-          go build -o bin/backend cmd/backend/main.go
+          go build -ldflags="-X 'main.BuildTime=$(date --utc '+%FT%TZ')' -X 'main.CommitHash=${{ github.sha }}'" -o bin/backend cmd/backend/main.go
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -101,7 +101,7 @@ jobs:
     steps:
       - name: Trigger n8n Deploy Webhook
         run: |
-          curl --location --fail-with-body --request POST 'https://webhook.eng.sdc.nycu.club/webhook/deploy' \
+          curl --location --fail-with-body --request POST 'https://webhook.sdc.nycu.club/webhook/deploy' \
             --header 'Content-Type: application/json' \
             --header "x-deploy-token: ${{ secrets.N8N_DEPLOY_TOKEN }}" \
             --data-raw '{
@@ -144,7 +144,7 @@ jobs:
                 "enable": true,
                 "title": "Endpoint",
                 "name": "dev.core-system.sdc.nycu.club",
-                "value": "gcp-eng-deploy:internal"
+                "value": "default-eng-deploy:internal"
               }
             }
           }'

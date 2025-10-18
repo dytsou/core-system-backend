@@ -3,7 +3,6 @@ package tenant
 import (
 	"NYCU-SDC/core-system-backend/internal"
 	"context"
-	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
 	handlerutil "github.com/NYCU-SDC/summer/pkg/handler"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/NYCU-SDC/summer/pkg/problem"
@@ -57,7 +56,6 @@ func (m *Middleware) Middleware(next http.HandlerFunc) http.HandlerFunc {
 
 		org, err := m.reader.GetBySlug(traceCtx, slug)
 		if err != nil {
-			err = databaseutil.WrapDBErrorWithKeyValue(err, "organizations", "slug", slug, logger, "get org ID by slug")
 			span.RecordError(err)
 			problem.New().WriteError(traceCtx, w, err, logger)
 			return
@@ -65,7 +63,6 @@ func (m *Middleware) Middleware(next http.HandlerFunc) http.HandlerFunc {
 
 		tenant, err := m.reader.Get(traceCtx, org.ID)
 		if err != nil {
-			err = databaseutil.WrapDBErrorWithKeyValue(err, "tenant", "id", org.ID.String(), logger, "get tenant by ID")
 			span.RecordError(err)
 			problem.New().WriteError(traceCtx, w, err, logger)
 			return
