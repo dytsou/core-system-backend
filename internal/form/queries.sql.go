@@ -25,11 +25,13 @@ SELECT
     usr.name as last_editor_name,
     usr.username as last_editor_username,
     usr.avatar_url as last_editor_avatar_url,
-    usr.email as last_editor_email
+    COALESCE(array_agg(e.value) FILTER (WHERE e.value IS NOT NULL), ARRAY[]::text[]) as last_editor_email
 FROM created f
 LEFT JOIN units u ON f.unit_id = u.id
 LEFT JOIN units o ON u.org_id = o.id
 LEFT JOIN users usr ON f.last_editor = usr.id
+LEFT JOIN user_emails e ON usr.id = e.user_id
+GROUP BY f.id, f.title, f.description, f.preview_message, f.status, f.unit_id, f.last_editor, f.deadline, f.created_at, f.updated_at, u.name, o.name, usr.name, usr.username, usr.avatar_url
 `
 
 type CreateParams struct {
@@ -57,7 +59,7 @@ type CreateRow struct {
 	LastEditorName      pgtype.Text
 	LastEditorUsername  pgtype.Text
 	LastEditorAvatarUrl pgtype.Text
-	LastEditorEmail     []string
+	LastEditorEmail     interface{}
 }
 
 func (q *Queries) Create(ctx context.Context, arg CreateParams) (CreateRow, error) {
@@ -111,12 +113,14 @@ SELECT
     usr.name as last_editor_name,
     usr.username as last_editor_username,
     usr.avatar_url as last_editor_avatar_url,
-    usr.email as last_editor_email
+    COALESCE(array_agg(e.value) FILTER (WHERE e.value IS NOT NULL), ARRAY[]::text[]) as last_editor_email
 FROM forms f
 LEFT JOIN units u ON f.unit_id = u.id
 LEFT JOIN units o ON u.org_id = o.id
 LEFT JOIN users usr ON f.last_editor = usr.id
+LEFT JOIN user_emails e ON usr.id = e.user_id
 WHERE f.id = $1
+GROUP BY f.id, f.title, f.description, f.preview_message, f.status, f.unit_id, f.last_editor, f.deadline, f.created_at, f.updated_at, u.name, o.name, usr.name, usr.username, usr.avatar_url
 `
 
 type GetByIDRow struct {
@@ -135,7 +139,7 @@ type GetByIDRow struct {
 	LastEditorName      pgtype.Text
 	LastEditorUsername  pgtype.Text
 	LastEditorAvatarUrl pgtype.Text
-	LastEditorEmail     []string
+	LastEditorEmail     interface{}
 }
 
 func (q *Queries) GetByID(ctx context.Context, id uuid.UUID) (GetByIDRow, error) {
@@ -170,11 +174,13 @@ SELECT
     usr.name as last_editor_name,
     usr.username as last_editor_username,
     usr.avatar_url as last_editor_avatar_url,
-    usr.email as last_editor_email
+    COALESCE(array_agg(e.value) FILTER (WHERE e.value IS NOT NULL), ARRAY[]::text[]) as last_editor_email
 FROM forms f
 LEFT JOIN units u ON f.unit_id = u.id
 LEFT JOIN units o ON u.org_id = o.id
 LEFT JOIN users usr ON f.last_editor = usr.id
+LEFT JOIN user_emails e ON usr.id = e.user_id
+GROUP BY f.id, f.title, f.description, f.preview_message, f.status, f.unit_id, f.last_editor, f.deadline, f.created_at, f.updated_at, u.name, o.name, usr.name, usr.username, usr.avatar_url
 ORDER BY f.updated_at DESC
 `
 
@@ -194,7 +200,7 @@ type ListRow struct {
 	LastEditorName      pgtype.Text
 	LastEditorUsername  pgtype.Text
 	LastEditorAvatarUrl pgtype.Text
-	LastEditorEmail     []string
+	LastEditorEmail     interface{}
 }
 
 func (q *Queries) List(ctx context.Context) ([]ListRow, error) {
@@ -242,12 +248,14 @@ SELECT
     usr.name as last_editor_name,
     usr.username as last_editor_username,
     usr.avatar_url as last_editor_avatar_url,
-    usr.email as last_editor_email
+    COALESCE(array_agg(e.value) FILTER (WHERE e.value IS NOT NULL), ARRAY[]::text[]) as last_editor_email
 FROM forms f
 LEFT JOIN units u ON f.unit_id = u.id
 LEFT JOIN units o ON u.org_id = o.id
 LEFT JOIN users usr ON f.last_editor = usr.id
+LEFT JOIN user_emails e ON usr.id = e.user_id
 WHERE f.unit_id = $1
+GROUP BY f.id, f.title, f.description, f.preview_message, f.status, f.unit_id, f.last_editor, f.deadline, f.created_at, f.updated_at, u.name, o.name, usr.name, usr.username, usr.avatar_url
 ORDER BY f.updated_at DESC
 `
 
@@ -267,7 +275,7 @@ type ListByUnitRow struct {
 	LastEditorName      pgtype.Text
 	LastEditorUsername  pgtype.Text
 	LastEditorAvatarUrl pgtype.Text
-	LastEditorEmail     []string
+	LastEditorEmail     interface{}
 }
 
 func (q *Queries) ListByUnit(ctx context.Context, unitID pgtype.UUID) ([]ListByUnitRow, error) {
@@ -352,11 +360,13 @@ SELECT
     usr.name as last_editor_name,
     usr.username as last_editor_username,
     usr.avatar_url as last_editor_avatar_url,
-    usr.email as last_editor_email
+    COALESCE(array_agg(e.value) FILTER (WHERE e.value IS NOT NULL), ARRAY[]::text[]) as last_editor_email
 FROM updated f
 LEFT JOIN units u ON f.unit_id = u.id
 LEFT JOIN units o ON u.org_id = o.id
 LEFT JOIN users usr ON f.last_editor = usr.id
+LEFT JOIN user_emails e ON usr.id = e.user_id
+GROUP BY f.id, f.title, f.description, f.preview_message, f.status, f.unit_id, f.last_editor, f.deadline, f.created_at, f.updated_at, u.name, o.name, usr.name, usr.username, usr.avatar_url
 `
 
 type UpdateParams struct {
@@ -384,7 +394,7 @@ type UpdateRow struct {
 	LastEditorName      pgtype.Text
 	LastEditorUsername  pgtype.Text
 	LastEditorAvatarUrl pgtype.Text
-	LastEditorEmail     []string
+	LastEditorEmail     interface{}
 }
 
 func (q *Queries) Update(ctx context.Context, arg UpdateParams) (UpdateRow, error) {
