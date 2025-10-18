@@ -138,26 +138,14 @@ func (q *Queries) ExistsEmail(ctx context.Context, arg ExistsEmailParams) (bool,
 }
 
 const getByID = `-- name: GetByID :one
-SELECT users.id, users.name, users.username, users.avatar_url, users.role, users.created_at, users.updated_at, user_emails.value as email
-FROM users
-LEFT JOIN user_emails ON users.id = user_emails.user_id
-WHERE users.id = $1
+SELECT id, name, username, avatar_url, role, created_at, updated_at, emails
+FROM users_with_emails
+WHERE id = $1
 `
 
-type GetByIDRow struct {
-	ID        uuid.UUID
-	Name      pgtype.Text
-	Username  pgtype.Text
-	AvatarUrl pgtype.Text
-	Role      []string
-	CreatedAt pgtype.Timestamptz
-	UpdatedAt pgtype.Timestamptz
-	Email     pgtype.Text
-}
-
-func (q *Queries) GetByID(ctx context.Context, id uuid.UUID) (GetByIDRow, error) {
+func (q *Queries) GetByID(ctx context.Context, id uuid.UUID) (UsersWithEmail, error) {
 	row := q.db.QueryRow(ctx, getByID, id)
-	var i GetByIDRow
+	var i UsersWithEmail
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
@@ -166,7 +154,7 @@ func (q *Queries) GetByID(ctx context.Context, id uuid.UUID) (GetByIDRow, error)
 		&i.Role,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.Email,
+		&i.Emails,
 	)
 	return i, err
 }

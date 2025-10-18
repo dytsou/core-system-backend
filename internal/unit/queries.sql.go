@@ -216,12 +216,10 @@ SELECT m.member_id,
        u.name,
        u.username,
        u.avatar_url,
-       COALESCE(array_agg(user_emails.value) FILTER (WHERE user_emails.value IS NOT NULL), ARRAY[]::text[]) as emails
+       u.emails
 FROM unit_members m
-JOIN users u ON u.id = m.member_id
-LEFT JOIN user_emails ON user_emails.user_id = m.member_id
+JOIN users_with_emails u ON u.id = m.member_id
 WHERE m.unit_id = $1
-GROUP BY m.member_id, u.name, u.username, u.avatar_url
 `
 
 type ListMembersRow struct {

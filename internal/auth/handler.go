@@ -43,7 +43,7 @@ type JWTStore interface {
 
 type UserStore interface {
 	ExistsByID(ctx context.Context, id uuid.UUID) (bool, error)
-	GetByID(ctx context.Context, id uuid.UUID) (user.GetByIDRow, error)
+	GetByID(ctx context.Context, id uuid.UUID) (user.UsersWithEmail, error)
 	FindOrCreate(ctx context.Context, name, username, avatarUrl string, role []string, oauthProvider, oauthProviderID string) (uuid.UUID, error)
 	CreateEmail(ctx context.Context, userID uuid.UUID, email string) error
 }

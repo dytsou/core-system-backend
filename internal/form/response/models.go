@@ -343,3 +343,14 @@ type UserInboxMessage struct {
 	IsStarred  bool
 	IsArchived bool
 }
+
+type UsersWithEmail struct {
+	ID        uuid.UUID
+	Name      pgtype.Text
+	Username  pgtype.Text
+	AvatarUrl pgtype.Text
+	Role      []string
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+	Emails    interface{}
+}

@@ -7,10 +7,9 @@ RETURNING *;
 SELECT EXISTS(SELECT 1 FROM users WHERE id = $1);
 
 -- name: GetByID :one
-SELECT users.*, user_emails.value as email
-FROM users
-LEFT JOIN user_emails ON users.id = user_emails.user_id
-WHERE users.id = $1;
+SELECT id, name, username, avatar_url, role, created_at, updated_at, emails
+FROM users_with_emails
+WHERE id = $1;
 
 -- name: Update :one
 UPDATE users

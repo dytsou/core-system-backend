@@ -17,7 +17,7 @@ import (
 
 type Querier interface {
 	ExistsByID(ctx context.Context, id uuid.UUID) (bool, error)
-	GetByID(ctx context.Context, id uuid.UUID) (GetByIDRow, error)
+	GetByID(ctx context.Context, id uuid.UUID) (UsersWithEmail, error)
 	GetIDByAuth(ctx context.Context, arg GetIDByAuthParams) (uuid.UUID, error)
 	ExistsByAuth(ctx context.Context, arg ExistsByAuthParams) (bool, error)
 	Create(ctx context.Context, arg CreateParams) (User, error)
@@ -64,18 +64,18 @@ func (s *Service) ExistsByID(ctx context.Context, id uuid.UUID) (bool, error) {
 	return exists, nil
 }
 
-func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (GetByIDRow, error) {
+func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (UsersWithEmail, error) {
 	traceCtx, span := s.tracer.Start(ctx, "GetByID")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	profile, err := s.queries.GetByID(traceCtx, id)
+	user, err := s.queries.GetByID(traceCtx, id)
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "get user by id")
 		span.RecordError(err)
-		return GetByIDRow{}, err
+		return UsersWithEmail{}, err
 	}
-	return profile, nil
+	return user, nil
 }
 
 func resolveAvatarUrl(name, avatarUrl string) string {
