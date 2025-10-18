@@ -40,7 +40,7 @@ type Response struct {
 
 // ToResponse converts a Form storage model into an API Response.
 // Ensures deadline is null when empty/invalid.
-func ToResponse(form Form, unitName string, orgName string, editor user.User) Response {
+func ToResponse(form Form, unitName string, orgName string, editor user.User, emails []string) Response {
 	var deadline *time.Time
 	var editorName string
 	var editorUsername string
@@ -82,7 +82,7 @@ func ToResponse(form Form, unitName string, orgName string, editor user.User) Re
 			ID:        editor.ID,
 			Name:      editorName,
 			Username:  editorUsername,
-			Email:     editor.Email,
+			Emails:    emails,
 			AvatarURL: editorAvatarURL,
 		},
 		Deadline:  deadline,
@@ -172,8 +172,7 @@ func (h *Handler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 		Name:      currentForm.LastEditorName,
 		Username:  currentForm.LastEditorUsername,
 		AvatarUrl: currentForm.LastEditorAvatarUrl,
-		Email:     currentForm.LastEditorEmail,
-	})
+	}, currentForm.LastEditorEmail)
 	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
 }
 
@@ -232,8 +231,7 @@ func (h *Handler) GetHandler(w http.ResponseWriter, r *http.Request) {
 		Name:      currentForm.LastEditorName,
 		Username:  currentForm.LastEditorUsername,
 		AvatarUrl: currentForm.LastEditorAvatarUrl,
-		Email:     currentForm.LastEditorEmail,
-	})
+	}, currentForm.LastEditorEmail)
 	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
 }
 
@@ -261,8 +259,7 @@ func (h *Handler) ListHandler(w http.ResponseWriter, r *http.Request) {
 			Name:      form.LastEditorName,
 			Username:  form.LastEditorUsername,
 			AvatarUrl: form.LastEditorAvatarUrl,
-			Email:     form.LastEditorEmail,
-		}))
+		}, form.LastEditorEmail))
 	}
 	handlerutil.WriteJSONResponse(w, http.StatusOK, responses)
 }
@@ -313,8 +310,7 @@ func (h *Handler) CreateUnderUnitHandler(w http.ResponseWriter, r *http.Request)
 		Name:      newForm.LastEditorName,
 		Username:  newForm.LastEditorUsername,
 		AvatarUrl: newForm.LastEditorAvatarUrl,
-		Email:     newForm.LastEditorEmail,
-	})
+	}, newForm.LastEditorEmail)
 	handlerutil.WriteJSONResponse(w, http.StatusCreated, response)
 }
 
@@ -354,8 +350,7 @@ func (h *Handler) ListByUnitHandler(w http.ResponseWriter, r *http.Request) {
 			Name:      currentForm.LastEditorName,
 			Username:  currentForm.LastEditorUsername,
 			AvatarUrl: currentForm.LastEditorAvatarUrl,
-			Email:     currentForm.LastEditorEmail,
-		})
+		}, currentForm.LastEditorEmail)
 	}
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, responses)
