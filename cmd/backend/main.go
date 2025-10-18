@@ -35,6 +35,7 @@ import (
 	_ "github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -207,6 +208,7 @@ func main() {
 	mux.Handle("POST /api/orgs/{slug}/units", tenantAuthMiddleware.HandlerFunc(unitHandler.CreateUnit))
 	mux.Handle("GET /api/orgs/{slug}", tenantBasicMiddleware.HandlerFunc(unitHandler.GetOrgByID))
 	mux.Handle("GET /api/orgs", basicMiddleware.HandlerFunc(unitHandler.GetAllOrganizations))
+	mux.Handle("GET /api/orgs/me", authMiddleware.HandlerFunc(unitHandler.ListOrganizationsOfCurrentUser))
 	mux.Handle("GET /api/orgs/{slug}/units/{id}", tenantBasicMiddleware.HandlerFunc(unitHandler.GetUnitByID))
 	mux.Handle("POST /api/orgs/relations", authMiddleware.HandlerFunc(unitHandler.AddParentChild))
 	mux.Handle("PUT /api/orgs/{slug}", tenantAuthMiddleware.HandlerFunc(unitHandler.UpdateOrg))
@@ -338,7 +340,7 @@ func initOpenTelemetry(appName, version, buildTime, commitHash, environment, ote
 	serviceName := semconv.ServiceNameKey.String(appName)
 	serviceVersion := semconv.ServiceVersionKey.String(version)
 	serviceNamespace := semconv.ServiceNamespaceKey.String("example")
-	serviceCommitHash := semconv.ServiceVersionKey.String(commitHash)
+	serviceCommitHash := attribute.String("service.commit_hash", commitHash)
 	serviceEnvironment := semconv.DeploymentEnvironmentKey.String(environment)
 
 	res, err := resource.New(ctx,
