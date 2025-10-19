@@ -52,8 +52,7 @@ type OAuthProvider interface {
 	Name() string
 	Config() *oauth2.Config
 	Exchange(ctx context.Context, code string) (*oauth2.Token, error)
-	GetUserInfo(ctx context.Context, token *oauth2.Token) (user.User, user.Auth, error)
-	GetEmailFromToken(ctx context.Context, token *oauth2.Token) (string, error)
+	GetUserInfo(ctx context.Context, token *oauth2.Token) (user.User, user.Auth, string, error)
 }
 
 type callBackInfo struct {
@@ -209,7 +208,7 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userInfo, auth, err := provider.GetUserInfo(traceCtx, token)
+	userInfo, auth, email, err := provider.GetUserInfo(traceCtx, token)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
@@ -221,11 +220,11 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create email record for Google OAuth users
-	if providerName == "google" {
-		err := h.createEmailRecordForOAuthUser(traceCtx, provider, token, userID)
+	// Create email record for OAuth users if email is available
+	if email != "" {
+		err := h.userStore.CreateEmail(traceCtx, userID, email)
 		if err != nil {
-			h.problemWriter.WriteError(traceCtx, w, err, logger)
+			h.problemWriter.WriteError(traceCtx, w, internal.ErrFailedToCreateEmail, logger)
 			return
 		}
 	}
@@ -481,31 +480,4 @@ func (h *Handler) clearAccessAndRefreshCookies(w http.ResponseWriter) {
 		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
 	})
-}
-
-// createEmailRecordForOAuthUser creates an email record for OAuth users if the provider supports email extraction
-func (h *Handler) createEmailRecordForOAuthUser(
-	ctx context.Context,
-	provider OAuthProvider,
-	token *oauth2.Token,
-	userID uuid.UUID,
-) error {
-	// Extract email from the OAuth token
-	email, err := provider.GetEmailFromToken(ctx, token)
-	if err != nil {
-		return internal.ErrFailedToExtractEmail
-	}
-
-	// No email found in token, skip silently
-	if email == "" {
-		return nil
-	}
-
-	// Create email record in the database
-	err = h.userStore.CreateEmail(ctx, userID, email)
-	if err != nil {
-		return internal.ErrFailedToCreateEmail
-	}
-
-	return nil
 }
