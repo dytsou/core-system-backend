@@ -42,32 +42,11 @@ type Response struct {
 // Ensures deadline is null when empty/invalid.
 func ToResponse(form Form, unitName string, orgName string, editor user.User, emails []string) Response {
 	var deadline *time.Time
-	var editorName string
-	var editorUsername string
-	var editorAvatarURL string
 
 	if form.Deadline.Valid {
 		deadline = &form.Deadline.Time
 	} else {
 		deadline = nil
-	}
-
-	if editor.Name.Valid {
-		editorName = editor.Name.String
-	} else {
-		editorName = ""
-	}
-
-	if editor.Username.Valid {
-		editorUsername = editor.Username.String
-	} else {
-		editorUsername = ""
-	}
-
-	if editor.AvatarUrl.Valid {
-		editorAvatarURL = editor.AvatarUrl.String
-	} else {
-		editorAvatarURL = ""
 	}
 
 	return Response{
@@ -80,10 +59,10 @@ func ToResponse(form Form, unitName string, orgName string, editor user.User, em
 		OrgID:          orgName,
 		LastEditor: user.ProfileResponse{
 			ID:        editor.ID,
-			Name:      editorName,
-			Username:  editorUsername,
+			Name:      editor.Name.String,
+			Username:  editor.Username.String,
 			Emails:    emails,
-			AvatarURL: editorAvatarURL,
+			AvatarURL: editor.AvatarUrl.String,
 		},
 		Deadline:  deadline,
 		CreatedAt: form.CreatedAt.Time,
