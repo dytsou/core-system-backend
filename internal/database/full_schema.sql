@@ -37,7 +37,6 @@ CREATE TABLE IF NOT EXISTS user_emails (
     UNIQUE(user_id, value)
 );
 
--- View to aggregate users with their emails
 CREATE VIEW users_with_emails AS
 SELECT 
     u.id,

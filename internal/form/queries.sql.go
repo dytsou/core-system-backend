@@ -91,16 +91,13 @@ func (q *Queries) Create(ctx context.Context, arg CreateParams) (CreateRow, erro
 	return i, err
 }
 
-const delete = `-- name: Delete :execrows
+const delete = `-- name: Delete :exec
 DELETE FROM forms WHERE id = $1
 `
 
-func (q *Queries) Delete(ctx context.Context, id uuid.UUID) (int64, error) {
-	result, err := q.db.Exec(ctx, delete, id)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
+func (q *Queries) Delete(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, delete, id)
+	return err
 }
 
 const getByID = `-- name: GetByID :one

@@ -1,7 +1,6 @@
 package form
 
 import (
-	"NYCU-SDC/core-system-backend/internal"
 	"context"
 
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
@@ -16,7 +15,7 @@ import (
 type Querier interface {
 	Create(ctx context.Context, params CreateParams) (CreateRow, error)
 	Update(ctx context.Context, params UpdateParams) (UpdateRow, error)
-	Delete(ctx context.Context, id uuid.UUID) (int64, error)
+	Delete(ctx context.Context, id uuid.UUID) error
 	GetByID(ctx context.Context, id uuid.UUID) (GetByIDRow, error)
 	List(ctx context.Context) ([]ListRow, error)
 	ListByUnit(ctx context.Context, unitID pgtype.UUID) ([]ListByUnitRow, error)
@@ -100,15 +99,11 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
 	defer span.End()
 	logger := logutil.WithContext(ctx, s.logger)
 
-	rowsAffected, err := s.queries.Delete(ctx, id)
+	err := s.queries.Delete(ctx, id)
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "delete form")
 		span.RecordError(err)
 		return err
-	}
-
-	if rowsAffected == 0 {
-		return internal.ErrFormNotFound
 	}
 
 	return nil

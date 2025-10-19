@@ -21,7 +21,7 @@ UPDATE form_responses
 SET updated_at = now()
 WHERE id = $1;
 
--- name: Delete :execrows
+-- name: Delete :exec
 DELETE FROM form_responses
 WHERE id = $1;
 
