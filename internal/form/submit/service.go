@@ -53,6 +53,7 @@ func NewService(logger *zap.Logger, formStore FormStore, questionStore QuestionS
 // 1. Retrieves all questions associated with the form.
 // 2. Validates the submitted answers against the corresponding questions.
 //   - If any validation fails or if an answer references a nonexistent question, it accumulates the errors.
+//   - Validates that all required questions have been answered.
 //
 // 3. If there are validation errors, returns them without saving.
 // 4. If validation passes, creates or updates the response record using the answer values and question types.
