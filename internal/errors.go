@@ -2,6 +2,7 @@ package internal
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/NYCU-SDC/summer/pkg/problem"
 )
