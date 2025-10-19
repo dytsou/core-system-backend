@@ -74,7 +74,7 @@ func (s *Service) Create(ctx context.Context, contentType ContentType, contentID
 	return message.ID, nil
 }
 
-func (s *Service) List(ctx context.Context, userID uuid.UUID, filter *InboxFilterRequest, page int, size int) ([]ListRow, error) {
+func (s *Service) List(ctx context.Context, userID uuid.UUID, filter *FilterRequest, page int, size int) ([]ListRow, error) {
 	traceCtx, span := s.tracer.Start(ctx, "List")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
@@ -125,7 +125,7 @@ func (s *Service) List(ctx context.Context, userID uuid.UUID, filter *InboxFilte
 	return messages, err
 }
 
-func (s *Service) Count(ctx context.Context, userID uuid.UUID, filter *InboxFilterRequest) (int64, error) {
+func (s *Service) Count(ctx context.Context, userID uuid.UUID, filter *FilterRequest) (int64, error) {
 	traceCtx, span := s.tracer.Start(ctx, "Count")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)

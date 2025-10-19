@@ -20,7 +20,7 @@ import (
 func TestInboxService_ListWithFilters(t *testing.T) {
 	type Params struct {
 		userID        uuid.UUID
-		filter        *inbox.InboxFilterRequest
+		filter        *inbox.FilterRequest
 		expectedCount int
 	}
 	testCases := []struct {
@@ -95,7 +95,7 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 		{
 			name: "Filter by isRead=true should return only read messages",
 			params: Params{
-				filter: &inbox.InboxFilterRequest{
+				filter: &inbox.FilterRequest{
 					IsRead: boolPtr(true),
 				},
 				expectedCount: 1,
@@ -150,7 +150,7 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 		{
 			name: "Filter by isArchived=true should return only archived messages",
 			params: Params{
-				filter: &inbox.InboxFilterRequest{
+				filter: &inbox.FilterRequest{
 					IsArchived: boolPtr(true),
 				},
 				expectedCount: 1,
@@ -205,7 +205,7 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 		{
 			name: "Filter by isStarred=true should return only starred messages",
 			params: Params{
-				filter: &inbox.InboxFilterRequest{
+				filter: &inbox.FilterRequest{
 					IsStarred: boolPtr(true),
 				},
 				expectedCount: 1,
@@ -260,7 +260,7 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 		{
 			name: "Combined filters: isRead=true AND isStarred=true should return only read and starred messages",
 			params: Params{
-				filter: &inbox.InboxFilterRequest{
+				filter: &inbox.FilterRequest{
 					IsRead:    boolPtr(true),
 					IsStarred: boolPtr(true),
 				},
@@ -326,7 +326,7 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 		{
 			name: "Filter by search should match title field",
 			params: Params{
-				filter: &inbox.InboxFilterRequest{
+				filter: &inbox.FilterRequest{
 					Search: "important",
 				},
 				expectedCount: 1,
@@ -378,7 +378,7 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 		{
 			name: "Filter by search should match description field",
 			params: Params{
-				filter: &inbox.InboxFilterRequest{
+				filter: &inbox.FilterRequest{
 					Search: "delta",
 				},
 				expectedCount: 1,
@@ -434,7 +434,7 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 		{
 			name: "Filter by search should match preview_message field",
 			params: Params{
-				filter: &inbox.InboxFilterRequest{
+				filter: &inbox.FilterRequest{
 					Search: "hotfix",
 				},
 				expectedCount: 1,
@@ -490,7 +490,7 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 		{
 			name: "Filter by search should match across title, description, and preview_message",
 			params: Params{
-				filter: &inbox.InboxFilterRequest{
+				filter: &inbox.FilterRequest{
 					Search: "signal",
 				},
 				expectedCount: 3,

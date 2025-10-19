@@ -17,7 +17,7 @@ type Store struct {
 }
 
 // Count provides a mock function with given fields: ctx, userID, filter
-func (_m *Store) Count(ctx context.Context, userID uuid.UUID, filter *inbox.InboxFilterRequest) (int64, error) {
+func (_m *Store) Count(ctx context.Context, userID uuid.UUID, filter *inbox.FilterRequest) (int64, error) {
 	ret := _m.Called(ctx, userID, filter)
 
 	if len(ret) == 0 {
@@ -26,16 +26,16 @@ func (_m *Store) Count(ctx context.Context, userID uuid.UUID, filter *inbox.Inbo
 
 	var r0 int64
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, *inbox.InboxFilterRequest) (int64, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, *inbox.FilterRequest) (int64, error)); ok {
 		return rf(ctx, userID, filter)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, *inbox.InboxFilterRequest) int64); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, *inbox.FilterRequest) int64); ok {
 		r0 = rf(ctx, userID, filter)
 	} else {
 		r0 = ret.Get(0).(int64)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, *inbox.InboxFilterRequest) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, *inbox.FilterRequest) error); ok {
 		r1 = rf(ctx, userID, filter)
 	} else {
 		r1 = ret.Error(1)
@@ -73,7 +73,7 @@ func (_m *Store) GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (i
 }
 
 // List provides a mock function with given fields: ctx, userID, filter, page, size
-func (_m *Store) List(ctx context.Context, userID uuid.UUID, filter *inbox.InboxFilterRequest, page int, size int) ([]inbox.ListRow, error) {
+func (_m *Store) List(ctx context.Context, userID uuid.UUID, filter *inbox.FilterRequest, page int, size int) ([]inbox.ListRow, error) {
 	ret := _m.Called(ctx, userID, filter, page, size)
 
 	if len(ret) == 0 {
@@ -82,10 +82,10 @@ func (_m *Store) List(ctx context.Context, userID uuid.UUID, filter *inbox.Inbox
 
 	var r0 []inbox.ListRow
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, *inbox.InboxFilterRequest, int, int) ([]inbox.ListRow, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, *inbox.FilterRequest, int, int) ([]inbox.ListRow, error)); ok {
 		return rf(ctx, userID, filter, page, size)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, *inbox.InboxFilterRequest, int, int) []inbox.ListRow); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, *inbox.FilterRequest, int, int) []inbox.ListRow); ok {
 		r0 = rf(ctx, userID, filter, page, size)
 	} else {
 		if ret.Get(0) != nil {
@@ -93,7 +93,7 @@ func (_m *Store) List(ctx context.Context, userID uuid.UUID, filter *inbox.Inbox
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, *inbox.InboxFilterRequest, int, int) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, *inbox.FilterRequest, int, int) error); ok {
 		r1 = rf(ctx, userID, filter, page, size)
 	} else {
 		r1 = ret.Error(1)

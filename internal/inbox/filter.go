@@ -12,8 +12,8 @@ const (
 	MaxSearchLength = 255
 )
 
-// InboxFilterRequest represents the filter parameters for inbox messages
-type InboxFilterRequest struct {
+// FilterRequest represents the filter parameters for inbox messages
+type FilterRequest struct {
 	IsRead     *bool  `json:"isRead,omitempty"`
 	IsStarred  *bool  `json:"isStarred,omitempty"`
 	IsArchived *bool  `json:"isArchived,omitempty"`
@@ -21,9 +21,9 @@ type InboxFilterRequest struct {
 }
 
 // ParseFilterRequest parses filter parameters from HTTP request query parameters
-func ParseFilterRequest(r *http.Request) (*InboxFilterRequest, error) {
+func ParseFilterRequest(r *http.Request) (*FilterRequest, error) {
 	query := r.URL.Query()
-	filter := &InboxFilterRequest{}
+	filter := &FilterRequest{}
 
 	// Parse isRead parameter
 	isReadStr := query.Get("isRead")
@@ -67,7 +67,7 @@ func ParseFilterRequest(r *http.Request) (*InboxFilterRequest, error) {
 }
 
 // ToQueryParams converts the filter request to URL query parameters
-func (f *InboxFilterRequest) ToQueryParams() url.Values {
+func (f *FilterRequest) ToQueryParams() url.Values {
 	params := url.Values{}
 
 	if f.IsRead != nil {

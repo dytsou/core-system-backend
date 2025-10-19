@@ -25,8 +25,8 @@ import (
 
 //go:generate mockery --name Store
 type Store interface {
-	List(ctx context.Context, userID uuid.UUID, filter *InboxFilterRequest, page int, size int) ([]ListRow, error)
-	Count(ctx context.Context, userID uuid.UUID, filter *InboxFilterRequest) (int64, error)
+	List(ctx context.Context, userID uuid.UUID, filter *FilterRequest, page int, size int) ([]ListRow, error)
+	Count(ctx context.Context, userID uuid.UUID, filter *FilterRequest) (int64, error)
 	GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (GetByIDRow, error)
 	UpdateByID(ctx context.Context, id uuid.UUID, userID uuid.UUID, arg UserInboxMessageFilter) (UpdateByIDRow, error)
 }

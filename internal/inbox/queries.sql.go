@@ -162,7 +162,7 @@ WHERE uim.user_id = $1
     OR CASE WHEN im.type = 'form' THEN f.description ELSE '' END ILIKE '%' || $5::text || '%'
     OR CASE WHEN im.type = 'form' THEN COALESCE(f.preview_message, LEFT(f.description, 25)) ELSE '' END ILIKE '%' || $5::text || '%'
   ))
-LIMIT COALESCE($7::int, 50)
+LIMIT COALESCE($7::int, 10)
 OFFSET COALESCE($6::int, 0)
 `
 
