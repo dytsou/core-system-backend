@@ -167,12 +167,16 @@ func (h *Handler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 		Deadline:       currentForm.Deadline,
 		CreatedAt:      currentForm.CreatedAt,
 		UpdatedAt:      currentForm.UpdatedAt,
-	}, currentForm.UnitName.String, currentForm.OrgName.String, user.User{
-		ID:        currentForm.LastEditor,
-		Name:      currentForm.LastEditorName,
-		Username:  currentForm.LastEditorUsername,
-		AvatarUrl: currentForm.LastEditorAvatarUrl,
-	}, user.ConvertEmailsToSlice(currentForm.LastEditorEmail))
+	},
+		currentForm.UnitName.String,
+		currentForm.OrgName.String,
+		user.User{
+			ID:        currentForm.LastEditor,
+			Name:      currentForm.LastEditorName,
+			Username:  currentForm.LastEditorUsername,
+			AvatarUrl: currentForm.LastEditorAvatarUrl,
+		},
+		user.ConvertEmailsToSlice(currentForm.LastEditorEmail))
 	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
 }
 
@@ -226,12 +230,16 @@ func (h *Handler) GetHandler(w http.ResponseWriter, r *http.Request) {
 		Deadline:       currentForm.Deadline,
 		CreatedAt:      currentForm.CreatedAt,
 		UpdatedAt:      currentForm.UpdatedAt,
-	}, currentForm.UnitName.String, currentForm.OrgName.String, user.User{
-		ID:        currentForm.LastEditor,
-		Name:      currentForm.LastEditorName,
-		Username:  currentForm.LastEditorUsername,
-		AvatarUrl: currentForm.LastEditorAvatarUrl,
-	}, user.ConvertEmailsToSlice(currentForm.LastEditorEmail))
+	},
+		currentForm.UnitName.String,
+		currentForm.OrgName.String,
+		user.User{
+			ID:        currentForm.LastEditor,
+			Name:      currentForm.LastEditorName,
+			Username:  currentForm.LastEditorUsername,
+			AvatarUrl: currentForm.LastEditorAvatarUrl,
+		},
+		user.ConvertEmailsToSlice(currentForm.LastEditorEmail))
 	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
 }
 
@@ -254,12 +262,16 @@ func (h *Handler) ListHandler(w http.ResponseWriter, r *http.Request) {
 			Description:    form.Description,
 			PreviewMessage: form.PreviewMessage,
 			Status:         form.Status,
-		}, form.UnitName.String, form.OrgName.String, user.User{
-			ID:        form.LastEditor,
-			Name:      form.LastEditorName,
-			Username:  form.LastEditorUsername,
-			AvatarUrl: form.LastEditorAvatarUrl,
-		}, user.ConvertEmailsToSlice(form.LastEditorEmail)))
+		},
+			form.UnitName.String,
+			form.OrgName.String,
+			user.User{
+				ID:        form.LastEditor,
+				Name:      form.LastEditorName,
+				Username:  form.LastEditorUsername,
+				AvatarUrl: form.LastEditorAvatarUrl,
+			},
+			user.ConvertEmailsToSlice(form.LastEditorEmail)))
 	}
 	handlerutil.WriteJSONResponse(w, http.StatusOK, responses)
 }
@@ -305,12 +317,16 @@ func (h *Handler) CreateUnderUnitHandler(w http.ResponseWriter, r *http.Request)
 		Deadline:       newForm.Deadline,
 		CreatedAt:      newForm.CreatedAt,
 		UpdatedAt:      newForm.UpdatedAt,
-	}, newForm.UnitName.String, newForm.OrgName.String, user.User{
-		ID:        newForm.LastEditor,
-		Name:      newForm.LastEditorName,
-		Username:  newForm.LastEditorUsername,
-		AvatarUrl: newForm.LastEditorAvatarUrl,
-	}, user.ConvertEmailsToSlice(newForm.LastEditorEmail))
+	},
+		newForm.UnitName.String,
+		newForm.OrgName.String,
+		user.User{
+			ID:        newForm.LastEditor,
+			Name:      newForm.LastEditorName,
+			Username:  newForm.LastEditorUsername,
+			AvatarUrl: newForm.LastEditorAvatarUrl,
+		},
+		user.ConvertEmailsToSlice(newForm.LastEditorEmail))
 	handlerutil.WriteJSONResponse(w, http.StatusCreated, response)
 }
 
