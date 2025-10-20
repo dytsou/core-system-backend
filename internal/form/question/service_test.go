@@ -111,22 +111,22 @@ func TestService_ListByFormID_AllKnown_And_ContainsUnknown(t *testing.T) {
 	}
 
 	tests := []struct {
-		name       string
-		listReturn []question.Question
-		wantCount  int
-		wantErr    bool
+		name          string
+		listReturn    []question.Question
+		wantCount     int
+		expectedError bool
 	}{
 		{
-			name:       "All known types -> return []Answerable",
-			listReturn: allKnown,
-			wantCount:  len(allKnown),
-			wantErr:    false,
+			name:          "All known types -> return []Answerable",
+			listReturn:    allKnown,
+			wantCount:     len(allKnown),
+			expectedError: false,
 		},
 		{
-			name:       "Contains an unknown type -> fail",
-			listReturn: withUnknown,
-			wantCount:  0,
-			wantErr:    true,
+			name:          "Contains an unknown type -> fail",
+			listReturn:    withUnknown,
+			wantCount:     0,
+			expectedError: true,
 		},
 	}
 

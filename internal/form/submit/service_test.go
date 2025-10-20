@@ -30,7 +30,7 @@ func (f fakeAnswerable) Validate(value string) error {
 	return f.validateErr
 }
 
-func ans(qID uuid.UUID, val string) shared.AnswerParam {
+func NewAnswerParam(qID uuid.UUID, val string) shared.AnswerParam { // 要改!!!!!
 	return shared.AnswerParam{QuestionID: qID.String(), Value: val}
 }
 
@@ -76,7 +76,7 @@ func TestSubmitService_Submit(t *testing.T) {
 				formID:    formID,
 				userID:    userID,
 				questions: []question.Answerable{newTestAnswerable(q1, question.QuestionTypeShortText, nil), newTestAnswerable(q2, question.QuestionTypeLongText, nil)},
-				answers:   []shared.AnswerParam{ans(q1, "hello"), ans(q2, "world")},
+				answers:   []shared.AnswerParam{NewAnswerParam(q1, "hello"), NewAnswerParam(q2, "world")},
 			},
 			setup: func(t *testing.T, p *Params) context.Context {
 				qm := mocks.NewMockQuestionStore(t)
@@ -119,7 +119,7 @@ func TestSubmitService_Submit(t *testing.T) {
 				formID:    formID,
 				userID:    userID,
 				questions: []question.Answerable{newTestAnswerable(q1, question.QuestionTypeShortText, nil), newTestAnswerable(q2, question.QuestionTypeLongText, errors.New("invalid"))},
-				answers:   []shared.AnswerParam{ans(q1, "ok"), ans(q2, "bad")},
+				answers:   []shared.AnswerParam{NewAnswerParam(q1, "ok"), NewAnswerParam(q2, "bad")},
 			},
 			expectedErr: true,
 			setup: func(t *testing.T, p *Params) context.Context {
@@ -148,7 +148,7 @@ func TestSubmitService_Submit(t *testing.T) {
 				formID:    formID,
 				userID:    userID,
 				questions: []question.Answerable{newTestAnswerable(q1, question.QuestionTypeShortText, nil)},
-				answers:   []shared.AnswerParam{ans(q1, "ok"), ans(unknown, "???")},
+				answers:   []shared.AnswerParam{NewAnswerParam(q1, "ok"), NewAnswerParam(unknown, "???")},
 			},
 			expectedErr: true,
 			setup: func(t *testing.T, p *Params) context.Context {
@@ -176,7 +176,7 @@ func TestSubmitService_Submit(t *testing.T) {
 			params: Params{
 				formID:  formID,
 				userID:  userID,
-				answers: []shared.AnswerParam{ans(q1, "x")},
+				answers: []shared.AnswerParam{NewAnswerParam(q1, "x")},
 			},
 			expectedErr: true,
 			setup: func(t *testing.T, p *Params) context.Context {
@@ -204,7 +204,7 @@ func TestSubmitService_Submit(t *testing.T) {
 				formID:    formID,
 				userID:    userID,
 				questions: []question.Answerable{newTestAnswerable(q1, question.QuestionTypeShortText, nil)},
-				answers:   []shared.AnswerParam{ans(q1, "ok")},
+				answers:   []shared.AnswerParam{NewAnswerParam(q1, "ok")},
 			},
 			expectedErr: true,
 			setup: func(t *testing.T, p *Params) context.Context {
