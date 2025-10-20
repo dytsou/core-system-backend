@@ -162,7 +162,6 @@ func TestService_CreateOrUpdate(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 			params := tc.params
@@ -352,7 +351,11 @@ func TestService_Update(t *testing.T) {
 			}
 
 			result, err := params.service.Update(ctx, params.formID, params.userID, params.ans, params.types)
-			require.Equal(t, tc.expectedErr, err != nil, "expected error: %v, got: %v", tc.expectedErr, err)
+			if tc.expectedErr {
+				require.NotNilf(t, err, "expected error but got nil")
+				return
+			}
+			require.Nilf(t, err, "unexpected error: %v", err)
 
 			if tc.expectedErr {
 				return

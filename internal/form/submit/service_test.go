@@ -19,12 +19,12 @@ import (
 )
 
 type fakeAnswerable struct {
-	q           question.Question
+	question    question.Question
 	validateErr error
 }
 
 func (f fakeAnswerable) Question() question.Question {
-	return f.q
+	return f.question
 }
 func (f fakeAnswerable) Validate(value string) error {
 	return f.validateErr
@@ -34,9 +34,9 @@ func ans(qID uuid.UUID, val string) shared.AnswerParam {
 	return shared.AnswerParam{QuestionID: qID.String(), Value: val}
 }
 
-func makeQ(questionID uuid.UUID, t question.QuestionType, validateErr error) question.Answerable {
+func newTestAnswerable(questionID uuid.UUID, t question.QuestionType, validateErr error) question.Answerable {
 	return fakeAnswerable{
-		q: question.Question{
+		question: question.Question{
 			ID:   questionID,
 			Type: t,
 		},
@@ -46,14 +46,14 @@ func makeQ(questionID uuid.UUID, t question.QuestionType, validateErr error) que
 
 func TestSubmitService_Submit(t *testing.T) {
 	type Params struct {
-		formID  uuid.UUID
-		userID  uuid.UUID
-		answers []shared.AnswerParam
-		qs      []question.Answerable
+		formID    uuid.UUID
+		userID    uuid.UUID
+		answers   []shared.AnswerParam
+		questions []question.Answerable
 
-		qStore  *mocks.MockQuestionStore
-		rStore  *mocks.MockFormResponseStore
-		service *submit.Service
+		questionStore *mocks.MockQuestionStore
+		responseStore *mocks.MockFormResponseStore
+		service       *submit.Service
 	}
 
 	type testCase struct {
@@ -73,10 +73,10 @@ func TestSubmitService_Submit(t *testing.T) {
 		{
 			name: "CreateOrUpdate called with mapped types if all valid",
 			params: Params{
-				formID:  formID,
-				userID:  userID,
-				qs:      []question.Answerable{makeQ(q1, question.QuestionTypeShortText, nil), makeQ(q2, question.QuestionTypeLongText, nil)},
-				answers: []shared.AnswerParam{ans(q1, "hello"), ans(q2, "world")},
+				formID:    formID,
+				userID:    userID,
+				questions: []question.Answerable{newTestAnswerable(q1, question.QuestionTypeShortText, nil), newTestAnswerable(q2, question.QuestionTypeLongText, nil)},
+				answers:   []shared.AnswerParam{ans(q1, "hello"), ans(q2, "world")},
 			},
 			setup: func(t *testing.T, p *Params) context.Context {
 				qm := mocks.NewMockQuestionStore(t)
@@ -84,7 +84,7 @@ func TestSubmitService_Submit(t *testing.T) {
 
 				qm.EXPECT().
 					ListByFormID(mock.Anything, p.formID).
-					Return(p.qs, nil).Once()
+					Return(p.questions, nil).Once()
 
 				respID := uuid.New()
 				rm.EXPECT().
@@ -101,8 +101,8 @@ func TestSubmitService_Submit(t *testing.T) {
 					Return(response.FormResponse{ID: respID, FormID: p.formID, SubmittedBy: p.userID}, nil).
 					Once()
 
-				p.qStore = qm
-				p.rStore = rm
+				p.questionStore = qm
+				p.responseStore = rm
 				p.service = submit.NewService(zap.NewNop(), qm, rm)
 				return context.Background()
 			},
@@ -116,10 +116,10 @@ func TestSubmitService_Submit(t *testing.T) {
 		{
 			name: "Not call CreateOrUpdate if there are some invalid answers",
 			params: Params{
-				formID:  formID,
-				userID:  userID,
-				qs:      []question.Answerable{makeQ(q1, question.QuestionTypeShortText, nil), makeQ(q2, question.QuestionTypeLongText, errors.New("invalid"))},
-				answers: []shared.AnswerParam{ans(q1, "ok"), ans(q2, "bad")},
+				formID:    formID,
+				userID:    userID,
+				questions: []question.Answerable{newTestAnswerable(q1, question.QuestionTypeShortText, nil), newTestAnswerable(q2, question.QuestionTypeLongText, errors.New("invalid"))},
+				answers:   []shared.AnswerParam{ans(q1, "ok"), ans(q2, "bad")},
 			},
 			expectedErr: true,
 			setup: func(t *testing.T, p *Params) context.Context {
@@ -128,10 +128,10 @@ func TestSubmitService_Submit(t *testing.T) {
 
 				qm.EXPECT().
 					ListByFormID(mock.Anything, p.formID).
-					Return(p.qs, nil).Once()
+					Return(p.questions, nil).Once()
 
-				p.qStore = qm
-				p.rStore = rm
+				p.questionStore = qm
+				p.responseStore = rm
 				p.service = submit.NewService(zap.NewNop(), qm, rm)
 				return context.Background()
 			},
@@ -139,16 +139,16 @@ func TestSubmitService_Submit(t *testing.T) {
 				require.NotNil(t, errs)
 				require.Len(t, errs, 1)
 				require.Equal(t, uuid.Nil, got.ID)
-				p.rStore.AssertNotCalled(t, "CreateOrUpdate", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+				p.responseStore.AssertNotCalled(t, "CreateOrUpdate", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 			},
 		},
 		{
 			name: "Not call CreateOrUpdate if answer refers to unknown question ",
 			params: Params{
-				formID:  formID,
-				userID:  userID,
-				qs:      []question.Answerable{makeQ(q1, question.QuestionTypeShortText, nil)},
-				answers: []shared.AnswerParam{ans(q1, "ok"), ans(unknown, "???")},
+				formID:    formID,
+				userID:    userID,
+				questions: []question.Answerable{newTestAnswerable(q1, question.QuestionTypeShortText, nil)},
+				answers:   []shared.AnswerParam{ans(q1, "ok"), ans(unknown, "???")},
 			},
 			expectedErr: true,
 			setup: func(t *testing.T, p *Params) context.Context {
@@ -157,10 +157,10 @@ func TestSubmitService_Submit(t *testing.T) {
 
 				qm.EXPECT().
 					ListByFormID(mock.Anything, p.formID).
-					Return(p.qs, nil).Once()
+					Return(p.questions, nil).Once()
 
-				p.qStore = qm
-				p.rStore = rm
+				p.questionStore = qm
+				p.responseStore = rm
 				p.service = submit.NewService(zap.NewNop(), qm, rm)
 				return context.Background()
 			},
@@ -168,7 +168,7 @@ func TestSubmitService_Submit(t *testing.T) {
 				require.NotNil(t, errs)
 				require.Len(t, errs, 1)
 				require.Equal(t, uuid.Nil, got.ID)
-				p.rStore.AssertNotCalled(t, "CreateOrUpdate", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+				p.responseStore.AssertNotCalled(t, "CreateOrUpdate", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 			},
 		},
 		{
@@ -187,24 +187,24 @@ func TestSubmitService_Submit(t *testing.T) {
 					ListByFormID(mock.Anything, p.formID).
 					Return(nil, errors.New("db down")).Once()
 
-				p.qStore = qm
-				p.rStore = rm
+				p.questionStore = qm
+				p.responseStore = rm
 				p.service = submit.NewService(zap.NewNop(), qm, rm)
 				return context.Background()
 			},
 			validate: func(t *testing.T, p Params, got response.FormResponse, errs []error) {
 				require.NotNil(t, errs)
 				require.Equal(t, uuid.Nil, got.ID)
-				p.rStore.AssertNotCalled(t, "CreateOrUpdate", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+				p.responseStore.AssertNotCalled(t, "CreateOrUpdate", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 			},
 		},
 		{
 			name: "Return error if validation passes but CreateOrUpdate fails",
 			params: Params{
-				formID:  formID,
-				userID:  userID,
-				qs:      []question.Answerable{makeQ(q1, question.QuestionTypeShortText, nil)},
-				answers: []shared.AnswerParam{ans(q1, "ok")},
+				formID:    formID,
+				userID:    userID,
+				questions: []question.Answerable{newTestAnswerable(q1, question.QuestionTypeShortText, nil)},
+				answers:   []shared.AnswerParam{ans(q1, "ok")},
 			},
 			expectedErr: true,
 			setup: func(t *testing.T, p *Params) context.Context {
@@ -213,7 +213,7 @@ func TestSubmitService_Submit(t *testing.T) {
 
 				qm.EXPECT().
 					ListByFormID(mock.Anything, p.formID).
-					Return(p.qs, nil).Once()
+					Return(p.questions, nil).Once()
 
 				rm.EXPECT().
 					CreateOrUpdate(
@@ -226,8 +226,8 @@ func TestSubmitService_Submit(t *testing.T) {
 					Return(response.FormResponse{}, errors.New("insert fail")).
 					Once()
 
-				p.qStore = qm
-				p.rStore = rm
+				p.questionStore = qm
+				p.responseStore = rm
 				p.service = submit.NewService(zap.NewNop(), qm, rm)
 				return context.Background()
 			},
