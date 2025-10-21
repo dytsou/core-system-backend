@@ -16,7 +16,7 @@ import (
 
 type reader interface {
 	Get(ctx context.Context, id uuid.UUID) (Tenant, error)
-	GetBySlug(ctx context.Context, slug string) (Tenant, error)
+	GetSlugStatus(ctx context.Context, slug string) (bool, uuid.UUID, error)
 }
 
 type Middleware struct {
@@ -54,14 +54,14 @@ func (m *Middleware) Middleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		org, err := m.reader.GetBySlug(traceCtx, slug)
+		_, orgID, err := m.reader.GetSlugStatus(traceCtx, slug)
 		if err != nil {
 			span.RecordError(err)
 			problem.New().WriteError(traceCtx, w, err, logger)
 			return
 		}
 
-		tenant, err := m.reader.Get(traceCtx, org.ID)
+		tenant, err := m.reader.Get(traceCtx, orgID)
 		if err != nil {
 			span.RecordError(err)
 			problem.New().WriteError(traceCtx, w, err, logger)
@@ -77,7 +77,7 @@ func (m *Middleware) Middleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		ctx := context.WithValue(traceCtx, internal.OrgIDContextKey, org.ID)
+		ctx := context.WithValue(traceCtx, internal.OrgIDContextKey, orgID)
 		ctx = context.WithValue(ctx, internal.OrgSlugContextKey, slug)
 		ctx = context.WithValue(ctx, internal.DBConnectionKey, conn)
 

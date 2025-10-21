@@ -33,10 +33,10 @@ type Querier interface {
 }
 
 type tenantStore interface {
-	Create(ctx context.Context, slug string, id uuid.UUID, ownerID uuid.UUID) (tenant.Tenant, error)
+	Create(ctx context.Context, id uuid.UUID, ownerID uuid.UUID) (tenant.Tenant, error)
 	SlugExists(ctx context.Context, slug string) (bool, error)
-	GetBySlug(ctx context.Context, slug string) (tenant.Tenant, error)
-	CreateHistory(ctx context.Context, slug string, orgID uuid.UUID, orgName string) (tenant.SlugHistory, error)
+	CreateSlugHistory(ctx context.Context, slug string, orgID uuid.UUID) (tenant.SlugHistory, error)
+	GetSlugStatus(ctx context.Context, slug string) (bool, uuid.UUID, error)
 }
 type Service struct {
 	logger      *zap.Logger
@@ -111,13 +111,13 @@ func (s *Service) CreateOrganization(ctx context.Context, name string, descripti
 		return Unit{}, err
 	}
 
-	_, err = s.tenantStore.Create(traceCtx, slug, org.ID, currentUserID)
+	_, err = s.tenantStore.Create(traceCtx, org.ID, currentUserID)
 	if err != nil {
 		span.RecordError(err)
 		return Unit{}, err
 	}
 
-	_, err = s.tenantStore.CreateHistory(traceCtx, slug, org.ID, name)
+	_, err = s.tenantStore.CreateSlugHistory(traceCtx, slug, org.ID)
 	if err != nil {
 		span.RecordError(err)
 		return Unit{}, err
@@ -138,7 +138,7 @@ func (s *Service) CreateUnit(ctx context.Context, name string, description strin
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	orgTenant, err := s.tenantStore.GetBySlug(traceCtx, slug)
+	_, orgID, err := s.tenantStore.GetSlugStatus(traceCtx, slug)
 	if err != nil {
 		span.RecordError(err)
 		return Unit{}, err
@@ -146,8 +146,8 @@ func (s *Service) CreateUnit(ctx context.Context, name string, description strin
 
 	unit, err := s.queries.Create(traceCtx, CreateParams{
 		Name:        pgtype.Text{String: name, Valid: name != ""},
-		OrgID:       pgtype.UUID{Bytes: orgTenant.ID, Valid: true},
-		ParentID:    pgtype.UUID{Bytes: orgTenant.ID, Valid: true},
+		OrgID:       pgtype.UUID{Bytes: orgID, Valid: true},
+		ParentID:    pgtype.UUID{Bytes: orgID, Valid: true},
 		Description: pgtype.Text{String: description, Valid: true},
 		Metadata:    metadata,
 		Type:        UnitTypeUnit,
@@ -160,7 +160,7 @@ func (s *Service) CreateUnit(ctx context.Context, name string, description strin
 
 	logger.Info(fmt.Sprintf("Created %s", unit.Type),
 		zap.String("unit_id", unit.ID.String()),
-		zap.String("org_id", orgTenant.ID.String()),
+		zap.String("org_id", orgID.String()),
 		zap.String("name", unit.Name.String),
 		zap.String("description", unit.Description.String),
 		zap.String("metadata", string(unit.Metadata)))

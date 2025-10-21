@@ -13,62 +13,42 @@ import (
 )
 
 const create = `-- name: Create :one
-INSERT INTO tenants (id, slug, db_strategy, owner_id)
-VALUES ($1, $2, $3, $4)
-RETURNING id, slug, db_strategy, owner_id
+INSERT INTO tenants (id, db_strategy, owner_id)
+VALUES ($1, $2, $3)
+RETURNING id, db_strategy, owner_id
 `
 
 type CreateParams struct {
 	ID         uuid.UUID
-	Slug       string
 	DbStrategy DbStrategy
 	OwnerID    pgtype.UUID
 }
 
 func (q *Queries) Create(ctx context.Context, arg CreateParams) (Tenant, error) {
-	row := q.db.QueryRow(ctx, create,
-		arg.ID,
-		arg.Slug,
-		arg.DbStrategy,
-		arg.OwnerID,
-	)
+	row := q.db.QueryRow(ctx, create, arg.ID, arg.DbStrategy, arg.OwnerID)
 	var i Tenant
-	err := row.Scan(
-		&i.ID,
-		&i.Slug,
-		&i.DbStrategy,
-		&i.OwnerID,
-	)
+	err := row.Scan(&i.ID, &i.DbStrategy, &i.OwnerID)
 	return i, err
 }
 
 const createSlugHistory = `-- name: CreateSlugHistory :one
-INSERT INTO slug_history (slug, org_id, orgName, created_at, ended_at)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING slug, org_id, orgname, created_at, ended_at
+INSERT INTO slug_history (slug, org_id)
+VALUES ($1, $2)
+RETURNING id, slug, org_id, created_at, ended_at
 `
 
 type CreateSlugHistoryParams struct {
-	Slug      string
-	OrgID     pgtype.UUID
-	Orgname   pgtype.Text
-	CreatedAt pgtype.Timestamptz
-	EndedAt   pgtype.Timestamptz
+	Slug  string
+	OrgID pgtype.UUID
 }
 
 func (q *Queries) CreateSlugHistory(ctx context.Context, arg CreateSlugHistoryParams) (SlugHistory, error) {
-	row := q.db.QueryRow(ctx, createSlugHistory,
-		arg.Slug,
-		arg.OrgID,
-		arg.Orgname,
-		arg.CreatedAt,
-		arg.EndedAt,
-	)
+	row := q.db.QueryRow(ctx, createSlugHistory, arg.Slug, arg.OrgID)
 	var i SlugHistory
 	err := row.Scan(
+		&i.ID,
 		&i.Slug,
 		&i.OrgID,
-		&i.Orgname,
 		&i.CreatedAt,
 		&i.EndedAt,
 	)
@@ -86,7 +66,7 @@ func (q *Queries) Delete(ctx context.Context, id uuid.UUID) error {
 }
 
 const existsBySlug = `-- name: ExistsBySlug :one
-SELECT EXISTS(SELECT 1 FROM tenants WHERE slug = $1)
+SELECT EXISTS(SELECT 1 FROM slug_history WHERE slug = $1 AND ended_at IS NULL)
 `
 
 func (q *Queries) ExistsBySlug(ctx context.Context, slug string) (bool, error) {
@@ -97,56 +77,48 @@ func (q *Queries) ExistsBySlug(ctx context.Context, slug string) (bool, error) {
 }
 
 const get = `-- name: Get :one
-SELECT id, slug, db_strategy, owner_id FROM tenants WHERE id = $1
+SELECT id, db_strategy, owner_id FROM tenants WHERE id = $1
 `
 
 func (q *Queries) Get(ctx context.Context, id uuid.UUID) (Tenant, error) {
 	row := q.db.QueryRow(ctx, get, id)
 	var i Tenant
-	err := row.Scan(
-		&i.ID,
-		&i.Slug,
-		&i.DbStrategy,
-		&i.OwnerID,
-	)
-	return i, err
-}
-
-const getBySlug = `-- name: GetBySlug :one
-SELECT id, slug, db_strategy, owner_id FROM tenants WHERE slug = $1
-`
-
-func (q *Queries) GetBySlug(ctx context.Context, slug string) (Tenant, error) {
-	row := q.db.QueryRow(ctx, getBySlug, slug)
-	var i Tenant
-	err := row.Scan(
-		&i.ID,
-		&i.Slug,
-		&i.DbStrategy,
-		&i.OwnerID,
-	)
+	err := row.Scan(&i.ID, &i.DbStrategy, &i.OwnerID)
 	return i, err
 }
 
 const getSlugHistory = `-- name: GetSlugHistory :many
-SELECT slug, org_id, orgname, created_at, ended_at FROM slug_history WHERE slug = $1
+SELECT s.id, s.slug, s.org_id, s.created_at, s.ended_at, u.name
+FROM slug_history s
+LEFT JOIN units u ON s.org_id = u.id
+WHERE slug = $1
 `
 
-func (q *Queries) GetSlugHistory(ctx context.Context, slug string) ([]SlugHistory, error) {
+type GetSlugHistoryRow struct {
+	ID        int32
+	Slug      string
+	OrgID     pgtype.UUID
+	CreatedAt pgtype.Timestamptz
+	EndedAt   pgtype.Timestamptz
+	Name      pgtype.Text
+}
+
+func (q *Queries) GetSlugHistory(ctx context.Context, slug string) ([]GetSlugHistoryRow, error) {
 	rows, err := q.db.Query(ctx, getSlugHistory, slug)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []SlugHistory
+	var items []GetSlugHistoryRow
 	for rows.Next() {
-		var i SlugHistory
+		var i GetSlugHistoryRow
 		if err := rows.Scan(
+			&i.ID,
 			&i.Slug,
 			&i.OrgID,
-			&i.Orgname,
 			&i.CreatedAt,
 			&i.EndedAt,
+			&i.Name,
 		); err != nil {
 			return nil, err
 		}
@@ -158,53 +130,94 @@ func (q *Queries) GetSlugHistory(ctx context.Context, slug string) ([]SlugHistor
 	return items, nil
 }
 
+const getSlugStatus = `-- name: GetSlugStatus :one
+SELECT org_id
+FROM slug_history
+WHERE slug = $1
+  AND ended_at IS NULL
+`
+
+func (q *Queries) GetSlugStatus(ctx context.Context, slug string) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, getSlugStatus, slug)
+	var org_id pgtype.UUID
+	err := row.Scan(&org_id)
+	return org_id, err
+}
+
 const update = `-- name: Update :one
 UPDATE tenants
-SET slug = $2, db_strategy = $3
+SET db_strategy = $2
 WHERE id = $1
-RETURNING id, slug, db_strategy, owner_id
+RETURNING id, db_strategy, owner_id
 `
 
 type UpdateParams struct {
 	ID         uuid.UUID
-	Slug       string
 	DbStrategy DbStrategy
 }
 
 func (q *Queries) Update(ctx context.Context, arg UpdateParams) (Tenant, error) {
-	row := q.db.QueryRow(ctx, update, arg.ID, arg.Slug, arg.DbStrategy)
+	row := q.db.QueryRow(ctx, update, arg.ID, arg.DbStrategy)
 	var i Tenant
-	err := row.Scan(
-		&i.ID,
-		&i.Slug,
-		&i.DbStrategy,
-		&i.OwnerID,
-	)
+	err := row.Scan(&i.ID, &i.DbStrategy, &i.OwnerID)
 	return i, err
 }
 
-const updateSlugHistory = `-- name: UpdateSlugHistory :one
-UPDATE slug_history
-SET ended_at = $3
-WHERE slug = $1 AND org_id = $2
-RETURNING slug, org_id, orgname, created_at, ended_at
+const updateSlugHistory = `-- name: UpdateSlugHistory :many
+WITH
+    -- Select the currently active slug for the org
+    current_slug AS (
+        SELECT slug
+        FROM slug_history sh
+        WHERE sh.org_id = $1 AND ended_at IS NULL
+        FOR UPDATE
+    ),
+
+    -- End the old slug record if a new slug is assigned
+    ended_history AS (
+      UPDATE slug_history sh
+      SET ended_at = now()
+      WHERE org_id = $1
+        AND ended_at IS NULL
+        AND (SELECT sh.slug FROM current_slug) <> $2
+      RETURNING org_id
+    ),
+
+    -- Insert the new slug record if an update occurred
+    new_history AS (
+      INSERT INTO slug_history (slug, org_id)
+      SELECT
+        $2 AS slug,
+        eh.org_id,
+        NULL
+      FROM ended_history eh
+      JOIN units u ON eh.org_id = u.id
+      RETURNING org_id
+    )
+SELECT org_id FROM new_history
 `
 
 type UpdateSlugHistoryParams struct {
-	Slug    string
-	OrgID   pgtype.UUID
-	EndedAt pgtype.Timestamptz
+	OrgID pgtype.UUID
+	Slug  string
 }
 
-func (q *Queries) UpdateSlugHistory(ctx context.Context, arg UpdateSlugHistoryParams) (SlugHistory, error) {
-	row := q.db.QueryRow(ctx, updateSlugHistory, arg.Slug, arg.OrgID, arg.EndedAt)
-	var i SlugHistory
-	err := row.Scan(
-		&i.Slug,
-		&i.OrgID,
-		&i.Orgname,
-		&i.CreatedAt,
-		&i.EndedAt,
-	)
-	return i, err
+func (q *Queries) UpdateSlugHistory(ctx context.Context, arg UpdateSlugHistoryParams) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, updateSlugHistory, arg.OrgID, arg.Slug)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var org_id pgtype.UUID
+		if err := rows.Scan(&org_id); err != nil {
+			return nil, err
+		}
+		items = append(items, org_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

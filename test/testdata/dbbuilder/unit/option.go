@@ -65,15 +65,3 @@ func WithChild(childID uuid.UUID) Option {
 		p.ChildIDs = append(p.ChildIDs, childID)
 	}
 }
-
-func WithOwnerID(ownerID uuid.UUID) Option {
-	return func(p *FactoryParams) {
-		p.OwnerID = pgtype.UUID{Bytes: ownerID, Valid: true}
-	}
-}
-
-func WithSlug(slug string) Option {
-	return func(p *FactoryParams) {
-		p.Slug = slug
-	}
-}

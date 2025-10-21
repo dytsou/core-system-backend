@@ -5,6 +5,7 @@ import (
 	"NYCU-SDC/core-system-backend/internal/unit"
 	"NYCU-SDC/core-system-backend/test/integration"
 	"NYCU-SDC/core-system-backend/test/testdata/dbbuilder"
+	tenantbuilder "NYCU-SDC/core-system-backend/test/testdata/dbbuilder/tenant"
 	unitbuilder "NYCU-SDC/core-system-backend/test/testdata/dbbuilder/unit"
 	userbuilder "NYCU-SDC/core-system-backend/test/testdata/dbbuilder/user"
 	"context"
@@ -91,10 +92,10 @@ func TestUnitService_Create(t *testing.T) {
 				unitType:    unit.TypeUnit,
 			},
 			setup: func(t *testing.T, params *params, db dbbuilder.DBTX) context.Context {
-				userBuilder := userbuilder.New(t, db)
-				user := userBuilder.Create()
-				org := unitbuilder.New(t, db).Create(unit.UnitTypeOrganization, unitbuilder.WithOwnerID(user.ID), unitbuilder.WithSlug(params.slug))
+				user := userbuilder.New(t, db).Create()
+				org := unitbuilder.New(t, db).Create(unit.UnitTypeOrganization)
 				params.parentUnitID = org.ID
+				tenantbuilder.New(t, db).Create(tenantbuilder.WithID(org.ID), tenantbuilder.WithSlug(params.slug), tenantbuilder.WithOwnerID(user.ID))
 
 				return context.Background()
 			},

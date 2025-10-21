@@ -269,13 +269,13 @@ func (h *Handler) GetOrgByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgTenant, err := h.tenantService.GetBySlug(traceCtx, slug)
+	_, orgID, err := h.tenantService.GetSlugStatus(traceCtx, slug)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), logger)
 		return
 	}
 
-	orgWithSlug, err := h.store.GetOrganizationByIDWithSlug(traceCtx, orgTenant.ID)
+	orgWithSlug, err := h.store.GetOrganizationByIDWithSlug(traceCtx, orgID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get organization by ID with slug: %w", err), logger)
 		return
@@ -353,7 +353,7 @@ func (h *Handler) UpdateOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgTenant, err := h.tenantService.GetBySlug(traceCtx, slug)
+	_, orgID, err := h.tenantService.GetSlugStatus(traceCtx, slug)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), logger)
 		return
@@ -392,13 +392,13 @@ func (h *Handler) UpdateOrg(w http.ResponseWriter, r *http.Request) {
 		dbStrategy = "isolated"
 	}
 
-	_, err = h.tenantService.Update(traceCtx, orgTenant.ID, req.Slug, dbStrategy)
+	_, err = h.tenantService.Update(traceCtx, orgID, req.Slug, dbStrategy)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to update organization tenant: %w", err), logger)
 		return
 	}
 
-	updatedOrg, err := h.store.Update(traceCtx, orgTenant.ID, req.Name, req.Description, metadataBytes)
+	updatedOrg, err := h.store.Update(traceCtx, orgID, req.Name, req.Description, metadataBytes)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to update organization: %w", err), logger)
 		return
@@ -418,13 +418,13 @@ func (h *Handler) DeleteOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgTenant, err := h.tenantService.GetBySlug(traceCtx, slug)
+	_, orgID, err := h.tenantService.GetSlugStatus(traceCtx, slug)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), logger)
 		return
 	}
 
-	err = h.store.Delete(traceCtx, orgTenant.ID, TypeOrg)
+	err = h.store.Delete(traceCtx, orgID, TypeOrg)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to delete unit: %w", err), logger)
 		return
@@ -496,13 +496,13 @@ func (h *Handler) ListOrgSubUnits(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgTenant, err := h.tenantService.GetBySlug(traceCtx, slug)
+	_, orgID, err := h.tenantService.GetSlugStatus(traceCtx, slug)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), logger)
 		return
 	}
 
-	subUnits, err := h.store.ListSubUnits(traceCtx, orgTenant.ID, TypeOrg)
+	subUnits, err := h.store.ListSubUnits(traceCtx, orgID, TypeOrg)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list sub-units: %w", err), logger)
 		return
@@ -552,13 +552,13 @@ func (h *Handler) ListOrgSubUnitIDs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgTenant, err := h.tenantService.GetBySlug(traceCtx, slug)
+	_, orgID, err := h.tenantService.GetSlugStatus(traceCtx, slug)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), logger)
 		return
 	}
 
-	subUnits, err := h.store.ListSubUnitIDs(traceCtx, orgTenant.ID, TypeOrg)
+	subUnits, err := h.store.ListSubUnitIDs(traceCtx, orgID, TypeOrg)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list sub-units: %w", err), logger)
 		return
@@ -659,7 +659,7 @@ func (h *Handler) AddOrgMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgTenant, err := h.tenantService.GetBySlug(traceCtx, slug)
+	_, orgID, err := h.tenantService.GetSlugStatus(traceCtx, slug)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), logger)
 		return
@@ -674,18 +674,18 @@ func (h *Handler) AddOrgMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if orgTenant.ID == uuid.Nil || params.MemberID == uuid.Nil {
+	if orgID == uuid.Nil || params.MemberID == uuid.Nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("org ID or member ID cannot be empty"), logger)
 		return
 	}
 
-	members, err := h.store.AddMember(traceCtx, TypeOrg, orgTenant.ID, params.MemberID)
+	members, err := h.store.AddMember(traceCtx, TypeOrg, orgID, params.MemberID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to add org member: %w", err), logger)
 		return
 	}
 
-	orgMemberResponse := OrgMemberResponse{OrgID: orgTenant.ID, MemberID: members.MemberID}
+	orgMemberResponse := OrgMemberResponse{OrgID: orgID, MemberID: members.MemberID}
 	handlerutil.WriteJSONResponse(w, http.StatusCreated, orgMemberResponse)
 }
 
@@ -734,14 +734,14 @@ func (h *Handler) ListOrgMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgTenant, err := h.tenantService.GetBySlug(traceCtx, slug)
+	_, orgID, err := h.tenantService.GetSlugStatus(traceCtx, slug)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), logger)
 		return
 	}
 
 	// Todo: Need to recursively obtain members of the entire organization
-	members, err := h.store.ListMembers(traceCtx, orgTenant.ID)
+	members, err := h.store.ListMembers(traceCtx, orgID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list org members: %w", err), logger)
 		return
@@ -792,8 +792,8 @@ func (h *Handler) RemoveOrgMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgTenant, err := h.tenantService.GetBySlug(traceCtx, slug)
-	if err != nil || orgTenant.ID == uuid.Nil {
+	_, orgID, err := h.tenantService.GetSlugStatus(traceCtx, slug)
+	if err != nil || orgID == uuid.Nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), logger)
 		return
 	}
@@ -810,7 +810,7 @@ func (h *Handler) RemoveOrgMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.store.RemoveMember(traceCtx, TypeOrg, orgTenant.ID, mID)
+	err = h.store.RemoveMember(traceCtx, TypeOrg, orgID, mID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to remove org member: %w", err), logger)
 		return

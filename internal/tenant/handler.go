@@ -8,15 +8,17 @@ import (
 	"github.com/NYCU-SDC/summer/pkg/problem"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"net/http"
+	"time"
 )
 
 type Store interface {
-	GetStatusWithHistory(ctx context.Context, slug string) (bool, uuid.UUID, []SlugHistory, error)
-	GetStatus(ctx context.Context, slug string) (bool, uuid.UUID, error)
+	GetStatusWithHistory(ctx context.Context, slug string) (bool, pgtype.UUID, []GetSlugHistoryRow, error)
+	GetSlugStatus(ctx context.Context, slug string) (bool, uuid.UUID, error)
 }
 
 type Handler struct {
@@ -43,12 +45,36 @@ func NewHandler(
 }
 
 type ResponseStatus struct {
-	Available bool      `json:"available"`
-	OrgId     uuid.UUID `json:"orgId"`
+	Available bool   `json:"available"`
+	OrgId     string `json:"orgId"`
+}
+type ResponseHistory struct {
+	Slug      string `json:"slug"`
+	OrgId     string `json:"orgId"`
+	OrgName   string `json:"orgName"`
+	CreatedAt string `json:"createdAt"`
+	EndedAt   string `json:"endedAt,omitempty"`
 }
 type Response struct {
 	ResponseStatus `json:"current"`
-	History        []SlugHistory `json:"history"`
+	History        []ResponseHistory `json:"history"`
+}
+
+func (h *Handler) ToResponseHistory(history []GetSlugHistoryRow) []ResponseHistory {
+	var responseHistory []ResponseHistory
+	for _, h := range history {
+		rh := ResponseHistory{
+			Slug:      h.Slug,
+			OrgId:     h.OrgID.String(),
+			OrgName:   h.Name.String,
+			CreatedAt: h.CreatedAt.Time.Format(time.RFC3339),
+		}
+		if h.EndedAt.Valid {
+			rh.EndedAt = h.EndedAt.Time.Format(time.RFC3339)
+		}
+		responseHistory = append(responseHistory, rh)
+	}
+	return responseHistory
 }
 
 func (h *Handler) GetStatusWithHistory(w http.ResponseWriter, r *http.Request) {
@@ -65,9 +91,9 @@ func (h *Handler) GetStatusWithHistory(w http.ResponseWriter, r *http.Request) {
 	response := Response{
 		ResponseStatus{
 			Available: available,
-			OrgId:     orgID,
+			OrgId:     orgID.String(),
 		},
-		history,
+		h.ToResponseHistory(history),
 	}
 	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
 }
@@ -78,14 +104,14 @@ func (h *Handler) GetStatus(w http.ResponseWriter, r *http.Request) {
 	h.logger = logutil.WithContext(traceCtx, h.logger)
 
 	slug := traceCtx.Value(internal.OrgSlugContextKey).(string)
-	available, orgID, err := h.store.GetStatus(traceCtx, slug)
+	available, orgID, err := h.store.GetSlugStatus(traceCtx, slug)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, h.logger)
 		return
 	}
 	response := ResponseStatus{
 		Available: available,
-		OrgId:     orgID,
+		OrgId:     orgID.String(),
 	}
 	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
 }
