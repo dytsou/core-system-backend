@@ -1,6 +1,7 @@
 package inbox
 
 import (
+	"NYCU-SDC/core-system-backend/internal"
 	"strings"
 )
 
@@ -29,11 +30,7 @@ func NewSearch(paramName string, searchStr string) (*string, error) {
 // Validate the search filter
 func (s *Search) Validate() error {
 	if len(s.searchStr) > MaxSearchLength {
-		return ErrSearchTooLong{
-			Parameter: s.paramName,
-			Value:     s.searchStr,
-			Message:   "search string exceeds maximum length",
-		}
+		return internal.ErrSearchTooLong
 	}
 	return nil
 }

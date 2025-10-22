@@ -42,8 +42,11 @@ var (
 	ErrUnitNotFound         = errors.New("unit not found")
 
 	// Inbox Errors
-	ErrSearchTooLong        = errors.New("search string exceeds maximum length")
-	ErrInvalidBoolParameter = errors.New("invalid boolean parameter value")
+	ErrInvalidIsReadParameter     = errors.New("invalid isRead parameter")
+	ErrInvalidIsStarredParameter  = errors.New("invalid isStarred parameter")
+	ErrInvalidIsArchivedParameter = errors.New("invalid isArchived parameter")
+	ErrInvalidSearchParameter     = errors.New("invalid search parameter")
+	ErrSearchTooLong              = errors.New("search string exceeds maximum length")
 
 	// Form Errors
 	ErrFormNotFound       = errors.New("form not found")
@@ -121,10 +124,16 @@ func ErrorHandler(err error) problem.Problem {
 		return problem.NewValidateProblem("form is not in draft status")
 
 	// Inbox Errors
+	case errors.Is(err, ErrInvalidIsReadParameter):
+		return problem.NewValidateProblem("invalid isRead parameter")
+	case errors.Is(err, ErrInvalidIsStarredParameter):
+		return problem.NewValidateProblem("invalid isStarred parameter")
+	case errors.Is(err, ErrInvalidIsArchivedParameter):
+		return problem.NewValidateProblem("invalid isArchived parameter")
+	case errors.Is(err, ErrInvalidSearchParameter):
+		return problem.NewValidateProblem("invalid search parameter")
 	case errors.Is(err, ErrSearchTooLong):
 		return problem.NewValidateProblem("search string exceeds maximum length")
-	case errors.Is(err, ErrInvalidBoolParameter):
-		return problem.NewValidateProblem("invalid boolean parameter value")
 	case errors.Is(err, ErrFormDeadlinePassed):
 		return problem.NewValidateProblem("form deadline has passed")
 

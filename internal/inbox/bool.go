@@ -1,6 +1,7 @@
 package inbox
 
 import (
+	"NYCU-SDC/core-system-backend/internal"
 	"strconv"
 )
 
@@ -30,11 +31,15 @@ func (b *Bool) Validate() (bool, error) {
 	// strconv.ParseBool will return an error if the string is not a valid boolean
 	parsedBool, err := strconv.ParseBool(b.boolStr)
 	if err != nil {
-		return false, ErrInvalidBoolParameter{
-			Parameter: b.paramName,
-			Value:     b.boolStr,
-			Message:   "must be 1, t, T, TRUE, true, True, 0, f, F, FALSE, false, False",
+		switch b.paramName {
+		case "isRead":
+			return false, internal.ErrInvalidIsReadParameter
+		case "isStarred":
+			return false, internal.ErrInvalidIsStarredParameter
+		case "isArchived":
+			return false, internal.ErrInvalidIsArchivedParameter
 		}
+		return false, err
 	}
 
 	return parsedBool, nil
