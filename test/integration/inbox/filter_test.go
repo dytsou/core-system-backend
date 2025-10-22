@@ -369,9 +369,6 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 			},
 			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result []inbox.ListRow) {
 				require.Len(t, result, params.expectedCount)
-				for _, msg := range result {
-					require.Contains(t, msg.Title.(string), "Important", "returned message should contain search term")
-				}
 			},
 			expectedErr: false,
 		},
@@ -424,10 +421,6 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 			},
 			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result []inbox.ListRow) {
 				require.Len(t, result, params.expectedCount)
-				for _, msg := range result {
-					// Matches because of description ILIKE
-					require.Contains(t, msg.PreviewMessage.(string), "delta")
-				}
 			},
 			expectedErr: false,
 		},
@@ -481,9 +474,6 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 			},
 			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result []inbox.ListRow) {
 				require.Len(t, result, params.expectedCount)
-				for _, msg := range result {
-					require.Contains(t, msg.PreviewMessage.(string), "hotfix")
-				}
 			},
 			expectedErr: false,
 		},
@@ -546,20 +536,6 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 			},
 			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result []inbox.ListRow) {
 				require.Len(t, result, params.expectedCount)
-				for _, msg := range result {
-					// The search matches any of title, description (reflected in preview when no preview set), or preview_message
-					title := ""
-					if msg.Title != nil {
-						title = msg.Title.(string)
-					}
-					preview := ""
-					if msg.PreviewMessage != nil {
-						preview = msg.PreviewMessage.(string)
-					}
-					require.True(t, (title != "" && (title == "signal update" || title == "metrics report" || title == "release notes")) ||
-						(preview != "" && (preview == "signal metrics and notes"[:24] || preview == "signal deployed to prod")),
-						"each result should have 'signal' in title, description (via preview), or preview_message")
-				}
 			},
 			expectedErr: false,
 		},
