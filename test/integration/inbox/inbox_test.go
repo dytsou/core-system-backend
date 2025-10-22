@@ -215,8 +215,9 @@ func TestInboxService_Create(t *testing.T) {
 
 func TestInboxService_List(t *testing.T) {
 	type Params struct {
-		userID   uuid.UUID
-		expected int
+		userID    uuid.UUID
+		messageID uuid.UUID
+		expected  int
 	}
 	testCases := []struct {
 		name        string
@@ -276,9 +277,10 @@ func TestInboxService_List(t *testing.T) {
 				)
 
 				message := inboxBuilder.CreateMessage(inbox.ContentTypeForm, formRow.ID, unitRow.ID)
-				inboxBuilder.CreateUserInboxMessage(user.ID, message.ID)
+				userInboxMessage := inboxBuilder.CreateUserInboxMessage(user.ID, message.ID)
 
 				params.userID = user.ID
+				params.messageID = userInboxMessage.ID
 
 				return context.Background()
 			},
@@ -286,6 +288,7 @@ func TestInboxService_List(t *testing.T) {
 				require.Len(t, result, params.expected)
 				for _, msg := range result {
 					require.Equal(t, params.userID, msg.UserID)
+					require.Equal(t, params.messageID, msg.ID)
 					require.Equal(t, "message-title", msg.Title)
 					require.Equal(t, "message-preview", msg.PreviewMessage)
 					require.Equal(t, "message-org", msg.OrgName)
@@ -390,6 +393,7 @@ func TestInboxService_UpdateByID(t *testing.T) {
 				require.Equal(t, params.expected.IsRead, result.IsRead)
 				require.Equal(t, params.expected.IsStarred, result.IsStarred)
 				require.Equal(t, params.expected.IsArchived, result.IsArchived)
+				require.Equal(t, params.messageID, result.ID)
 			},
 			expectedErr: false,
 		},
