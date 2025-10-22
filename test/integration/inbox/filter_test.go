@@ -76,9 +76,9 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				userInboxMessage3 := inboxBuilder.CreateUserInboxMessage(user.ID, message3.ID) // Archived
 
 				// Mark second message as read
-				inboxBuilder.UpdateUserInboxMessage(userInboxMessage2[0].ID, user.ID, inbox.UserInboxMessageFilter{IsRead: true, IsStarred: false, IsArchived: false})
+				inboxBuilder.UpdateUserInboxMessage(userInboxMessage2.ID, user.ID, inbox.UserInboxMessageFilter{IsRead: true, IsStarred: false, IsArchived: false})
 				// Mark third message as archived
-				inboxBuilder.UpdateUserInboxMessage(userInboxMessage3[0].ID, user.ID, inbox.UserInboxMessageFilter{IsRead: false, IsStarred: false, IsArchived: true})
+				inboxBuilder.UpdateUserInboxMessage(userInboxMessage3.ID, user.ID, inbox.UserInboxMessageFilter{IsRead: false, IsStarred: false, IsArchived: true})
 
 				params.userID = user.ID
 
@@ -133,7 +133,7 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				inboxBuilder.CreateUserInboxMessage(user.ID, message2.ID)
 
 				// Mark first message as read
-				inboxBuilder.UpdateUserInboxMessage(userInboxMessage1[0].ID, user.ID, inbox.UserInboxMessageFilter{IsRead: true, IsStarred: false, IsArchived: false})
+				inboxBuilder.UpdateUserInboxMessage(userInboxMessage1.ID, user.ID, inbox.UserInboxMessageFilter{IsRead: true, IsStarred: false, IsArchived: false})
 
 				params.userID = user.ID
 
@@ -188,7 +188,7 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				userInboxMessage2 := inboxBuilder.CreateUserInboxMessage(user.ID, message2.ID)
 
 				// Mark second message as archived
-				inboxBuilder.UpdateUserInboxMessage(userInboxMessage2[0].ID, user.ID, inbox.UserInboxMessageFilter{IsRead: false, IsStarred: false, IsArchived: true})
+				inboxBuilder.UpdateUserInboxMessage(userInboxMessage2.ID, user.ID, inbox.UserInboxMessageFilter{IsRead: false, IsStarred: false, IsArchived: true})
 
 				params.userID = user.ID
 
@@ -243,7 +243,7 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				userInboxMessage2 := inboxBuilder.CreateUserInboxMessage(user.ID, message2.ID)
 
 				// Mark second message as starred
-				inboxBuilder.UpdateUserInboxMessage(userInboxMessage2[0].ID, user.ID, inbox.UserInboxMessageFilter{IsRead: false, IsStarred: true, IsArchived: false})
+				inboxBuilder.UpdateUserInboxMessage(userInboxMessage2.ID, user.ID, inbox.UserInboxMessageFilter{IsRead: false, IsStarred: true, IsArchived: false})
 
 				params.userID = user.ID
 
@@ -306,9 +306,9 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				userInboxMessage3 := inboxBuilder.CreateUserInboxMessage(user.ID, message3.ID) // Read, Starred
 
 				// Mark second message as read only
-				inboxBuilder.UpdateUserInboxMessage(userInboxMessage2[0].ID, user.ID, inbox.UserInboxMessageFilter{IsRead: true, IsStarred: false, IsArchived: false})
+				inboxBuilder.UpdateUserInboxMessage(userInboxMessage2.ID, user.ID, inbox.UserInboxMessageFilter{IsRead: true, IsStarred: false, IsArchived: false})
 				// Mark third message as read and starred
-				inboxBuilder.UpdateUserInboxMessage(userInboxMessage3[0].ID, user.ID, inbox.UserInboxMessageFilter{IsRead: true, IsStarred: true, IsArchived: false})
+				inboxBuilder.UpdateUserInboxMessage(userInboxMessage3.ID, user.ID, inbox.UserInboxMessageFilter{IsRead: true, IsStarred: true, IsArchived: false})
 
 				params.userID = user.ID
 
@@ -676,7 +676,7 @@ func TestInboxService_ListPagination(t *testing.T) {
 					uim := inboxBuilder.CreateUserInboxMessage(user.ID, msg.ID)
 					if i < params.archivedCount {
 						// archive first N messages
-						inboxBuilder.UpdateUserInboxMessage(uim[0].ID, user.ID, inbox.UserInboxMessageFilter{IsRead: false, IsStarred: false, IsArchived: true})
+						inboxBuilder.UpdateUserInboxMessage(uim.ID, user.ID, inbox.UserInboxMessageFilter{IsRead: false, IsStarred: false, IsArchived: true})
 					}
 				}
 

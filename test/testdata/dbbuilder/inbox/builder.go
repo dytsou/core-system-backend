@@ -38,7 +38,7 @@ func (b Builder) CreateMessage(contentType inbox.ContentType, contentID, postedB
 }
 
 // CreateUserInboxMessage creates a user inbox message directly in the database
-func (b Builder) CreateUserInboxMessage(userID, messageID uuid.UUID) []inbox.UserInboxMessage {
+func (b Builder) CreateUserInboxMessage(userID, messageID uuid.UUID) inbox.UserInboxMessage {
 	queries := b.Queries()
 	messages, err := queries.CreateUserInboxBulk(context.Background(), inbox.CreateUserInboxBulkParams{
 		UserIds:   []uuid.UUID{userID},
@@ -46,7 +46,7 @@ func (b Builder) CreateUserInboxMessage(userID, messageID uuid.UUID) []inbox.Use
 	})
 	require.NoError(b.t, err)
 	require.Len(b.t, messages, 1)
-	return messages
+	return messages[len(messages)-1]
 }
 
 // CreateUserInboxBulk creates multiple user inbox messages directly in the database

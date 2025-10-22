@@ -276,8 +276,7 @@ func TestInboxService_List(t *testing.T) {
 				)
 
 				message := inboxBuilder.CreateMessage(inbox.ContentTypeForm, formRow.ID, unitRow.ID)
-				userInboxMessages := inboxBuilder.CreateUserInboxMessage(user.ID, message.ID)
-				require.Equal(t, 1, len(userInboxMessages))
+				inboxBuilder.CreateUserInboxMessage(user.ID, message.ID)
 
 				params.userID = user.ID
 
@@ -382,9 +381,7 @@ func TestInboxService_UpdateByID(t *testing.T) {
 
 				message := inboxBuilder.CreateMessage(inbox.ContentTypeForm, formRow.ID, unitRow.ID)
 				userInboxMessage := inboxBuilder.CreateUserInboxMessage(user.ID, message.ID)
-				require.Equal(t, 1, len(userInboxMessage))
-
-				params.messageID = userInboxMessage[0].ID
+				params.messageID = userInboxMessage.ID
 				params.userID = user.ID
 
 				return context.Background()
@@ -421,9 +418,7 @@ func TestInboxService_UpdateByID(t *testing.T) {
 
 				message := inboxBuilder.CreateMessage(inbox.ContentTypeForm, formRow.ID, unitRow.ID)
 				userInboxMessage := inboxBuilder.CreateUserInboxMessage(user.ID, message.ID)
-				require.Equal(t, 1, len(userInboxMessage))
-
-				params.messageID = userInboxMessage[0].ID
+				params.messageID = userInboxMessage.ID
 				params.userID = user.ID
 
 				return context.Background()
@@ -461,8 +456,7 @@ func TestInboxService_UpdateByID(t *testing.T) {
 				// Create inbox message
 				message := inboxBuilder.CreateMessage(inbox.ContentTypeForm, formRow.ID, unitRow.ID)
 				userInboxMessage := inboxBuilder.CreateUserInboxMessage(user.ID, message.ID)
-				require.Equal(t, 1, len(userInboxMessage))
-				params.messageID = userInboxMessage[0].ID
+				params.messageID = userInboxMessage.ID
 				params.userID = user.ID
 
 				return context.Background()
@@ -523,8 +517,7 @@ func TestInboxService_UpdateByID(t *testing.T) {
 				// Create inbox message
 				message := inboxBuilder.CreateMessage(inbox.ContentTypeForm, formRow.ID, unitRow.ID)
 				userInboxMessage := inboxBuilder.CreateUserInboxMessage(user.ID, message.ID)
-				require.Equal(t, 1, len(userInboxMessage))
-				params.messageID = userInboxMessage[0].ID
+				params.messageID = userInboxMessage.ID
 				params.userID = uuid.New() // Non-existent user ID
 
 				return context.Background()
@@ -731,9 +724,8 @@ func TestInboxService_ArchiveVisibilityInList(t *testing.T) {
 				// Create inbox message
 				message := inboxBuilder.CreateMessage(inbox.ContentTypeForm, formRow.ID, unitRow.ID)
 				userInboxMessage := inboxBuilder.CreateUserInboxMessage(user.ID, message.ID)
-				require.Equal(t, 1, len(userInboxMessage))
 				params.userID = user.ID
-				params.messageID = userInboxMessage[0].ID
+				params.messageID = userInboxMessage.ID
 
 				return context.Background()
 			},
