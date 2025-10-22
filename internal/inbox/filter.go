@@ -1,15 +1,7 @@
 package inbox
 
 import (
-	"NYCU-SDC/core-system-backend/internal"
 	"net/http"
-	"net/url"
-	"strconv"
-	"strings"
-)
-
-const (
-	MaxSearchLength = 255
 )
 
 // FilterRequest represents the filter parameters for inbox messages
@@ -23,68 +15,38 @@ type FilterRequest struct {
 // ParseFilterRequest parses filter parameters from HTTP request query parameters
 func ParseFilterRequest(r *http.Request) (*FilterRequest, error) {
 	query := r.URL.Query()
-	filter := &FilterRequest{}
 
-	// Parse isRead parameter
 	isReadStr := query.Get("isRead")
-	if isReadStr != "" {
-		isRead, err := strconv.ParseBool(isReadStr)
-		if err != nil {
-			return nil, err
-		}
-		filter.IsRead = &isRead
-	}
-
-	// Parse isStarred parameter
 	isStarredStr := query.Get("isStarred")
-	if isStarredStr != "" {
-		isStarred, err := strconv.ParseBool(isStarredStr)
-		if err != nil {
-			return nil, err
-		}
-		filter.IsStarred = &isStarred
-	}
-
-	// Parse isArchived parameter
 	isArchivedStr := query.Get("isArchived")
-	if isArchivedStr != "" {
-		isArchived, err := strconv.ParseBool(isArchivedStr)
-		if err != nil {
-			return nil, err
-		}
-		filter.IsArchived = &isArchived
+	searchStr := query.Get("search")
+
+	isRead, err := NewBool("isRead", isReadStr)
+	if err != nil {
+		return nil, err
 	}
 
-	// Parse search parameter
-	filter.Search = strings.TrimSpace(query.Get("search"))
-
-	// Validate search length
-	if len(filter.Search) > MaxSearchLength {
-		return nil, internal.ErrSearchTooLong
+	isStarred, err := NewBool("isStarred", isStarredStr)
+	if err != nil {
+		return nil, err
 	}
 
+	isArchived, err := NewBool("isArchived", isArchivedStr)
+	if err != nil {
+		return nil, err
+	}
+
+	search, err := NewSearch("search", searchStr)
+	if err != nil {
+		return nil, err
+	}
+
+	// Combine filters into FilterRequest
+	filter := &FilterRequest{
+		IsRead:     &isRead,
+		IsStarred:  &isStarred,
+		IsArchived: &isArchived,
+		Search:     *search,
+	}
 	return filter, nil
-}
-
-// ToQueryParams converts the filter request to URL query parameters
-func (f *FilterRequest) ToQueryParams() url.Values {
-	params := url.Values{}
-
-	if f.IsRead != nil {
-		params.Set("isRead", strconv.FormatBool(*f.IsRead))
-	}
-
-	if f.IsStarred != nil {
-		params.Set("isStarred", strconv.FormatBool(*f.IsStarred))
-	}
-
-	if f.IsArchived != nil {
-		params.Set("isArchived", strconv.FormatBool(*f.IsArchived))
-	}
-
-	if f.Search != "" {
-		params.Set("search", f.Search)
-	}
-
-	return params
 }

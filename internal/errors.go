@@ -42,7 +42,8 @@ var (
 	ErrUnitNotFound         = errors.New("unit not found")
 
 	// Inbox Errors
-	ErrSearchTooLong = errors.New("search string exceeds maximum length")
+	ErrSearchTooLong        = errors.New("search string exceeds maximum length")
+	ErrInvalidBoolParameter = errors.New("invalid boolean parameter value")
 
 	// Form Errors
 	ErrFormNotFound       = errors.New("form not found")
@@ -122,6 +123,8 @@ func ErrorHandler(err error) problem.Problem {
 	// Inbox Errors
 	case errors.Is(err, ErrSearchTooLong):
 		return problem.NewValidateProblem("search string exceeds maximum length")
+	case errors.Is(err, ErrInvalidBoolParameter):
+		return problem.NewValidateProblem("invalid boolean parameter value")
 	case errors.Is(err, ErrFormDeadlinePassed):
 		return problem.NewValidateProblem("form deadline has passed")
 
