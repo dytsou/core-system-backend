@@ -816,6 +816,334 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 			},
 			expectedErr: false,
 		},
+		{
+			name: "Filter by search should match special symbols in title field",
+			params: Params{
+				filter: &inbox.FilterRequest{
+					Search: "@gmail.com",
+				},
+				expectedCount: 1,
+			},
+			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
+				unitBuilder := unitbuilder.New(t, db)
+				userBuilder := userbuilder.New(t, db)
+				formBuilder := formbuilder.New(t, db)
+				inboxBuilder := inboxbuilder.New(t, db)
+
+				org := unitBuilder.Create(unit.UnitTypeOrganization, unitbuilder.WithName("special-symbols-org"))
+				unitRow := unitBuilder.Create(unit.UnitTypeUnit, unitbuilder.WithOrgID(org.ID), unitbuilder.WithName("special-symbols-unit"))
+				user := userBuilder.Create()
+
+				email := testdata.RandomEmail()
+				userBuilder.CreateEmail(user.ID, email)
+				unitBuilder.AddMember(unitRow.ID, email)
+
+				// Create forms with special symbols in titles
+				form1 := formBuilder.Create(
+					formbuilder.WithUnitID(unitRow.ID),
+					formbuilder.WithLastEditor(user.ID),
+					formbuilder.WithTitle("Security Alert @gmail.com"),
+				)
+				form2 := formBuilder.Create(
+					formbuilder.WithUnitID(unitRow.ID),
+					formbuilder.WithLastEditor(user.ID),
+					formbuilder.WithTitle("Regular System Update"),
+				)
+
+				message1 := inboxBuilder.CreateMessage(inbox.ContentTypeForm, form1.ID, unitRow.ID)
+				message2 := inboxBuilder.CreateMessage(inbox.ContentTypeForm, form2.ID, unitRow.ID)
+
+				inboxBuilder.CreateUserInboxMessage(user.ID, message1.ID)
+				inboxBuilder.CreateUserInboxMessage(user.ID, message2.ID)
+
+				params.userID = user.ID
+
+				return context.Background()
+			},
+			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result []inbox.ListRow) {
+				require.Len(t, result, params.expectedCount)
+			},
+			expectedErr: false,
+		},
+		{
+			name: "Filter by search should match special symbols in description field",
+			params: Params{
+				filter: &inbox.FilterRequest{
+					Search: "(測試)",
+				},
+				expectedCount: 1,
+			},
+			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
+				unitBuilder := unitbuilder.New(t, db)
+				userBuilder := userbuilder.New(t, db)
+				formBuilder := formbuilder.New(t, db)
+				inboxBuilder := inboxbuilder.New(t, db)
+
+				org := unitBuilder.Create(unit.UnitTypeOrganization, unitbuilder.WithName("special-symbols-desc-org"))
+				unitRow := unitBuilder.Create(unit.UnitTypeUnit, unitbuilder.WithOrgID(org.ID), unitbuilder.WithName("special-symbols-desc-unit"))
+				user := userBuilder.Create()
+
+				email := testdata.RandomEmail()
+				userBuilder.CreateEmail(user.ID, email)
+				unitBuilder.AddMember(unitRow.ID, email)
+
+				// Title does not contain keyword; description does
+				form1 := formBuilder.Create(
+					formbuilder.WithUnitID(unitRow.ID),
+					formbuilder.WithLastEditor(user.ID),
+					formbuilder.WithTitle("系統效能分析報告"),
+					formbuilder.WithDescription("系統狀態：(測試) 符號在資料中出現異常"),
+				)
+				// Control form without keyword anywhere
+				form2 := formBuilder.Create(
+					formbuilder.WithUnitID(unitRow.ID),
+					formbuilder.WithLastEditor(user.ID),
+					formbuilder.WithTitle("週報更新"),
+					formbuilder.WithDescription("狀態更新和阻礙事項"),
+				)
+
+				message1 := inboxBuilder.CreateMessage(inbox.ContentTypeForm, form1.ID, unitRow.ID)
+				message2 := inboxBuilder.CreateMessage(inbox.ContentTypeForm, form2.ID, unitRow.ID)
+
+				inboxBuilder.CreateUserInboxMessage(user.ID, message1.ID)
+				inboxBuilder.CreateUserInboxMessage(user.ID, message2.ID)
+
+				params.userID = user.ID
+
+				return context.Background()
+			},
+			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result []inbox.ListRow) {
+				require.Len(t, result, params.expectedCount)
+			},
+			expectedErr: false,
+		},
+		{
+			name: "Filter by search should match special symbols in preview_message field",
+			params: Params{
+				filter: &inbox.FilterRequest{
+					Search: "!@#$",
+				},
+				expectedCount: 1,
+			},
+			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
+				unitBuilder := unitbuilder.New(t, db)
+				userBuilder := userbuilder.New(t, db)
+				formBuilder := formbuilder.New(t, db)
+				inboxBuilder := inboxbuilder.New(t, db)
+
+				org := unitBuilder.Create(unit.UnitTypeOrganization, unitbuilder.WithName("special-symbols-preview-org"))
+				unitRow := unitBuilder.Create(unit.UnitTypeUnit, unitbuilder.WithOrgID(org.ID), unitbuilder.WithName("special-symbols-preview-unit"))
+				user := userBuilder.Create()
+
+				email := testdata.RandomEmail()
+				userBuilder.CreateEmail(user.ID, email)
+				unitBuilder.AddMember(unitRow.ID, email)
+
+				// Title and description do not contain keyword; preview_message does
+				form1 := formBuilder.Create(
+					formbuilder.WithUnitID(unitRow.ID),
+					formbuilder.WithLastEditor(user.ID),
+					formbuilder.WithTitle("Release Notes"),
+					formbuilder.WithDescription("Minor release v1.2.4"),
+					formbuilder.WithPreviewMessage("Critical fix deployed !@#$ symbols resolved"),
+				)
+				// Control form without keyword anywhere
+				form2 := formBuilder.Create(
+					formbuilder.WithUnitID(unitRow.ID),
+					formbuilder.WithLastEditor(user.ID),
+					formbuilder.WithTitle("Changelog"),
+					formbuilder.WithDescription("Features and improvements"),
+				)
+
+				message1 := inboxBuilder.CreateMessage(inbox.ContentTypeForm, form1.ID, unitRow.ID)
+				message2 := inboxBuilder.CreateMessage(inbox.ContentTypeForm, form2.ID, unitRow.ID)
+
+				inboxBuilder.CreateUserInboxMessage(user.ID, message1.ID)
+				inboxBuilder.CreateUserInboxMessage(user.ID, message2.ID)
+
+				params.userID = user.ID
+
+				return context.Background()
+			},
+			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result []inbox.ListRow) {
+				require.Len(t, result, params.expectedCount)
+			},
+			expectedErr: false,
+		},
+		{
+			name: "Filter by search should match across special symbols in title, description, and preview_message",
+			params: Params{
+				filter: &inbox.FilterRequest{
+					Search: "#!/bin/bash",
+				},
+				expectedCount: 3,
+			},
+			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
+				unitBuilder := unitbuilder.New(t, db)
+				userBuilder := userbuilder.New(t, db)
+				formBuilder := formbuilder.New(t, db)
+				inboxBuilder := inboxbuilder.New(t, db)
+
+				org := unitBuilder.Create(unit.UnitTypeOrganization, unitbuilder.WithName("special-symbols-allfields-org"))
+				unitRow := unitBuilder.Create(unit.UnitTypeUnit, unitbuilder.WithOrgID(org.ID), unitbuilder.WithName("special-symbols-allfields-unit"))
+				user := userBuilder.Create()
+
+				email := testdata.RandomEmail()
+				userBuilder.CreateEmail(user.ID, email)
+				unitBuilder.AddMember(unitRow.ID, email)
+
+				// One form with keyword in title
+				formTitle := formBuilder.Create(
+					formbuilder.WithUnitID(unitRow.ID),
+					formbuilder.WithLastEditor(user.ID),
+					formbuilder.WithTitle("System #!/bin/bash Update"),
+					formbuilder.WithDescription("Weekly report"),
+				)
+				// One form with keyword at start of description (so preview picks it up if needed)
+				formDesc := formBuilder.Create(
+					formbuilder.WithUnitID(unitRow.ID),
+					formbuilder.WithLastEditor(user.ID),
+					formbuilder.WithTitle("Metrics Report"),
+					formbuilder.WithDescription("#!/bin/bash echo 'test'"),
+				)
+				// One form with keyword in preview_message
+				formPrev := formBuilder.Create(
+					formbuilder.WithUnitID(unitRow.ID),
+					formbuilder.WithLastEditor(user.ID),
+					formbuilder.WithTitle("Release Notes"),
+					formbuilder.WithDescription("Hotfix v1.2.5"),
+					formbuilder.WithPreviewMessage("System #!/bin/bash deployed to production"),
+				)
+
+				msg1 := inboxBuilder.CreateMessage(inbox.ContentTypeForm, formTitle.ID, unitRow.ID)
+				msg2 := inboxBuilder.CreateMessage(inbox.ContentTypeForm, formDesc.ID, unitRow.ID)
+				msg3 := inboxBuilder.CreateMessage(inbox.ContentTypeForm, formPrev.ID, unitRow.ID)
+
+				inboxBuilder.CreateUserInboxMessage(user.ID, msg1.ID)
+				inboxBuilder.CreateUserInboxMessage(user.ID, msg2.ID)
+				inboxBuilder.CreateUserInboxMessage(user.ID, msg3.ID)
+
+				params.userID = user.ID
+
+				return context.Background()
+			},
+			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result []inbox.ListRow) {
+				require.Len(t, result, params.expectedCount)
+			},
+			expectedErr: false,
+		},
+		{
+			name: "Filter by search should handle mixed special symbols and regular text",
+			params: Params{
+				filter: &inbox.FilterRequest{
+					Search: "++",
+				},
+				expectedCount: 2,
+			},
+			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
+				unitBuilder := unitbuilder.New(t, db)
+				userBuilder := userbuilder.New(t, db)
+				formBuilder := formbuilder.New(t, db)
+				inboxBuilder := inboxbuilder.New(t, db)
+
+				org := unitBuilder.Create(unit.UnitTypeOrganization, unitbuilder.WithName("mixed-symbols-org"))
+				unitRow := unitBuilder.Create(unit.UnitTypeUnit, unitbuilder.WithOrgID(org.ID), unitbuilder.WithName("mixed-symbols-unit"))
+				user := userBuilder.Create()
+
+				email := testdata.RandomEmail()
+				userBuilder.CreateEmail(user.ID, email)
+				unitBuilder.AddMember(unitRow.ID, email)
+
+				// Form with special symbols and regular text
+				form1 := formBuilder.Create(
+					formbuilder.WithUnitID(unitRow.ID),
+					formbuilder.WithLastEditor(user.ID),
+					formbuilder.WithTitle("API Documentation ++"),
+					formbuilder.WithDescription("New API endpoints ++"),
+				)
+				// Form with special symbols only
+				form2 := formBuilder.Create(
+					formbuilder.WithUnitID(unitRow.ID),
+					formbuilder.WithLastEditor(user.ID),
+					formbuilder.WithTitle("System Alert +++"),
+					formbuilder.WithDescription("Critical issues +++"),
+				)
+				// Control form without keyword
+				form3 := formBuilder.Create(
+					formbuilder.WithUnitID(unitRow.ID),
+					formbuilder.WithLastEditor(user.ID),
+					formbuilder.WithTitle("Regular Update"),
+					formbuilder.WithDescription("Normal maintenance"),
+				)
+
+				message1 := inboxBuilder.CreateMessage(inbox.ContentTypeForm, form1.ID, unitRow.ID)
+				message2 := inboxBuilder.CreateMessage(inbox.ContentTypeForm, form2.ID, unitRow.ID)
+				message3 := inboxBuilder.CreateMessage(inbox.ContentTypeForm, form3.ID, unitRow.ID)
+
+				inboxBuilder.CreateUserInboxMessage(user.ID, message1.ID)
+				inboxBuilder.CreateUserInboxMessage(user.ID, message2.ID)
+				inboxBuilder.CreateUserInboxMessage(user.ID, message3.ID)
+
+				params.userID = user.ID
+
+				return context.Background()
+			},
+			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result []inbox.ListRow) {
+				require.Len(t, result, params.expectedCount)
+			},
+			expectedErr: false,
+		},
+		{
+			name: "Filter by search should handle SQL injection attempts with special symbols",
+			params: Params{
+				filter: &inbox.FilterRequest{
+					Search: "'; DROP TABLE",
+				},
+				expectedCount: 1,
+			},
+			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
+				unitBuilder := unitbuilder.New(t, db)
+				userBuilder := userbuilder.New(t, db)
+				formBuilder := formbuilder.New(t, db)
+				inboxBuilder := inboxbuilder.New(t, db)
+
+				org := unitBuilder.Create(unit.UnitTypeOrganization, unitbuilder.WithName("sql-injection-org"))
+				unitRow := unitBuilder.Create(unit.UnitTypeUnit, unitbuilder.WithOrgID(org.ID), unitbuilder.WithName("sql-injection-unit"))
+				user := userBuilder.Create()
+
+				email := testdata.RandomEmail()
+				userBuilder.CreateEmail(user.ID, email)
+				unitBuilder.AddMember(unitRow.ID, email)
+
+				// Form with SQL injection attempt in title
+				form1 := formBuilder.Create(
+					formbuilder.WithUnitID(unitRow.ID),
+					formbuilder.WithLastEditor(user.ID),
+					formbuilder.WithTitle("Security Test '; DROP TABLE users; --"),
+				)
+				// Control form without keyword
+				form2 := formBuilder.Create(
+					formbuilder.WithUnitID(unitRow.ID),
+					formbuilder.WithLastEditor(user.ID),
+					formbuilder.WithTitle("Normal Security Alert"),
+					formbuilder.WithDescription("Regular security update"),
+				)
+
+				message1 := inboxBuilder.CreateMessage(inbox.ContentTypeForm, form1.ID, unitRow.ID)
+				message2 := inboxBuilder.CreateMessage(inbox.ContentTypeForm, form2.ID, unitRow.ID)
+
+				inboxBuilder.CreateUserInboxMessage(user.ID, message1.ID)
+				inboxBuilder.CreateUserInboxMessage(user.ID, message2.ID)
+
+				params.userID = user.ID
+
+				return context.Background()
+			},
+			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result []inbox.ListRow) {
+				require.Len(t, result, params.expectedCount)
+			},
+			expectedErr: false,
+		},
 	}
 
 	resourceManager, logger, err := integration.GetOrInitResource()
