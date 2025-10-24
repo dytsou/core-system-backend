@@ -61,10 +61,8 @@ WITH
       INSERT INTO slug_history (slug, org_id)
       SELECT
         $2 AS slug,
-        eh.org_id,
-        NULL
+        eh.org_id
       FROM ended_history eh
-      JOIN units u ON eh.org_id = u.id
       RETURNING org_id
     )
 SELECT * FROM new_history;
