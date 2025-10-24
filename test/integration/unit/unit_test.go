@@ -68,7 +68,7 @@ func TestUnitService_Create(t *testing.T) {
 				return context.Background()
 			},
 			validate: func(t *testing.T, params params, db dbbuilder.DBTX, result unit.Unit) {
-				require.NotZero(t, result.ID) // Need to fix the ID return is zero error
+				require.NotZero(t, result.ID)
 				require.False(t, result.OrgID.Valid)
 				require.Equal(t, unit.UnitTypeOrganization, result.Type)
 				require.Equal(t, params.name, result.Name.String)

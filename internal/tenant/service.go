@@ -175,7 +175,6 @@ func (s *Service) CreateSlugHistory(ctx context.Context, slug string, orgID uuid
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	// If org rename then it should update old org name in history, and create new history record for new name.
 	history, err := s.query.CreateSlugHistory(traceCtx, CreateSlugHistoryParams{
 		Slug:  slug,
 		OrgID: pgtype.UUID{Bytes: orgID, Valid: true},
