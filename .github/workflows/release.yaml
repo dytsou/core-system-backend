@@ -200,7 +200,7 @@ jobs:
               "inject_secret": {
                 "enable": true,
                 "project": "core-system",
-                "environment": "staging",
+                "environment": "stage",
                 "secrets": [
                   {
                     "path": "/google-oauth",
