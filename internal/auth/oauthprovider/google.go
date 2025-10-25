@@ -4,6 +4,7 @@ import (
 	"NYCU-SDC/core-system-backend/internal/user"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"strings"
 
@@ -66,11 +67,11 @@ type GoogleUserInfo struct {
 
 // GetUserInfo fetches user information from Google's JWT token (ID token)
 // Using the 'sub' field from JWT token as recommended by Google for consistent user identification
-func (g *GoogleConfig) GetUserInfo(ctx context.Context, token *oauth2.Token) (user.User, user.Auth, error) {
+func (g *GoogleConfig) GetUserInfo(ctx context.Context, token *oauth2.Token) (user.User, user.Auth, string, error) {
 	client := g.config.Client(ctx, token)
 	resp, err := client.Get("https://www.googleapis.com/oauth2/v3/userinfo")
 	if err != nil {
-		return user.User{}, user.Auth{}, err
+		return user.User{}, user.Auth{}, "", fmt.Errorf("failed to get Google user info: %v", err)
 	}
 	defer func() {
 		_ = resp.Body.Close()
@@ -78,12 +79,13 @@ func (g *GoogleConfig) GetUserInfo(ctx context.Context, token *oauth2.Token) (us
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return user.User{}, user.Auth{}, err
+		return user.User{}, user.Auth{}, "", fmt.Errorf("failed to read Google user info: %v", err)
 	}
 
 	var googleUser GoogleUserInfo
-	if err := json.Unmarshal(body, &googleUser); err != nil {
-		return user.User{}, user.Auth{}, err
+	err = json.Unmarshal(body, &googleUser)
+	if err != nil {
+		return user.User{}, user.Auth{}, "", fmt.Errorf("failed to unmarshal Google user info: %v", err)
 	}
 
 	// Create User struct with Google data
@@ -100,5 +102,5 @@ func (g *GoogleConfig) GetUserInfo(ctx context.Context, token *oauth2.Token) (us
 		ProviderID: googleUser.Sub, // Use 'sub' field for consistent user identification
 	}
 
-	return userInfo, authInfo, nil
+	return userInfo, authInfo, googleUser.Email, nil
 }
