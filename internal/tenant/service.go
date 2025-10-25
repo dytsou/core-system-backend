@@ -55,7 +55,7 @@ func (s *Service) Get(ctx context.Context, id uuid.UUID) (Tenant, error) {
 	return tenant, nil
 }
 
-func (s *Service) Create(ctx context.Context, id uuid.UUID, ownerID uuid.UUID) (Tenant, error) {
+func (s *Service) Create(ctx context.Context, id uuid.UUID, ownerID uuid.UUID, slug string) (Tenant, error) {
 	traceCtx, span := s.tracer.Start(ctx, "Create")
 	defer span.End()
 	logger := internal.WithContext(traceCtx, s.logger)
@@ -70,8 +70,18 @@ func (s *Service) Create(ctx context.Context, id uuid.UUID, ownerID uuid.UUID) (
 		span.RecordError(err)
 		return Tenant{}, err
 	}
-
 	logger.Info("tenant created", zap.String("tenant_id", tenant.ID.String()), zap.String("db_strategy", string(tenant.DbStrategy)))
+
+	history, err := s.query.CreateSlugHistory(traceCtx, CreateSlugHistoryParams{
+		Slug:  slug,
+		OrgID: pgtype.UUID{Bytes: id, Valid: true},
+	})
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "create history")
+		span.RecordError(err)
+		return Tenant{}, err
+	}
+	logger.Info("history created", zap.String("slug", slug), zap.Int32("history_id", history.ID))
 
 	return tenant, nil
 }
@@ -90,7 +100,6 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, slug string, dbStrat
 		span.RecordError(err)
 		return Tenant{}, err
 	}
-
 	logger.Info("tenant updated", zap.String("tenant_id", tenant.ID.String()), zap.String("db_strategy", string(tenant.DbStrategy)), zap.String("slug", slug))
 
 	_, err = s.query.UpdateSlugHistory(traceCtx, UpdateSlugHistoryParams{
@@ -98,6 +107,8 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, slug string, dbStrat
 		OrgID: pgtype.UUID{Bytes: tenant.ID, Valid: true},
 	})
 	if err != nil {
+		err = databaseutil.WrapDBErrorWithKeyValue(err, "slug_history", "org_id", tenant.ID.String(), logger, "update slug history by org id")
+		span.RecordError(err)
 		return Tenant{}, err
 	}
 
@@ -171,24 +182,4 @@ func (s *Service) GetSlugStatus(ctx context.Context, slug string) (bool, uuid.UU
 	}
 
 	return false, orgID.Bytes, nil
-}
-
-func (s *Service) CreateSlugHistory(ctx context.Context, slug string, orgID uuid.UUID) (SlugHistory, error) {
-	traceCtx, span := s.tracer.Start(ctx, "CreateSlugHistory")
-	defer span.End()
-	logger := logutil.WithContext(traceCtx, s.logger)
-
-	history, err := s.query.CreateSlugHistory(traceCtx, CreateSlugHistoryParams{
-		Slug:  slug,
-		OrgID: pgtype.UUID{Bytes: orgID, Valid: true},
-	})
-	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "create history")
-		span.RecordError(err)
-		return SlugHistory{}, err
-	}
-
-	logger.Info("history created", zap.String("slug", slug), zap.String("org_id", orgID.String()))
-
-	return history, nil
 }

@@ -33,9 +33,8 @@ type Querier interface {
 }
 
 type tenantStore interface {
-	Create(ctx context.Context, id uuid.UUID, ownerID uuid.UUID) (tenant.Tenant, error)
+	Create(ctx context.Context, id uuid.UUID, ownerID uuid.UUID, slug string) (tenant.Tenant, error)
 	SlugExists(ctx context.Context, slug string) (bool, error)
-	CreateSlugHistory(ctx context.Context, slug string, orgID uuid.UUID) (tenant.SlugHistory, error)
 	GetSlugStatus(ctx context.Context, slug string) (bool, uuid.UUID, error)
 }
 type Service struct {
@@ -111,13 +110,7 @@ func (s *Service) CreateOrganization(ctx context.Context, name string, descripti
 		return Unit{}, err
 	}
 
-	_, err = s.tenantStore.Create(traceCtx, org.ID, currentUserID)
-	if err != nil {
-		span.RecordError(err)
-		return Unit{}, err
-	}
-
-	_, err = s.tenantStore.CreateSlugHistory(traceCtx, slug, org.ID)
+	_, err = s.tenantStore.Create(traceCtx, org.ID, currentUserID, slug)
 	if err != nil {
 		span.RecordError(err)
 		return Unit{}, err
