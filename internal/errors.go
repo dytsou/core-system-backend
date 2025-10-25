@@ -41,6 +41,13 @@ var (
 	ErrOrgSlugAlreadyExists = errors.New("org slug already exists")
 	ErrUnitNotFound         = errors.New("unit not found")
 
+	// Inbox Errors
+	ErrInvalidIsReadParameter     = errors.New("invalid isRead parameter")
+	ErrInvalidIsStarredParameter  = errors.New("invalid isStarred parameter")
+	ErrInvalidIsArchivedParameter = errors.New("invalid isArchived parameter")
+	ErrInvalidSearchParameter     = errors.New("invalid search parameter")
+	ErrSearchTooLong              = errors.New("search string exceeds maximum length")
+
 	// Form Errors
 	ErrFormNotFound       = errors.New("form not found")
 	ErrFormNotDraft       = fmt.Errorf("form is not in draft status")
@@ -115,6 +122,18 @@ func ErrorHandler(err error) problem.Problem {
 		return problem.NewNotFoundProblem("form not found")
 	case errors.Is(err, ErrFormNotDraft):
 		return problem.NewValidateProblem("form is not in draft status")
+
+	// Inbox Errors
+	case errors.Is(err, ErrInvalidIsReadParameter):
+		return problem.NewValidateProblem("invalid isRead parameter")
+	case errors.Is(err, ErrInvalidIsStarredParameter):
+		return problem.NewValidateProblem("invalid isStarred parameter")
+	case errors.Is(err, ErrInvalidIsArchivedParameter):
+		return problem.NewValidateProblem("invalid isArchived parameter")
+	case errors.Is(err, ErrInvalidSearchParameter):
+		return problem.NewValidateProblem("invalid search parameter")
+	case errors.Is(err, ErrSearchTooLong):
+		return problem.NewValidateProblem("search string exceeds maximum length")
 	case errors.Is(err, ErrFormDeadlinePassed):
 		return problem.NewValidateProblem("form deadline has passed")
 

@@ -215,8 +215,9 @@ func TestInboxService_Create(t *testing.T) {
 
 func TestInboxService_List(t *testing.T) {
 	type Params struct {
-		userID   uuid.UUID
-		expected int
+		userID    uuid.UUID
+		messageID uuid.UUID
+		expected  int
 	}
 	testCases := []struct {
 		name        string
@@ -276,10 +277,10 @@ func TestInboxService_List(t *testing.T) {
 				)
 
 				message := inboxBuilder.CreateMessage(inbox.ContentTypeForm, formRow.ID, unitRow.ID)
-				userInboxMessages := inboxBuilder.CreateUserInboxMessage(user.ID, message.ID)
-				require.Equal(t, 1, len(userInboxMessages))
+				userInboxMessage := inboxBuilder.CreateUserInboxMessage(user.ID, message.ID)
 
 				params.userID = user.ID
+				params.messageID = userInboxMessage.ID
 
 				return context.Background()
 			},
@@ -287,6 +288,7 @@ func TestInboxService_List(t *testing.T) {
 				require.Len(t, result, params.expected)
 				for _, msg := range result {
 					require.Equal(t, params.userID, msg.UserID)
+					require.Equal(t, params.messageID, msg.ID)
 					require.Equal(t, "message-title", msg.Title)
 					require.Equal(t, "message-preview", msg.PreviewMessage)
 					require.Equal(t, "message-org", msg.OrgName)
@@ -334,7 +336,7 @@ func TestInboxService_List(t *testing.T) {
 
 			service := inbox.NewService(logger, db)
 
-			result, err := service.List(ctx, params.userID)
+			result, err := service.List(ctx, params.userID, nil, 1, 10)
 			require.Equal(t, tc.expectedErr, err != nil, "expected error: %v, got: %v", tc.expectedErr, err)
 
 			if tc.validate != nil {
@@ -382,9 +384,7 @@ func TestInboxService_UpdateByID(t *testing.T) {
 
 				message := inboxBuilder.CreateMessage(inbox.ContentTypeForm, formRow.ID, unitRow.ID)
 				userInboxMessage := inboxBuilder.CreateUserInboxMessage(user.ID, message.ID)
-				require.Equal(t, 1, len(userInboxMessage))
-
-				params.messageID = userInboxMessage[0].ID
+				params.messageID = userInboxMessage.ID
 				params.userID = user.ID
 
 				return context.Background()
@@ -393,6 +393,7 @@ func TestInboxService_UpdateByID(t *testing.T) {
 				require.Equal(t, params.expected.IsRead, result.IsRead)
 				require.Equal(t, params.expected.IsStarred, result.IsStarred)
 				require.Equal(t, params.expected.IsArchived, result.IsArchived)
+				require.Equal(t, params.messageID, result.ID)
 			},
 			expectedErr: false,
 		},
@@ -421,9 +422,7 @@ func TestInboxService_UpdateByID(t *testing.T) {
 
 				message := inboxBuilder.CreateMessage(inbox.ContentTypeForm, formRow.ID, unitRow.ID)
 				userInboxMessage := inboxBuilder.CreateUserInboxMessage(user.ID, message.ID)
-				require.Equal(t, 1, len(userInboxMessage))
-
-				params.messageID = userInboxMessage[0].ID
+				params.messageID = userInboxMessage.ID
 				params.userID = user.ID
 
 				return context.Background()
@@ -461,8 +460,7 @@ func TestInboxService_UpdateByID(t *testing.T) {
 				// Create inbox message
 				message := inboxBuilder.CreateMessage(inbox.ContentTypeForm, formRow.ID, unitRow.ID)
 				userInboxMessage := inboxBuilder.CreateUserInboxMessage(user.ID, message.ID)
-				require.Equal(t, 1, len(userInboxMessage))
-				params.messageID = userInboxMessage[0].ID
+				params.messageID = userInboxMessage.ID
 				params.userID = user.ID
 
 				return context.Background()
@@ -523,8 +521,7 @@ func TestInboxService_UpdateByID(t *testing.T) {
 				// Create inbox message
 				message := inboxBuilder.CreateMessage(inbox.ContentTypeForm, formRow.ID, unitRow.ID)
 				userInboxMessage := inboxBuilder.CreateUserInboxMessage(user.ID, message.ID)
-				require.Equal(t, 1, len(userInboxMessage))
-				params.messageID = userInboxMessage[0].ID
+				params.messageID = userInboxMessage.ID
 				params.userID = uuid.New() // Non-existent user ID
 
 				return context.Background()
@@ -731,9 +728,8 @@ func TestInboxService_ArchiveVisibilityInList(t *testing.T) {
 				// Create inbox message
 				message := inboxBuilder.CreateMessage(inbox.ContentTypeForm, formRow.ID, unitRow.ID)
 				userInboxMessage := inboxBuilder.CreateUserInboxMessage(user.ID, message.ID)
-				require.Equal(t, 1, len(userInboxMessage))
 				params.userID = user.ID
-				params.messageID = userInboxMessage[0].ID
+				params.messageID = userInboxMessage.ID
 
 				return context.Background()
 			},

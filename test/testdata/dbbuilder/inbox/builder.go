@@ -9,6 +9,7 @@ import (
 	"NYCU-SDC/core-system-backend/test/testdata/dbbuilder"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/require"
 )
 
@@ -38,23 +39,23 @@ func (b Builder) CreateMessage(contentType inbox.ContentType, contentID, postedB
 }
 
 // CreateUserInboxMessage creates a user inbox message directly in the database
-func (b Builder) CreateUserInboxMessage(userID, messageID uuid.UUID) []inbox.UserInboxMessage {
+func (b Builder) CreateUserInboxMessage(userID, messageID uuid.UUID) inbox.UserInboxMessage {
 	queries := b.Queries()
 	messages, err := queries.CreateUserInboxBulk(context.Background(), inbox.CreateUserInboxBulkParams{
-		Column1: []uuid.UUID{userID},
-		Column2: messageID,
+		UserIds:   []uuid.UUID{userID},
+		MessageID: messageID,
 	})
 	require.NoError(b.t, err)
 	require.Len(b.t, messages, 1)
-	return messages
+	return messages[len(messages)-1]
 }
 
 // CreateUserInboxBulk creates multiple user inbox messages directly in the database
 func (b Builder) CreateUserInboxBulk(userIDs []uuid.UUID, messageID uuid.UUID) []inbox.UserInboxMessage {
 	queries := b.Queries()
 	messages, err := queries.CreateUserInboxBulk(context.Background(), inbox.CreateUserInboxBulkParams{
-		Column1: userIDs,
-		Column2: messageID,
+		UserIds:   userIDs,
+		MessageID: messageID,
 	})
 	require.NoError(b.t, err)
 	return messages
@@ -63,7 +64,12 @@ func (b Builder) CreateUserInboxBulk(userIDs []uuid.UUID, messageID uuid.UUID) [
 // GetUserInboxMessages retrieves user inbox messages directly from the database
 func (b Builder) GetUserInboxMessages(userID uuid.UUID) []inbox.ListRow {
 	queries := b.Queries()
-	messages, err := queries.List(context.Background(), userID)
+	params := inbox.ListParams{
+		UserID:     userID,
+		PageLimit:  10,
+		PageOffset: 0,
+	}
+	messages, err := queries.List(context.Background(), params)
 	require.NoError(b.t, err)
 	return messages
 }
@@ -72,8 +78,8 @@ func (b Builder) GetUserInboxMessages(userID uuid.UUID) []inbox.ListRow {
 func (b Builder) GetUserInboxMessageByID(messageID, userID uuid.UUID) inbox.GetByIDRow {
 	queries := b.Queries()
 	message, err := queries.GetByID(context.Background(), inbox.GetByIDParams{
-		ID:     messageID,
-		UserID: userID,
+		UserInboxMessageID: messageID,
+		UserID:             userID,
 	})
 	require.NoError(b.t, err)
 	return message
@@ -91,4 +97,35 @@ func (b Builder) UpdateUserInboxMessage(messageID, userID uuid.UUID, filter inbo
 	})
 	require.NoError(b.t, err)
 	return message
+}
+
+// CountUserInboxMessages counts user inbox messages with optional filters
+func (b Builder) CountUserInboxMessages(userID uuid.UUID, filter *inbox.FilterRequest) int64 {
+	queries := b.Queries()
+	params := inbox.ListCountParams{
+		UserID:     userID,
+		IsRead:     pgtype.Bool{Valid: false},
+		IsStarred:  pgtype.Bool{Valid: false},
+		IsArchived: pgtype.Bool{Valid: false},
+		Search:     "",
+	}
+
+	if filter != nil {
+		if filter.IsRead != nil {
+			params.IsRead = pgtype.Bool{Bool: *filter.IsRead, Valid: true}
+		}
+		if filter.IsStarred != nil {
+			params.IsStarred = pgtype.Bool{Bool: *filter.IsStarred, Valid: true}
+		}
+		if filter.IsArchived != nil {
+			params.IsArchived = pgtype.Bool{Bool: *filter.IsArchived, Valid: true}
+		}
+		if filter.Search != "" {
+			params.Search = filter.Search
+		}
+	}
+
+	count, err := queries.ListCount(context.Background(), params)
+	require.NoError(b.t, err)
+	return count
 }
