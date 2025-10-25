@@ -19,22 +19,20 @@ import (
 
 func TestInboxService_ListWithFilters(t *testing.T) {
 	type Params struct {
-		userID        uuid.UUID
-		filter        *inbox.FilterRequest
-		expectedCount int
+		userID   uuid.UUID
+		filter   *inbox.FilterRequest
+		expected []uuid.UUID
 	}
 	testCases := []struct {
 		name        string
 		params      Params
 		setup       func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context
-		validate    func(t *testing.T, params Params, db dbbuilder.DBTX, result []inbox.ListRow)
 		expectedErr bool
 	}{
 		{
 			name: "No filter should return only non-archived messages (default behavior)",
 			params: Params{
-				filter:        nil, // No filter
-				expectedCount: 2,   // Should return unread and read, but not archived
+				filter: nil, // No filter
 			},
 			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				unitBuilder := unitbuilder.New(t, db)
@@ -81,14 +79,9 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				inboxBuilder.UpdateUserInboxMessage(userInboxMessage3.ID, user.ID, inbox.UserInboxMessageFilter{IsRead: false, IsStarred: false, IsArchived: true})
 
 				params.userID = user.ID
+				params.expected = []uuid.UUID{message1.ID, message2.ID} // Unarchived messages
 
 				return context.Background()
-			},
-			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result []inbox.ListRow) {
-				require.Len(t, result, params.expectedCount)
-				for _, msg := range result {
-					require.False(t, msg.IsArchived, "archived messages should not appear in default list")
-				}
 			},
 			expectedErr: false,
 		},
@@ -98,7 +91,6 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				filter: &inbox.FilterRequest{
 					IsRead: boolPtr(true),
 				},
-				expectedCount: 1,
 			},
 			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				unitBuilder := unitbuilder.New(t, db)
@@ -136,14 +128,9 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				inboxBuilder.UpdateUserInboxMessage(userInboxMessage1.ID, user.ID, inbox.UserInboxMessageFilter{IsRead: true, IsStarred: false, IsArchived: false})
 
 				params.userID = user.ID
+				params.expected = []uuid.UUID{message1.ID} // Read messages
 
 				return context.Background()
-			},
-			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result []inbox.ListRow) {
-				require.Len(t, result, params.expectedCount)
-				for _, msg := range result {
-					require.True(t, msg.IsRead, "all returned messages should be read")
-				}
 			},
 			expectedErr: false,
 		},
@@ -153,7 +140,6 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				filter: &inbox.FilterRequest{
 					IsArchived: boolPtr(true),
 				},
-				expectedCount: 1,
 			},
 			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				unitBuilder := unitbuilder.New(t, db)
@@ -191,14 +177,9 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				inboxBuilder.UpdateUserInboxMessage(userInboxMessage2.ID, user.ID, inbox.UserInboxMessageFilter{IsRead: false, IsStarred: false, IsArchived: true})
 
 				params.userID = user.ID
+				params.expected = []uuid.UUID{message2.ID} // Archived messages
 
 				return context.Background()
-			},
-			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result []inbox.ListRow) {
-				require.Len(t, result, params.expectedCount)
-				for _, msg := range result {
-					require.True(t, msg.IsArchived, "all returned messages should be archived")
-				}
 			},
 			expectedErr: false,
 		},
@@ -208,7 +189,6 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				filter: &inbox.FilterRequest{
 					IsStarred: boolPtr(true),
 				},
-				expectedCount: 1,
 			},
 			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				unitBuilder := unitbuilder.New(t, db)
@@ -246,14 +226,9 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				inboxBuilder.UpdateUserInboxMessage(userInboxMessage2.ID, user.ID, inbox.UserInboxMessageFilter{IsRead: false, IsStarred: true, IsArchived: false})
 
 				params.userID = user.ID
+				params.expected = []uuid.UUID{message2.ID} // Starred messages
 
 				return context.Background()
-			},
-			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result []inbox.ListRow) {
-				require.Len(t, result, params.expectedCount)
-				for _, msg := range result {
-					require.True(t, msg.IsStarred, "all returned messages should be starred")
-				}
 			},
 			expectedErr: false,
 		},
@@ -264,7 +239,6 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 					IsRead:    boolPtr(true),
 					IsStarred: boolPtr(true),
 				},
-				expectedCount: 1,
 			},
 			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				unitBuilder := unitbuilder.New(t, db)
@@ -311,15 +285,9 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				inboxBuilder.UpdateUserInboxMessage(userInboxMessage3.ID, user.ID, inbox.UserInboxMessageFilter{IsRead: true, IsStarred: true, IsArchived: false})
 
 				params.userID = user.ID
+				params.expected = []uuid.UUID{message3.ID} // Read and starred messages
 
 				return context.Background()
-			},
-			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result []inbox.ListRow) {
-				require.Len(t, result, params.expectedCount)
-				for _, msg := range result {
-					require.True(t, msg.IsRead, "all returned messages should be read")
-					require.True(t, msg.IsStarred, "all returned messages should be starred")
-				}
 			},
 			expectedErr: false,
 		},
@@ -329,7 +297,6 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				filter: &inbox.FilterRequest{
 					Search: "important",
 				},
-				expectedCount: 1,
 			},
 			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				unitBuilder := unitbuilder.New(t, db)
@@ -364,11 +331,9 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				inboxBuilder.CreateUserInboxMessage(user.ID, message2.ID)
 
 				params.userID = user.ID
+				params.expected = []uuid.UUID{message1.ID} // with "important" in title
 
 				return context.Background()
-			},
-			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result []inbox.ListRow) {
-				require.Len(t, result, params.expectedCount)
 			},
 			expectedErr: false,
 		},
@@ -378,7 +343,6 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				filter: &inbox.FilterRequest{
 					Search: "delta",
 				},
-				expectedCount: 1,
 			},
 			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				unitBuilder := unitbuilder.New(t, db)
@@ -416,11 +380,9 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				inboxBuilder.CreateUserInboxMessage(user.ID, message2.ID)
 
 				params.userID = user.ID
+				params.expected = []uuid.UUID{message1.ID} // with "delta" in description
 
 				return context.Background()
-			},
-			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result []inbox.ListRow) {
-				require.Len(t, result, params.expectedCount)
 			},
 			expectedErr: false,
 		},
@@ -430,7 +392,6 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				filter: &inbox.FilterRequest{
 					Search: "hotfix",
 				},
-				expectedCount: 1,
 			},
 			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				unitBuilder := unitbuilder.New(t, db)
@@ -469,11 +430,9 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				inboxBuilder.CreateUserInboxMessage(user.ID, message2.ID)
 
 				params.userID = user.ID
+				params.expected = []uuid.UUID{message1.ID} // with "hotfix" in preview_message
 
 				return context.Background()
-			},
-			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result []inbox.ListRow) {
-				require.Len(t, result, params.expectedCount)
 			},
 			expectedErr: false,
 		},
@@ -483,7 +442,6 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				filter: &inbox.FilterRequest{
 					Search: "signal",
 				},
-				expectedCount: 3,
 			},
 			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				unitBuilder := unitbuilder.New(t, db)
@@ -531,11 +489,9 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				inboxBuilder.CreateUserInboxMessage(user.ID, msg3.ID)
 
 				params.userID = user.ID
+				params.expected = []uuid.UUID{msg1.ID, msg2.ID, msg3.ID} // with "signal" in title, description, and preview_message
 
 				return context.Background()
-			},
-			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result []inbox.ListRow) {
-				require.Len(t, result, params.expectedCount)
 			},
 			expectedErr: false,
 		},
@@ -545,7 +501,6 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				filter: &inbox.FilterRequest{
 					Search: "重要",
 				},
-				expectedCount: 1,
 			},
 			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				unitBuilder := unitbuilder.New(t, db)
@@ -580,11 +535,9 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				inboxBuilder.CreateUserInboxMessage(user.ID, message2.ID)
 
 				params.userID = user.ID
+				params.expected = []uuid.UUID{message1.ID} // with "重要" in title
 
 				return context.Background()
-			},
-			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result []inbox.ListRow) {
-				require.Len(t, result, params.expectedCount)
 			},
 			expectedErr: false,
 		},
@@ -594,7 +547,6 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				filter: &inbox.FilterRequest{
 					Search: "報告",
 				},
-				expectedCount: 1,
 			},
 			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				unitBuilder := unitbuilder.New(t, db)
@@ -632,11 +584,9 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				inboxBuilder.CreateUserInboxMessage(user.ID, message2.ID)
 
 				params.userID = user.ID
+				params.expected = []uuid.UUID{message1.ID} // with "報告" in description
 
 				return context.Background()
-			},
-			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result []inbox.ListRow) {
-				require.Len(t, result, params.expectedCount)
 			},
 			expectedErr: false,
 		},
@@ -646,7 +596,6 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				filter: &inbox.FilterRequest{
 					Search: "修復",
 				},
-				expectedCount: 1,
 			},
 			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				unitBuilder := unitbuilder.New(t, db)
@@ -685,11 +634,9 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				inboxBuilder.CreateUserInboxMessage(user.ID, message2.ID)
 
 				params.userID = user.ID
+				params.expected = []uuid.UUID{message1.ID} // with "修復" in preview_message
 
 				return context.Background()
-			},
-			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result []inbox.ListRow) {
-				require.Len(t, result, params.expectedCount)
 			},
 			expectedErr: false,
 		},
@@ -699,7 +646,6 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				filter: &inbox.FilterRequest{
 					Search: "系統",
 				},
-				expectedCount: 3,
 			},
 			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				unitBuilder := unitbuilder.New(t, db)
@@ -747,11 +693,9 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				inboxBuilder.CreateUserInboxMessage(user.ID, msg3.ID)
 
 				params.userID = user.ID
+				params.expected = []uuid.UUID{msg1.ID, msg2.ID, msg3.ID} // with "系統" in title, description, and preview_message
 
 				return context.Background()
-			},
-			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result []inbox.ListRow) {
-				require.Len(t, result, params.expectedCount)
 			},
 			expectedErr: false,
 		},
@@ -761,7 +705,6 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				filter: &inbox.FilterRequest{
 					Search: "API",
 				},
-				expectedCount: 2,
 			},
 			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				unitBuilder := unitbuilder.New(t, db)
@@ -808,11 +751,9 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				inboxBuilder.CreateUserInboxMessage(user.ID, message3.ID)
 
 				params.userID = user.ID
+				params.expected = []uuid.UUID{message1.ID, message2.ID} // with "API" in title and description
 
 				return context.Background()
-			},
-			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result []inbox.ListRow) {
-				require.Len(t, result, params.expectedCount)
 			},
 			expectedErr: false,
 		},
@@ -822,7 +763,6 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				filter: &inbox.FilterRequest{
 					Search: "@gmail.com",
 				},
-				expectedCount: 1,
 			},
 			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				unitBuilder := unitbuilder.New(t, db)
@@ -857,11 +797,9 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				inboxBuilder.CreateUserInboxMessage(user.ID, message2.ID)
 
 				params.userID = user.ID
+				params.expected = []uuid.UUID{message1.ID} // with "@gmail.com" in title
 
 				return context.Background()
-			},
-			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result []inbox.ListRow) {
-				require.Len(t, result, params.expectedCount)
 			},
 			expectedErr: false,
 		},
@@ -871,7 +809,6 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				filter: &inbox.FilterRequest{
 					Search: "(測試)",
 				},
-				expectedCount: 1,
 			},
 			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				unitBuilder := unitbuilder.New(t, db)
@@ -909,11 +846,9 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				inboxBuilder.CreateUserInboxMessage(user.ID, message2.ID)
 
 				params.userID = user.ID
+				params.expected = []uuid.UUID{message1.ID} // with "(測試)" in description
 
 				return context.Background()
-			},
-			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result []inbox.ListRow) {
-				require.Len(t, result, params.expectedCount)
 			},
 			expectedErr: false,
 		},
@@ -923,7 +858,6 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				filter: &inbox.FilterRequest{
 					Search: "!@#$",
 				},
-				expectedCount: 1,
 			},
 			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				unitBuilder := unitbuilder.New(t, db)
@@ -962,11 +896,9 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				inboxBuilder.CreateUserInboxMessage(user.ID, message2.ID)
 
 				params.userID = user.ID
+				params.expected = []uuid.UUID{message1.ID} // with "!@#$" in preview_message
 
 				return context.Background()
-			},
-			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result []inbox.ListRow) {
-				require.Len(t, result, params.expectedCount)
 			},
 			expectedErr: false,
 		},
@@ -976,7 +908,6 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				filter: &inbox.FilterRequest{
 					Search: "#!/bin/bash",
 				},
-				expectedCount: 3,
 			},
 			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				unitBuilder := unitbuilder.New(t, db)
@@ -1025,10 +956,9 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 
 				params.userID = user.ID
 
+				params.expected = []uuid.UUID{msg1.ID, msg2.ID, msg3.ID} // with "#!/bin/bash" in title, description, and preview_message
+
 				return context.Background()
-			},
-			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result []inbox.ListRow) {
-				require.Len(t, result, params.expectedCount)
 			},
 			expectedErr: false,
 		},
@@ -1038,7 +968,6 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				filter: &inbox.FilterRequest{
 					Search: "++",
 				},
-				expectedCount: 2,
 			},
 			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				unitBuilder := unitbuilder.New(t, db)
@@ -1086,10 +1015,9 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 
 				params.userID = user.ID
 
+				params.expected = []uuid.UUID{message1.ID, message2.ID} // with "++" in title and description
+
 				return context.Background()
-			},
-			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result []inbox.ListRow) {
-				require.Len(t, result, params.expectedCount)
 			},
 			expectedErr: false,
 		},
@@ -1099,7 +1027,6 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				filter: &inbox.FilterRequest{
 					Search: "'; DROP TABLE",
 				},
-				expectedCount: 1,
 			},
 			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
 				unitBuilder := unitbuilder.New(t, db)
@@ -1136,11 +1063,9 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				inboxBuilder.CreateUserInboxMessage(user.ID, message2.ID)
 
 				params.userID = user.ID
+				params.expected = []uuid.UUID{message1.ID} // with SQL injection attempt in title
 
 				return context.Background()
-			},
-			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result []inbox.ListRow) {
-				require.Len(t, result, params.expectedCount)
 			},
 			expectedErr: false,
 		},
@@ -1170,9 +1095,14 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 			result, err := service.List(ctx, params.userID, params.filter, 1, 200)
 			require.Equal(t, tc.expectedErr, err != nil, "expected error: %v, got: %v", tc.expectedErr, err)
 
-			if tc.validate != nil {
-				tc.validate(t, params, db, result)
+			// Extract MessageIDs from the result for comparison
+			actualMessageIDs := make([]uuid.UUID, len(result))
+			for i, row := range result {
+				actualMessageIDs[i] = row.MessageID
 			}
+
+			require.Len(t, actualMessageIDs, len(params.expected), "expected: %v, got: %v", params.expected, actualMessageIDs)
+			require.ElementsMatch(t, params.expected, actualMessageIDs, "expected: %v, got: %v", params.expected, actualMessageIDs)
 		})
 	}
 }
