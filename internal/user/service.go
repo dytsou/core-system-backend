@@ -174,11 +174,20 @@ func (s *Service) CreateEmail(ctx context.Context, userID uuid.UUID, email strin
 		Value:  email,
 	})
 	if err != nil {
+		// Log the specific error for debugging
+		logger.Error("Failed to create email record",
+			zap.String("user_id", userID.String()),
+			zap.String("email", email),
+			zap.Error(err))
+
 		err = databaseutil.WrapDBError(err, logger, "create email")
 		span.RecordError(err)
 		return err
 	}
 
+	logger.Info("Successfully created email record",
+		zap.String("user_id", userID.String()),
+		zap.String("email", email))
 	return nil
 }
 
