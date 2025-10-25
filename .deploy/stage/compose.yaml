@@ -12,7 +12,7 @@ services:
         condition: service_healthy
     environment:
       DEV: "true"
-      ENV: "dev"
+      ENV: "stage"
       HOST: "0.0.0.0"
       BASE_URL: "https://stage.core-system.sdc.nycu.club"
       DATABASE_URL: postgres://postgres:password@postgres:5432/core_system?sslmode=disable
