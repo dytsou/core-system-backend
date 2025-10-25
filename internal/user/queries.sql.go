@@ -71,12 +71,10 @@ func (q *Queries) CreateAuth(ctx context.Context, arg CreateAuthParams) (Auth, e
 	return i, err
 }
 
-const createEmail = `-- name: CreateEmail :one
+const createEmail = `-- name: CreateEmail :exec
 INSERT INTO user_emails (user_id, value)
 VALUES ($1, $2) 
-ON CONFLICT (user_id, value) DO UPDATE SET 
-    updated_at = now()
-RETURNING user_id, value, created_at, updated_at
+ON CONFLICT (user_id, value) DO NOTHING
 `
 
 type CreateEmailParams struct {
@@ -84,16 +82,9 @@ type CreateEmailParams struct {
 	Value  string
 }
 
-func (q *Queries) CreateEmail(ctx context.Context, arg CreateEmailParams) (UserEmail, error) {
-	row := q.db.QueryRow(ctx, createEmail, arg.UserID, arg.Value)
-	var i UserEmail
-	err := row.Scan(
-		&i.UserID,
-		&i.Value,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
+func (q *Queries) CreateEmail(ctx context.Context, arg CreateEmailParams) error {
+	_, err := q.db.Exec(ctx, createEmail, arg.UserID, arg.Value)
+	return err
 }
 
 const existsByAuth = `-- name: ExistsByAuth :one

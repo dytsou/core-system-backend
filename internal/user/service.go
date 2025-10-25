@@ -22,7 +22,7 @@ type Querier interface {
 	CreateAuth(ctx context.Context, arg CreateAuthParams) (Auth, error)
 	Update(ctx context.Context, arg UpdateParams) (User, error)
 	GetEmailsByID(ctx context.Context, userID uuid.UUID) ([]string, error)
-	CreateEmail(ctx context.Context, arg CreateEmailParams) (UserEmail, error)
+	CreateEmail(ctx context.Context, arg CreateEmailParams) error
 }
 
 type Service struct {
@@ -168,7 +168,7 @@ func (s *Service) CreateEmail(ctx context.Context, userID uuid.UUID, email strin
 	logger := logutil.WithContext(traceCtx, s.logger)
 
 	// Create email record
-	_, err := s.queries.CreateEmail(traceCtx, CreateEmailParams{
+	err := s.queries.CreateEmail(traceCtx, CreateEmailParams{
 		UserID: userID,
 		Value:  email,
 	})
