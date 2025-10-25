@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS user_emails (
     UNIQUE(user_id, value)
 );
 
-CREATE VIEW users_with_emails AS
+CREATE OR REPLACE VIEW users_with_emails AS
 SELECT 
     u.id,
     u.name,

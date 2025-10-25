@@ -71,10 +71,10 @@ func (q *Queries) CreateAuth(ctx context.Context, arg CreateAuthParams) (Auth, e
 	return i, err
 }
 
-const createEmail = `-- name: CreateEmail :one
+const createEmail = `-- name: CreateEmail :exec
 INSERT INTO user_emails (user_id, value)
-VALUES ($1, $2)
-RETURNING user_id, value, created_at, updated_at
+VALUES ($1, $2) 
+ON CONFLICT (user_id, value) DO NOTHING
 `
 
 type CreateEmailParams struct {
@@ -82,16 +82,9 @@ type CreateEmailParams struct {
 	Value  string
 }
 
-func (q *Queries) CreateEmail(ctx context.Context, arg CreateEmailParams) (UserEmail, error) {
-	row := q.db.QueryRow(ctx, createEmail, arg.UserID, arg.Value)
-	var i UserEmail
-	err := row.Scan(
-		&i.UserID,
-		&i.Value,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
+func (q *Queries) CreateEmail(ctx context.Context, arg CreateEmailParams) error {
+	_, err := q.db.Exec(ctx, createEmail, arg.UserID, arg.Value)
+	return err
 }
 
 const existsByAuth = `-- name: ExistsByAuth :one
@@ -116,22 +109,6 @@ SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)
 
 func (q *Queries) ExistsByID(ctx context.Context, id uuid.UUID) (bool, error) {
 	row := q.db.QueryRow(ctx, existsByID, id)
-	var exists bool
-	err := row.Scan(&exists)
-	return exists, err
-}
-
-const existsEmail = `-- name: ExistsEmail :one
-SELECT EXISTS(SELECT 1 FROM user_emails WHERE user_id = $1 AND value = $2)
-`
-
-type ExistsEmailParams struct {
-	UserID uuid.UUID
-	Value  string
-}
-
-func (q *Queries) ExistsEmail(ctx context.Context, arg ExistsEmailParams) (bool, error) {
-	row := q.db.QueryRow(ctx, existsEmail, arg.UserID, arg.Value)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
