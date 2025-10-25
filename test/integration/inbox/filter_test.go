@@ -24,9 +24,9 @@ func boolPtr(b bool) *bool {
 
 func TestInboxService_ListWithFilters(t *testing.T) {
 	type Params struct {
-		userID   uuid.UUID
-		filter   *inbox.FilterRequest
-		expected []uuid.UUID
+		userID             uuid.UUID
+		filter             *inbox.FilterRequest
+		expectedMessageIDs []uuid.UUID
 	}
 	testCases := []struct {
 		name        string
@@ -84,7 +84,7 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				inboxBuilder.UpdateUserInboxMessage(userInboxMessage3.ID, user.ID, inbox.UserInboxMessageFilter{IsRead: false, IsStarred: false, IsArchived: true})
 
 				params.userID = user.ID
-				params.expected = []uuid.UUID{message1.ID, message2.ID} // Unarchived messages
+				params.expectedMessageIDs = []uuid.UUID{message1.ID, message2.ID} // Unarchived messages
 
 				return context.Background()
 			},
@@ -133,7 +133,7 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				inboxBuilder.UpdateUserInboxMessage(userInboxMessage1.ID, user.ID, inbox.UserInboxMessageFilter{IsRead: true, IsStarred: false, IsArchived: false})
 
 				params.userID = user.ID
-				params.expected = []uuid.UUID{message1.ID} // Read messages
+				params.expectedMessageIDs = []uuid.UUID{message1.ID} // Read messages
 
 				return context.Background()
 			},
@@ -182,7 +182,7 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				inboxBuilder.UpdateUserInboxMessage(userInboxMessage2.ID, user.ID, inbox.UserInboxMessageFilter{IsRead: false, IsStarred: false, IsArchived: true})
 
 				params.userID = user.ID
-				params.expected = []uuid.UUID{message2.ID} // Archived messages
+				params.expectedMessageIDs = []uuid.UUID{message2.ID} // Archived messages
 
 				return context.Background()
 			},
@@ -231,7 +231,7 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				inboxBuilder.UpdateUserInboxMessage(userInboxMessage2.ID, user.ID, inbox.UserInboxMessageFilter{IsRead: false, IsStarred: true, IsArchived: false})
 
 				params.userID = user.ID
-				params.expected = []uuid.UUID{message2.ID} // Starred messages
+				params.expectedMessageIDs = []uuid.UUID{message2.ID} // Starred messages
 
 				return context.Background()
 			},
@@ -290,7 +290,7 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				inboxBuilder.UpdateUserInboxMessage(userInboxMessage3.ID, user.ID, inbox.UserInboxMessageFilter{IsRead: true, IsStarred: true, IsArchived: false})
 
 				params.userID = user.ID
-				params.expected = []uuid.UUID{message3.ID} // Read and starred messages
+				params.expectedMessageIDs = []uuid.UUID{message3.ID} // Read and starred messages
 
 				return context.Background()
 			},
@@ -336,7 +336,7 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				inboxBuilder.CreateUserInboxMessage(user.ID, message2.ID)
 
 				params.userID = user.ID
-				params.expected = []uuid.UUID{message1.ID} // with "important" in title
+				params.expectedMessageIDs = []uuid.UUID{message1.ID} // with "important" in title
 
 				return context.Background()
 			},
@@ -385,7 +385,7 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				inboxBuilder.CreateUserInboxMessage(user.ID, message2.ID)
 
 				params.userID = user.ID
-				params.expected = []uuid.UUID{message1.ID} // with "delta" in description
+				params.expectedMessageIDs = []uuid.UUID{message1.ID} // with "delta" in description
 
 				return context.Background()
 			},
@@ -435,7 +435,7 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				inboxBuilder.CreateUserInboxMessage(user.ID, message2.ID)
 
 				params.userID = user.ID
-				params.expected = []uuid.UUID{message1.ID} // with "hotfix" in preview_message
+				params.expectedMessageIDs = []uuid.UUID{message1.ID} // with "hotfix" in preview_message
 
 				return context.Background()
 			},
@@ -494,7 +494,7 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				inboxBuilder.CreateUserInboxMessage(user.ID, msg3.ID)
 
 				params.userID = user.ID
-				params.expected = []uuid.UUID{msg1.ID, msg2.ID, msg3.ID} // with "signal" in title, description, and preview_message
+				params.expectedMessageIDs = []uuid.UUID{msg1.ID, msg2.ID, msg3.ID} // with "signal" in title, description, and preview_message
 
 				return context.Background()
 			},
@@ -540,7 +540,7 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				inboxBuilder.CreateUserInboxMessage(user.ID, message2.ID)
 
 				params.userID = user.ID
-				params.expected = []uuid.UUID{message1.ID} // with "重要" in title
+				params.expectedMessageIDs = []uuid.UUID{message1.ID} // with "重要" in title
 
 				return context.Background()
 			},
@@ -589,7 +589,7 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				inboxBuilder.CreateUserInboxMessage(user.ID, message2.ID)
 
 				params.userID = user.ID
-				params.expected = []uuid.UUID{message1.ID} // with "報告" in description
+				params.expectedMessageIDs = []uuid.UUID{message1.ID} // with "報告" in description
 
 				return context.Background()
 			},
@@ -639,7 +639,7 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				inboxBuilder.CreateUserInboxMessage(user.ID, message2.ID)
 
 				params.userID = user.ID
-				params.expected = []uuid.UUID{message1.ID} // with "修復" in preview_message
+				params.expectedMessageIDs = []uuid.UUID{message1.ID} // with "修復" in preview_message
 
 				return context.Background()
 			},
@@ -698,7 +698,7 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				inboxBuilder.CreateUserInboxMessage(user.ID, msg3.ID)
 
 				params.userID = user.ID
-				params.expected = []uuid.UUID{msg1.ID, msg2.ID, msg3.ID} // with "系統" in title, description, and preview_message
+				params.expectedMessageIDs = []uuid.UUID{msg1.ID, msg2.ID, msg3.ID} // with "系統" in title, description, and preview_message
 
 				return context.Background()
 			},
@@ -756,7 +756,7 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				inboxBuilder.CreateUserInboxMessage(user.ID, message3.ID)
 
 				params.userID = user.ID
-				params.expected = []uuid.UUID{message1.ID, message2.ID} // with "API" in title and description
+				params.expectedMessageIDs = []uuid.UUID{message1.ID, message2.ID} // with "API" in title and description
 
 				return context.Background()
 			},
@@ -802,7 +802,7 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				inboxBuilder.CreateUserInboxMessage(user.ID, message2.ID)
 
 				params.userID = user.ID
-				params.expected = []uuid.UUID{message1.ID} // with "@gmail.com" in title
+				params.expectedMessageIDs = []uuid.UUID{message1.ID} // with "@gmail.com" in title
 
 				return context.Background()
 			},
@@ -851,7 +851,7 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				inboxBuilder.CreateUserInboxMessage(user.ID, message2.ID)
 
 				params.userID = user.ID
-				params.expected = []uuid.UUID{message1.ID} // with "(測試)" in description
+				params.expectedMessageIDs = []uuid.UUID{message1.ID} // with "(測試)" in description
 
 				return context.Background()
 			},
@@ -901,7 +901,7 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				inboxBuilder.CreateUserInboxMessage(user.ID, message2.ID)
 
 				params.userID = user.ID
-				params.expected = []uuid.UUID{message1.ID} // with "!@#$" in preview_message
+				params.expectedMessageIDs = []uuid.UUID{message1.ID} // with "!@#$" in preview_message
 
 				return context.Background()
 			},
@@ -961,7 +961,7 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 
 				params.userID = user.ID
 
-				params.expected = []uuid.UUID{msg1.ID, msg2.ID, msg3.ID} // with "#!/bin/bash" in title, description, and preview_message
+				params.expectedMessageIDs = []uuid.UUID{msg1.ID, msg2.ID, msg3.ID} // with "#!/bin/bash" in title, description, and preview_message
 
 				return context.Background()
 			},
@@ -1020,7 +1020,7 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 
 				params.userID = user.ID
 
-				params.expected = []uuid.UUID{message1.ID, message2.ID} // with "++" in title and description
+				params.expectedMessageIDs = []uuid.UUID{message1.ID, message2.ID} // with "++" in title and description
 
 				return context.Background()
 			},
@@ -1068,7 +1068,7 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				inboxBuilder.CreateUserInboxMessage(user.ID, message2.ID)
 
 				params.userID = user.ID
-				params.expected = []uuid.UUID{message1.ID} // with SQL injection attempt in title
+				params.expectedMessageIDs = []uuid.UUID{message1.ID} // with SQL injection attempt in title
 
 				return context.Background()
 			},
@@ -1106,8 +1106,8 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 				resultMessageIDs[i] = row.MessageID
 			}
 
-			require.Len(t, resultMessageIDs, len(params.expected), "expected: %v, got: %v", params.expected, resultMessageIDs)
-			require.ElementsMatch(t, params.expected, resultMessageIDs, "expected: %v, got: %v", params.expected, resultMessageIDs)
+			require.Len(t, resultMessageIDs, len(params.expectedMessageIDs), "expected: %v, got: %v", params.expectedMessageIDs, resultMessageIDs)
+			require.ElementsMatch(t, params.expectedMessageIDs, resultMessageIDs, "expected: %v, got: %v", params.expectedMessageIDs, resultMessageIDs)
 		})
 	}
 }
