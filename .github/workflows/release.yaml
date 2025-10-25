@@ -194,7 +194,7 @@ jobs:
             "method": "deploy",
             "metadata": {
               "environment": "stage",
-              "component": "backend"
+              "component": "backend ${{ github.ref_name }}"
             },
             "setup": {
               "inject_secret": {
