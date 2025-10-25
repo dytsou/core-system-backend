@@ -1101,13 +1101,13 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 			require.Equal(t, tc.expectedErr, err != nil, "expected error: %v, got: %v", tc.expectedErr, err)
 
 			// Extract MessageIDs from the result for comparison
-			actualMessageIDs := make([]uuid.UUID, len(result))
+			resultMessageIDs := make([]uuid.UUID, len(result))
 			for i, row := range result {
-				actualMessageIDs[i] = row.MessageID
+				resultMessageIDs[i] = row.MessageID
 			}
 
-			require.Len(t, actualMessageIDs, len(params.expected), "expected: %v, got: %v", params.expected, actualMessageIDs)
-			require.ElementsMatch(t, params.expected, actualMessageIDs, "expected: %v, got: %v", params.expected, actualMessageIDs)
+			require.Len(t, resultMessageIDs, len(params.expected), "expected: %v, got: %v", params.expected, resultMessageIDs)
+			require.ElementsMatch(t, params.expected, resultMessageIDs, "expected: %v, got: %v", params.expected, resultMessageIDs)
 		})
 	}
 }
