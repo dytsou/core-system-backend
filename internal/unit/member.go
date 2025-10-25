@@ -16,6 +16,7 @@ import (
 func (s *Service) AddMember(ctx context.Context, unitType Type, id uuid.UUID, memberEmail string) (AddMemberRow, error) {
 	traceCtx, span := s.tracer.Start(ctx, fmt.Sprintf("Add%sMember", unitType.String()))
 	defer span.End()
+
 	logger := logutil.WithContext(traceCtx, s.logger)
 	memberRow, err := s.queries.AddMember(traceCtx, AddMemberParams{
 		UnitID:      id,
