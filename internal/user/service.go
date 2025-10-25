@@ -167,7 +167,6 @@ func (s *Service) CreateEmail(ctx context.Context, userID uuid.UUID, email strin
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
-	// Check if email already exists
 	// Create email record
 	_, err := s.queries.CreateEmail(traceCtx, CreateEmailParams{
 		UserID: userID,
