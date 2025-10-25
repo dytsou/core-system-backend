@@ -3,9 +3,11 @@ package tenant
 import (
 	"NYCU-SDC/core-system-backend/internal"
 	"context"
+	"errors"
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
@@ -134,8 +136,8 @@ func (s *Service) SlugExists(ctx context.Context, slug string) (bool, error) {
 	return exists, nil
 }
 
-func (s *Service) GetStatusWithHistory(ctx context.Context, slug string) (bool, pgtype.UUID, []GetSlugHistoryRow, error) {
-	traceCtx, span := s.tracer.Start(ctx, "GetStatusWithHistory")
+func (s *Service) GetSlugStatusWithHistory(ctx context.Context, slug string) (bool, uuid.UUID, []GetSlugHistoryRow, error) {
+	traceCtx, span := s.tracer.Start(ctx, "GetSlugStatusWithHistory")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
@@ -143,16 +145,14 @@ func (s *Service) GetStatusWithHistory(ctx context.Context, slug string) (bool, 
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "get slug history")
 		span.RecordError(err)
-		return true, pgtype.UUID{}, nil, err
+		return true, uuid.UUID{}, nil, err
 	}
 
-	for _, h := range history {
-		if !h.EndedAt.Valid {
-			return false, h.OrgID, history, nil
-		}
+	if len(history) > 0 && !history[0].EndedAt.Valid {
+		return false, history[0].OrgID.Bytes, history, nil
 	}
 
-	return true, pgtype.UUID{}, history, nil
+	return true, uuid.UUID{}, history, nil
 }
 
 func (s *Service) GetSlugStatus(ctx context.Context, slug string) (bool, uuid.UUID, error) {
@@ -162,16 +162,19 @@ func (s *Service) GetSlugStatus(ctx context.Context, slug string) (bool, uuid.UU
 
 	orgID, err := s.query.GetSlugStatus(traceCtx, slug)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return true, uuid.UUID{}, nil
+		}
 		err = databaseutil.WrapDBError(err, logger, "get slug status")
 		span.RecordError(err)
 		return true, uuid.UUID{}, err
 	}
 
-	return false, uuid.UUID(orgID.Bytes), nil
+	return false, orgID.Bytes, nil
 }
 
 func (s *Service) CreateSlugHistory(ctx context.Context, slug string, orgID uuid.UUID) (SlugHistory, error) {
-	traceCtx, span := s.tracer.Start(ctx, "CreateHistory")
+	traceCtx, span := s.tracer.Start(ctx, "CreateSlugHistory")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 

@@ -29,7 +29,8 @@ WHERE slug = $1
 SELECT s.*, u.name
 FROM slug_history s
 LEFT JOIN units u ON s.org_id = u.id
-WHERE slug = $1;
+WHERE slug = $1
+ORDER BY s.created_at DESC, s.id DESC;
 
 -- name: CreateSlugHistory :one
 INSERT INTO slug_history (slug, org_id)
@@ -60,8 +61,7 @@ WITH
     new_history AS (
       INSERT INTO slug_history (slug, org_id)
       SELECT
-        $2 AS slug,
-        eh.org_id
+        $2, $1
       FROM ended_history eh
       RETURNING org_id
     )

@@ -225,8 +225,8 @@ func main() {
 	mux.Handle("DELETE /api/orgs/{slug}/units/{id}/members/{member_id}", tenantAuthMiddleware.HandlerFunc(unitHandler.RemoveUnitMember))
 
 	// Slug availability and history
-	mux.Handle("GET /api/orgs/{slug}/status", tenantBasicMiddleware.HandlerFunc(tenantHandler.GetStatus))
-	mux.Handle("GET /api/orgs/{slug}/history", tenantBasicMiddleware.HandlerFunc(tenantHandler.GetStatusWithHistory))
+	mux.Handle("GET /api/orgs/{slug}/status", basicMiddleware.HandlerFunc(tenantHandler.GetStatus))
+	mux.Handle("GET /api/orgs/{slug}/history", basicMiddleware.HandlerFunc(tenantHandler.GetStatusWithHistory))
 
 	// List sub-units
 	mux.Handle("GET /api/orgs/{slug}/units", tenantBasicMiddleware.HandlerFunc(unitHandler.ListOrgSubUnits))

@@ -92,6 +92,7 @@ SELECT s.id, s.slug, s.org_id, s.created_at, s.ended_at, u.name
 FROM slug_history s
 LEFT JOIN units u ON s.org_id = u.id
 WHERE slug = $1
+ORDER BY s.created_at DESC, s.id DESC
 `
 
 type GetSlugHistoryRow struct {
@@ -187,11 +188,8 @@ WITH
     new_history AS (
       INSERT INTO slug_history (slug, org_id)
       SELECT
-        $2 AS slug,
-        eh.org_id,
-        NULL
+        $2, $1
       FROM ended_history eh
-      JOIN units u ON eh.org_id = u.id
       RETURNING org_id
     )
 SELECT org_id FROM new_history
