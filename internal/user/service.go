@@ -4,8 +4,6 @@ import (
 	"context"
 	"net/url"
 
-	"NYCU-SDC/core-system-backend/internal"
-
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/google/uuid"
@@ -24,7 +22,6 @@ type Querier interface {
 	CreateAuth(ctx context.Context, arg CreateAuthParams) (Auth, error)
 	Update(ctx context.Context, arg UpdateParams) (User, error)
 	GetEmailsByID(ctx context.Context, userID uuid.UUID) ([]string, error)
-	ExistsEmail(ctx context.Context, arg ExistsEmailParams) (bool, error)
 	CreateEmail(ctx context.Context, arg CreateEmailParams) (UserEmail, error)
 }
 
@@ -171,24 +168,8 @@ func (s *Service) CreateEmail(ctx context.Context, userID uuid.UUID, email strin
 	logger := logutil.WithContext(traceCtx, s.logger)
 
 	// Check if email already exists
-	exists, err := s.queries.ExistsEmail(traceCtx, ExistsEmailParams{
-		UserID: userID,
-		Value:  email,
-	})
-	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "check email existence")
-		span.RecordError(err)
-		return err
-	}
-
-	if exists {
-		err = internal.ErrEmailAlreadyExists
-		span.RecordError(err)
-		return err
-	}
-
 	// Create email record
-	_, err = s.queries.CreateEmail(traceCtx, CreateEmailParams{
+	_, err := s.queries.CreateEmail(traceCtx, CreateEmailParams{
 		UserID: userID,
 		Value:  email,
 	})

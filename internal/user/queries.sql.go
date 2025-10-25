@@ -73,7 +73,9 @@ func (q *Queries) CreateAuth(ctx context.Context, arg CreateAuthParams) (Auth, e
 
 const createEmail = `-- name: CreateEmail :one
 INSERT INTO user_emails (user_id, value)
-VALUES ($1, $2)
+VALUES ($1, $2) 
+ON CONFLICT (user_id, value) DO UPDATE SET 
+    updated_at = now()
 RETURNING user_id, value, created_at, updated_at
 `
 
@@ -116,22 +118,6 @@ SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)
 
 func (q *Queries) ExistsByID(ctx context.Context, id uuid.UUID) (bool, error) {
 	row := q.db.QueryRow(ctx, existsByID, id)
-	var exists bool
-	err := row.Scan(&exists)
-	return exists, err
-}
-
-const existsEmail = `-- name: ExistsEmail :one
-SELECT EXISTS(SELECT 1 FROM user_emails WHERE user_id = $1 AND value = $2)
-`
-
-type ExistsEmailParams struct {
-	UserID uuid.UUID
-	Value  string
-}
-
-func (q *Queries) ExistsEmail(ctx context.Context, arg ExistsEmailParams) (bool, error) {
-	row := q.db.QueryRow(ctx, existsEmail, arg.UserID, arg.Value)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
