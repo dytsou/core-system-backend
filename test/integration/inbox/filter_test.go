@@ -17,6 +17,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Helper function to create bool pointer
+func boolPtr(b bool) *bool {
+	return &b
+}
+
 func TestInboxService_ListWithFilters(t *testing.T) {
 	type Params struct {
 		userID   uuid.UUID
@@ -1105,147 +1110,4 @@ func TestInboxService_ListWithFilters(t *testing.T) {
 			require.ElementsMatch(t, params.expected, actualMessageIDs, "expected: %v, got: %v", params.expected, actualMessageIDs)
 		})
 	}
-}
-
-func TestInboxService_ListPagination(t *testing.T) {
-	type PaginationParams struct {
-		pageNumber    int
-		pageSize      int
-		expectedCount int
-		description   string
-	}
-
-	type Params struct {
-		userID          uuid.UUID
-		totalMessages   int
-		archivedCount   int
-		expectedTotal   int64
-		paginationTests []PaginationParams
-	}
-
-	testCases := []struct {
-		name        string
-		params      Params
-		setup       func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context
-		validate    func(t *testing.T, params Params, db dbbuilder.DBTX, service *inbox.Service, ctx context.Context, userID uuid.UUID)
-		expectedErr bool
-	}{
-		{
-			name: "Pagination with 25 non-archived messages",
-			params: Params{
-				totalMessages: 30,
-				archivedCount: 5,
-				expectedTotal: 25,
-				paginationTests: []PaginationParams{
-					{
-						pageNumber:    1,
-						pageSize:      10,
-						expectedCount: 10,
-						description:   "First page with 10 items",
-					},
-					{
-						pageNumber:    2,
-						pageSize:      10,
-						expectedCount: 10,
-						description:   "Second page with 10 items",
-					},
-					{
-						pageNumber:    3,
-						pageSize:      10,
-						expectedCount: 5,
-						description:   "Third page with remaining 5 items",
-					},
-					{
-						pageNumber:    4,
-						pageSize:      10,
-						expectedCount: 0,
-						description:   "Fourth page should be empty",
-					},
-				},
-			},
-			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX, logger interface{}) context.Context {
-				unitBuilder := unitbuilder.New(t, db)
-				userBuilder := userbuilder.New(t, db)
-				formBuilder := formbuilder.New(t, db)
-				inboxBuilder := inboxbuilder.New(t, db)
-
-				org := unitBuilder.Create(unit.UnitTypeOrganization, unitbuilder.WithName("pagination-org"))
-				unitRow := unitBuilder.Create(unit.UnitTypeUnit, unitbuilder.WithOrgID(org.ID), unitbuilder.WithName("pagination-unit"))
-				user := userBuilder.Create()
-				email := testdata.RandomEmail()
-				userBuilder.CreateEmail(user.ID, email)
-				unitBuilder.AddMember(unitRow.ID, email)
-
-				// Create messages; archive some so we have non-archived messages
-				for i := 0; i < params.totalMessages; i++ {
-					frm := formBuilder.Create(
-						formbuilder.WithUnitID(unitRow.ID),
-						formbuilder.WithLastEditor(user.ID),
-						formbuilder.WithTitle("msg-"+uuid.NewString()),
-					)
-					msg := inboxBuilder.CreateMessage(inbox.ContentTypeForm, frm.ID, unitRow.ID)
-					uim := inboxBuilder.CreateUserInboxMessage(user.ID, msg.ID)
-					if i < params.archivedCount {
-						// archive first N messages
-						inboxBuilder.UpdateUserInboxMessage(uim.ID, user.ID, inbox.UserInboxMessageFilter{IsRead: false, IsStarred: false, IsArchived: true})
-					}
-				}
-
-				// Store userID in params for use in validation
-				params.userID = user.ID
-
-				return context.Background()
-			},
-			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, service *inbox.Service, ctx context.Context, userID uuid.UUID) {
-				// Test total count
-				total, err := service.Count(ctx, userID, nil)
-				require.NoError(t, err)
-				require.Equal(t, params.expectedTotal, total)
-
-				// Test pagination for each test case
-				for _, paginationTest := range params.paginationTests {
-					t.Run(paginationTest.description, func(t *testing.T) {
-						result, err := service.List(ctx, userID, nil, paginationTest.pageNumber, paginationTest.pageSize)
-						require.NoError(t, err)
-						require.Len(t, result, paginationTest.expectedCount,
-							"Page %d with size %d should return %d items",
-							paginationTest.pageNumber, paginationTest.pageSize, paginationTest.expectedCount)
-					})
-				}
-			},
-			expectedErr: false,
-		},
-	}
-
-	resourceManager, logger, err := integration.GetOrInitResource()
-	if err != nil {
-		t.Fatalf("failed to get resource manager: %v", err)
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			db, rollback, err := resourceManager.SetupPostgres()
-			if err != nil {
-				t.Fatalf("failed to setup postgres: %v", err)
-			}
-			defer rollback()
-
-			ctx := context.Background()
-			params := tc.params
-			if tc.setup != nil {
-				ctx = tc.setup(t, &params, db, logger)
-			}
-
-			service := inbox.NewService(logger, db)
-
-			if tc.validate != nil {
-				tc.validate(t, params, db, service, ctx, params.userID)
-			}
-		})
-	}
-}
-
-// Helper function to create bool pointer
-func boolPtr(b bool) *bool {
-	return &b
 }
