@@ -4,10 +4,9 @@ services:
   backend:
     image: nycusdc/core-system-backend:stage
     container_name: core-system-backend-stage
-    ports:
-      - '8083:8080'
     networks:
       - core_system_stage
+      - traefik
     depends_on:
       postgres:
         condition: service_healthy
