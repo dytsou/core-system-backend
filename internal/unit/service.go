@@ -14,7 +14,6 @@ import (
 )
 
 type Querier interface {
-	ExistsByID(ctx context.Context, id uuid.UUID) (bool, error)
 	Create(ctx context.Context, arg CreateParams) (Unit, error)
 	GetByID(ctx context.Context, id uuid.UUID) (Unit, error)
 	GetAllOrganizations(ctx context.Context) ([]GetAllOrganizationsRow, error)
@@ -343,19 +342,4 @@ func (s *Service) AddParent(ctx context.Context, id uuid.UUID, parentID uuid.UUI
 	logger.Info("Added parent-child relationship", zap.String("parentID", parentID.String()), zap.String("id", id.String()))
 
 	return result, nil
-}
-
-func (s *Service) UnitExists(ctx context.Context, id uuid.UUID) (bool, error) {
-	traceCtx, span := s.tracer.Start(ctx, "UnitExists")
-	defer span.End()
-	logger := logutil.WithContext(traceCtx, s.logger)
-
-	exists, err := s.queries.ExistsByID(traceCtx, id)
-	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "validate unit existence")
-		span.RecordError(err)
-		return false, err
-	}
-
-	return exists, nil
 }

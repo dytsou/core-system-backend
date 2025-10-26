@@ -189,7 +189,7 @@ WITH
       INSERT INTO slug_history (slug, org_id)
       SELECT
         $2, $1
-      FROM ended_history eh
+      FROM ended_history
       RETURNING org_id
     )
 SELECT org_id FROM new_history

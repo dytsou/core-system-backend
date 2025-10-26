@@ -101,17 +101,6 @@ func (q *Queries) Delete(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
-const existsByID = `-- name: ExistsByID :one
-SELECT EXISTS(SELECT 1 FROM units WHERE id = $1)
-`
-
-func (q *Queries) ExistsByID(ctx context.Context, id uuid.UUID) (bool, error) {
-	row := q.db.QueryRow(ctx, existsByID, id)
-	var exists bool
-	err := row.Scan(&exists)
-	return exists, err
-}
-
 const getAllOrganizations = `-- name: GetAllOrganizations :many
 SELECT u.id, u.org_id, u.parent_id, u.type, u.name, u.description, u.metadata, u.created_at, u.updated_at, sh.slug
 FROM units u
