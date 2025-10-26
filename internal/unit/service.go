@@ -2,7 +2,6 @@ package unit
 
 import (
 	"NYCU-SDC/core-system-backend/internal"
-	"NYCU-SDC/core-system-backend/internal/tenant"
 	"context"
 	"fmt"
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
@@ -32,11 +31,6 @@ type Querier interface {
 	RemoveMember(ctx context.Context, arg RemoveMemberParams) error
 }
 
-type tenantStore interface {
-	Create(ctx context.Context, id uuid.UUID, ownerID uuid.UUID, slug string) (tenant.Tenant, error)
-	SlugExists(ctx context.Context, slug string) (bool, error)
-	GetSlugStatus(ctx context.Context, slug string) (bool, uuid.UUID, error)
-}
 type Service struct {
 	logger      *zap.Logger
 	queries     Querier
