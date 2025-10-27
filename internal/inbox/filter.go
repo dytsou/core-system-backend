@@ -42,11 +42,19 @@ func ParseFilterRequest(r *http.Request) (*FilterRequest, error) {
 	}
 
 	// Combine filters into FilterRequest
-	filter := &FilterRequest{
-		IsRead:     &isRead,
-		IsStarred:  &isStarred,
-		IsArchived: &isArchived,
-		Search:     *search,
+	filter := &FilterRequest{}
+
+	// Only set filter values if they were explicitly provided in the query
+	if isReadStr != "" {
+		filter.IsRead = &isRead
 	}
+	if isStarredStr != "" {
+		filter.IsStarred = &isStarred
+	}
+	if isArchivedStr != "" {
+		filter.IsArchived = &isArchived
+	}
+	filter.Search = *search
+
 	return filter, nil
 }
