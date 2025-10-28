@@ -85,6 +85,7 @@ func (s *Service) List(ctx context.Context, userID uuid.UUID, filter *FilterRequ
 		IsRead:     pgtype.Bool{Valid: false},
 		IsStarred:  pgtype.Bool{Valid: false},
 		IsArchived: pgtype.Bool{Valid: false},
+		Search:     "",
 	}
 
 	if filter != nil {
@@ -101,6 +102,10 @@ func (s *Service) List(ctx context.Context, userID uuid.UUID, filter *FilterRequ
 			params.Search = filter.Search
 		}
 	}
+
+	logger.Info("List params", zap.Any("params", params))
+	logger.Info("Page", zap.Int("page", page))
+	logger.Info("Size", zap.Int("size", size))
 
 	// Apply pagination
 	if size > 0 {
