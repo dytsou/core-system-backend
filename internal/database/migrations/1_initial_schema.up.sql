@@ -86,6 +86,14 @@ CREATE TABLE IF NOT EXISTS tenants (
     owner_id    UUID REFERENCES users (id) ON DELETE SET NULL
 );
 
+CREATE TABLE IF NOT EXISTS slug_history(
+    id SERIAL PRIMARY KEY,
+    slug TEXT NOT NULL,
+    org_id UUID REFERENCES units(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    ended_at TIMESTAMPTZ DEFAULT null
+);
+
 -- Forms Tables
 
 CREATE TYPE status AS ENUM(
