@@ -1,37 +1,56 @@
-networks:
-  core_system_stage:
-    driver: bridge
+name: core-system-stage
 
 services:
   backend:
     image: nycusdc/core-system-backend:stage
     container_name: core-system-backend-stage
-    ports:
-      - '8083:8080'
     networks:
       - core_system_stage
+      - traefik
     depends_on:
       postgres:
         condition: service_healthy
     environment:
+      DEV: "true"
+      ENV: "stage"
       HOST: "0.0.0.0"
+      BASE_URL: "https://stage.core-system.sdc.nycu.club"
       DATABASE_URL: postgres://postgres:password@postgres:5432/core_system?sslmode=disable
       MIGRATION_SOURCE: file:///app/migrations
-      OTEL_COLLECTOR_URL: 10.140.0.3:4317
+      OTEL_COLLECTOR_URL: 10.1.252.100:4317
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET}
+      ALLOW_ORIGINS: "*"
     labels:
       - "vector.enable=true"
+      - "traefik.enable=true"
+      - "traefik.http.routers.core-system-backend-stage.rule=Host(`stage.core-system.sdc.nycu.club`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.core-system-backend-stage.entrypoints=websecure"
+      - "traefik.http.routers.core-system-backend-stage.tls=true"
+      - "traefik.http.routers.core-system-backend-stage.tls.certresolver=cloudflare"
 
   postgres:
-    image: postgres:latest
+    image: postgres:18
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
     environment:
+      PGDATA: /var/lib/postgresql/data
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
       POSTGRES_DB: core_system
+    volumes:
+      - pg_data:/var/lib/postgresql/data
     networks:
       - core_system_stage
-      
+
+volumes:
+  pg_data:
+    driver: local
+
+networks:
+  core_system_stage:
+  traefik:
+    external: true

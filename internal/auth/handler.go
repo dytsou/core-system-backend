@@ -43,15 +43,16 @@ type JWTStore interface {
 
 type UserStore interface {
 	ExistsByID(ctx context.Context, id uuid.UUID) (bool, error)
-	GetByID(ctx context.Context, id uuid.UUID) (user.User, error)
+	GetByID(ctx context.Context, id uuid.UUID) (user.UsersWithEmail, error)
 	FindOrCreate(ctx context.Context, name, username, avatarUrl string, role []string, oauthProvider, oauthProviderID string) (uuid.UUID, error)
+	CreateEmail(ctx context.Context, userID uuid.UUID, email string) error
 }
 
 type OAuthProvider interface {
 	Name() string
 	Config() *oauth2.Config
 	Exchange(ctx context.Context, code string) (*oauth2.Token, error)
-	GetUserInfo(ctx context.Context, token *oauth2.Token) (user.User, user.Auth, error)
+	GetUserInfo(ctx context.Context, token *oauth2.Token) (user.User, user.Auth, string, error)
 }
 
 type callBackInfo struct {
@@ -207,7 +208,7 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userInfo, auth, err := provider.GetUserInfo(traceCtx, token)
+	userInfo, auth, email, err := provider.GetUserInfo(traceCtx, token)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
@@ -217,6 +218,15 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
+	}
+
+	// Create email record for OAuth users if email is available
+	if email != "" {
+		err := h.userStore.CreateEmail(traceCtx, userID, email)
+		if err != nil {
+			h.problemWriter.WriteError(traceCtx, w, internal.ErrFailedToCreateEmail, logger)
+			return
+		}
 	}
 
 	accessTokenID, refreshTokenID, err := h.generateJWT(traceCtx, userID)
@@ -251,9 +261,20 @@ func (h *Handler) generateJWT(ctx context.Context, userID uuid.UUID) (string, st
 	traceCtx, span := h.tracer.Start(ctx, "generateJWT")
 	defer span.End()
 
-	userEntity, err := h.userStore.GetByID(traceCtx, userID)
+	userEntityRow, err := h.userStore.GetByID(traceCtx, userID)
 	if err != nil {
 		return "", "", err
+	}
+
+	// Convert GetByIDRow to user.User expected by JWTIssuer
+	userEntity := user.User{
+		ID:        userEntityRow.ID,
+		Name:      userEntityRow.Name,
+		Username:  userEntityRow.Username,
+		AvatarUrl: userEntityRow.AvatarUrl,
+		Role:      userEntityRow.Role,
+		CreatedAt: userEntityRow.CreatedAt,
+		UpdatedAt: userEntityRow.UpdatedAt,
 	}
 
 	jwtToken, err := h.jwtIssuer.New(traceCtx, userEntity)
