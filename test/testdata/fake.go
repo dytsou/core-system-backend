@@ -23,3 +23,7 @@ func RandomDescription() string {
 func RandomURL() string {
 	return gofakeit.URL()
 }
+
+func RandomSlug() string {
+	return gofakeit.Sentence(1)
+}

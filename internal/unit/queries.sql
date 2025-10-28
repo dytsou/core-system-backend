@@ -7,16 +7,16 @@ VALUES ($1, $2, $3, $4, $5, $6)
 SELECT * FROM units WHERE id = $1;
 
 -- name: GetAllOrganizations :many
-SELECT u.*, t.slug
+SELECT u.*, sh.slug
 FROM units u
-LEFT JOIN tenants t ON t.id = u.id
-WHERE u.type = 'organization';
+LEFT JOIN slug_history sh ON sh.org_id = u.id
+WHERE u.type = 'organization' AND sh.ended_at IS NULL;
 
 -- name: GetOrganizationByIDWithSlug :one
-SELECT u.*, t.slug
+SELECT u.*, sh.slug
 FROM units u
-LEFT JOIN tenants t ON t.id = u.id
-WHERE u.id = $1 AND u.type = 'organization';
+LEFT JOIN slug_history sh ON sh.org_id = u.id
+WHERE u.id = $1 AND u.type = 'organization' AND  sh.ended_at IS NULL;
 
 -- name: Update :one
 UPDATE units

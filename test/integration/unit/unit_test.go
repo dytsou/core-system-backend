@@ -1,16 +1,18 @@
 package unit
 
 import (
+	"NYCU-SDC/core-system-backend/internal/tenant"
 	"NYCU-SDC/core-system-backend/internal/unit"
 	"NYCU-SDC/core-system-backend/test/integration"
 	"NYCU-SDC/core-system-backend/test/testdata/dbbuilder"
+	tenantbuilder "NYCU-SDC/core-system-backend/test/testdata/dbbuilder/tenant"
 	unitbuilder "NYCU-SDC/core-system-backend/test/testdata/dbbuilder/unit"
+	userbuilder "NYCU-SDC/core-system-backend/test/testdata/dbbuilder/user"
 	"context"
 	"os"
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/require"
 )
 
@@ -35,11 +37,13 @@ func TestMain(m *testing.M) {
 
 func TestUnitService_Create(t *testing.T) {
 	type params struct {
-		name        string
-		orgID       pgtype.UUID
-		description string
-		metadata    []byte
-		unitType    unit.Type
+		name         string
+		parentUnitID uuid.UUID
+		ownerID      uuid.UUID
+		description  string
+		slug         string
+		metadata     []byte
+		unitType     unit.Type
 	}
 	testCases := []struct {
 		name        string
@@ -55,6 +59,13 @@ func TestUnitService_Create(t *testing.T) {
 				description: "handles student-related matters",
 				metadata:    []byte(`{"timezone":"UTC"}`),
 				unitType:    unit.TypeOrg,
+			},
+			setup: func(t *testing.T, params *params, db dbbuilder.DBTX) context.Context {
+				userBuilder := userbuilder.New(t, db)
+				user := userBuilder.Create()
+				params.ownerID = user.ID
+
+				return context.Background()
 			},
 			validate: func(t *testing.T, params params, db dbbuilder.DBTX, result unit.Unit) {
 				require.NotZero(t, result.ID)
@@ -76,18 +87,22 @@ func TestUnitService_Create(t *testing.T) {
 			params: params{
 				name:        "department of cs",
 				description: "teaches computer science",
+				slug:        "nycu",
 				metadata:    []byte(`{"building":"EE"}`),
 				unitType:    unit.TypeUnit,
 			},
 			setup: func(t *testing.T, params *params, db dbbuilder.DBTX) context.Context {
+				user := userbuilder.New(t, db).Create()
 				org := unitbuilder.New(t, db).Create(unit.UnitTypeOrganization)
-				params.orgID = pgtype.UUID{Bytes: org.ID, Valid: true}
+				params.parentUnitID = org.ID
+				tenantbuilder.New(t, db).Create(tenantbuilder.WithID(org.ID), tenantbuilder.WithSlug(params.slug), tenantbuilder.WithOwnerID(user.ID))
+
 				return context.Background()
 			},
 			validate: func(t *testing.T, params params, db dbbuilder.DBTX, result unit.Unit) {
 				require.True(t, result.OrgID.Valid)
-				require.Equal(t, params.orgID.Bytes, result.OrgID.Bytes)
-				require.Equal(t, params.orgID.Bytes, result.ParentID.Bytes)
+				require.Equal(t, params.parentUnitID, uuid.UUID(result.OrgID.Bytes))
+				require.Equal(t, params.parentUnitID, uuid.UUID(result.ParentID.Bytes))
 				require.Equal(t, unit.UnitTypeUnit, result.Type)
 				require.Equal(t, params.name, result.Name.String)
 				require.Equal(t, params.description, result.Description.String)
@@ -97,11 +112,12 @@ func TestUnitService_Create(t *testing.T) {
 		{
 			name: "Fail when organization does not exist",
 			params: params{
-				name:        "ghost unit",
-				description: "references a missing org",
-				metadata:    []byte(`{"status":"ghost"}`),
-				orgID:       pgtype.UUID{Bytes: uuid.New(), Valid: true},
-				unitType:    unit.TypeUnit,
+				name:         "ghost unit",
+				description:  "references a missing org",
+				slug:         "ghost",
+				metadata:     []byte(`{"status":"ghost"}`),
+				parentUnitID: uuid.New(),
+				unitType:     unit.TypeUnit,
 			},
 			expectedErr: true,
 		},
@@ -126,14 +142,15 @@ func TestUnitService_Create(t *testing.T) {
 				ctx = tc.setup(t, &params, db)
 			}
 
-			unitService := unit.NewService(logger, db)
+			tenantStore := tenant.NewService(logger, db)
+			unitService := unit.NewService(logger, db, tenantStore)
 
 			var result unit.Unit
 			if params.unitType == unit.TypeOrg {
-				result, err = unitService.CreateOrganization(ctx, params.name, params.description, params.metadata)
+				result, err = unitService.CreateOrganization(ctx, params.name, params.description, params.slug, params.ownerID, params.metadata)
 				require.Equal(t, tc.expectedErr, err != nil, "expected error: %v, got: %v", tc.expectedErr, err)
 			} else {
-				result, err = unitService.CreateUnit(ctx, params.name, params.orgID, params.description, params.metadata)
+				result, err = unitService.CreateUnit(ctx, params.name, params.description, params.slug, params.metadata)
 				require.Equal(t, tc.expectedErr, err != nil, "expected error: %v, got: %v", tc.expectedErr, err)
 			}
 
@@ -250,7 +267,8 @@ func TestUnitService_ListSubUnits(t *testing.T) {
 				ctx = tc.setup(t, &params, db)
 			}
 
-			unitService := unit.NewService(logger, db)
+			tenantStore := tenant.NewService(logger, db)
+			unitService := unit.NewService(logger, db, tenantStore)
 
 			result, err := unitService.ListSubUnits(ctx, params.parentID, params.unitType)
 			require.Equal(t, tc.expectedErr, err != nil, "expected error: %v, got: %v", tc.expectedErr, err)
@@ -333,7 +351,8 @@ func TestUnitService_ListSubUnitIDs(t *testing.T) {
 				ctx = tc.setup(t, &params, db)
 			}
 
-			unitService := unit.NewService(logger, db)
+			tenantStore := tenant.NewService(logger, db)
+			unitService := unit.NewService(logger, db, tenantStore)
 
 			result, err := unitService.ListSubUnitIDs(ctx, params.parentID, params.unitType)
 			require.Equal(t, tc.expectedErr, err != nil, "expected error: %v, got: %v", tc.expectedErr, err)

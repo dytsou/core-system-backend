@@ -1,12 +1,10 @@
 package unitbuilder
 
 import (
-	"context"
-
 	"NYCU-SDC/core-system-backend/internal/unit"
 	"NYCU-SDC/core-system-backend/test/testdata"
 	"NYCU-SDC/core-system-backend/test/testdata/dbbuilder"
-
+	"context"
 	"testing"
 
 	"github.com/google/uuid"
@@ -33,6 +31,7 @@ func (b Builder) Create(unitType unit.UnitType, opts ...Option) unit.Unit {
 	p := &FactoryParams{
 		Name:        testdata.RandomName(),
 		Description: testdata.RandomDescription(),
+		Slug:        testdata.RandomSlug(),
 		Metadata:    []byte("{}"),
 	}
 	for _, opt := range opts {

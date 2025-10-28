@@ -1,9 +1,9 @@
 package unit
 
 import (
+	"NYCU-SDC/core-system-backend/internal"
 	"context"
 	"fmt"
-
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/google/uuid"
@@ -31,9 +31,10 @@ type Querier interface {
 }
 
 type Service struct {
-	logger  *zap.Logger
-	queries Querier
-	tracer  trace.Tracer
+	logger      *zap.Logger
+	queries     Querier
+	tracer      trace.Tracer
+	tenantStore tenantStore
 }
 
 type Organization struct {
@@ -64,18 +65,30 @@ func (t Type) String() string {
 	return typeStrings[t]
 }
 
-func NewService(logger *zap.Logger, db DBTX) *Service {
+func NewService(logger *zap.Logger, db DBTX, tenantStore tenantStore) *Service {
 	return &Service{
-		logger:  logger,
-		queries: New(db),
-		tracer:  otel.Tracer("unit/service"),
+		logger:      logger,
+		queries:     New(db),
+		tracer:      otel.Tracer("unit/service"),
+		tenantStore: tenantStore,
 	}
 }
 
-func (s *Service) CreateOrganization(ctx context.Context, name string, description string, metadata []byte) (Unit, error) {
+func (s *Service) CreateOrganization(ctx context.Context, name string, description string, slug string, currentUserID uuid.UUID, metadata []byte) (Unit, error) {
 	traceCtx, span := s.tracer.Start(ctx, "CreateOrganization")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
+
+	exists, err := s.tenantStore.SlugExists(traceCtx, slug)
+	if err != nil {
+		span.RecordError(err)
+		return Unit{}, err
+	}
+
+	if exists {
+		span.RecordError(internal.ErrOrgSlugAlreadyExists)
+		return Unit{}, internal.ErrOrgSlugAlreadyExists
+	}
 
 	org, err := s.queries.Create(traceCtx, CreateParams{
 		Name:        pgtype.Text{String: name, Valid: name != ""},
@@ -90,6 +103,12 @@ func (s *Service) CreateOrganization(ctx context.Context, name string, descripti
 		return Unit{}, err
 	}
 
+	_, err = s.tenantStore.Create(traceCtx, org.ID, currentUserID, slug)
+	if err != nil {
+		span.RecordError(err)
+		return Unit{}, err
+	}
+
 	logger.Info("Created organization",
 		zap.String("org_id", org.ID.String()),
 		zap.String("name", org.Name.String),
@@ -100,15 +119,21 @@ func (s *Service) CreateOrganization(ctx context.Context, name string, descripti
 }
 
 // CreateUnit creates a new unit or organization
-func (s *Service) CreateUnit(ctx context.Context, name string, orgID pgtype.UUID, description string, metadata []byte) (Unit, error) {
+func (s *Service) CreateUnit(ctx context.Context, name string, description string, slug string, metadata []byte) (Unit, error) {
 	traceCtx, span := s.tracer.Start(ctx, "CreateUnit")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, s.logger)
 
+	_, orgID, err := s.tenantStore.GetSlugStatus(traceCtx, slug)
+	if err != nil {
+		span.RecordError(err)
+		return Unit{}, err
+	}
+
 	unit, err := s.queries.Create(traceCtx, CreateParams{
 		Name:        pgtype.Text{String: name, Valid: name != ""},
-		OrgID:       orgID,
-		ParentID:    pgtype.UUID{Valid: true, Bytes: orgID.Bytes},
+		OrgID:       pgtype.UUID{Bytes: orgID, Valid: true},
+		ParentID:    pgtype.UUID{Bytes: orgID, Valid: true},
 		Description: pgtype.Text{String: description, Valid: true},
 		Metadata:    metadata,
 		Type:        UnitTypeUnit,

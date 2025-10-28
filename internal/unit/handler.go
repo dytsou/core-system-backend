@@ -2,6 +2,7 @@ package unit
 
 import (
 	"NYCU-SDC/core-system-backend/internal"
+	"NYCU-SDC/core-system-backend/internal/form"
 	"NYCU-SDC/core-system-backend/internal/tenant"
 	"NYCU-SDC/core-system-backend/internal/user"
 	"context"
@@ -10,8 +11,6 @@ import (
 	"net/http"
 	"regexp"
 	"time"
-
-	"github.com/jackc/pgx/v5/pgtype"
 
 	handlerutil "github.com/NYCU-SDC/summer/pkg/handler"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
@@ -24,8 +23,8 @@ import (
 )
 
 type Store interface {
-	CreateOrganization(ctx context.Context, name string, description string, metadata []byte) (Unit, error)
-	CreateUnit(ctx context.Context, name string, orgID pgtype.UUID, desc string, metadata []byte) (Unit, error)
+	CreateOrganization(ctx context.Context, name string, description string, slug string, currentUserID uuid.UUID, metadata []byte) (Unit, error)
+	CreateUnit(ctx context.Context, name string, description string, slug string, metadata []byte) (Unit, error)
 	GetByID(ctx context.Context, id uuid.UUID, unitType Type) (Unit, error)
 	GetAllOrganizations(ctx context.Context) ([]Organization, error)
 	Update(ctx context.Context, id uuid.UUID, name string, description string, metadata []byte) (Unit, error)
@@ -39,14 +38,30 @@ type Store interface {
 	GetOrganizationByIDWithSlug(ctx context.Context, id uuid.UUID) (Organization, error)
 }
 
+type formStore interface {
+	Create(ctx context.Context, req form.Request, unitID uuid.UUID, userID uuid.UUID) (form.CreateRow, error)
+	ListByUnit(context.Context, uuid.UUID) ([]form.ListByUnitRow, error)
+}
+
+type tenantStore interface {
+	GetSlugStatus(ctx context.Context, slug string) (bool, uuid.UUID, error)
+	Create(ctx context.Context, id uuid.UUID, ownerID uuid.UUID, slug string) (tenant.Tenant, error)
+	Update(ctx context.Context, id uuid.UUID, slug string, dbStrategy tenant.DbStrategy) (tenant.Tenant, error)
+	SlugExists(ctx context.Context, slug string) (bool, error)
+}
+
+type userStore interface {
+	GetEmailsByID(ctx context.Context, userID uuid.UUID) ([]string, error)
+}
 type Handler struct {
 	logger        *zap.Logger
 	tracer        trace.Tracer
 	validator     *validator.Validate
 	problemWriter *problem.HttpWriter
 	store         Store
-	tenantService *tenant.Service
-	userService   *user.Service
+	formStore     formStore
+	tenantStore   tenantStore
+	userStore     userStore
 }
 
 func NewHandler(
@@ -54,16 +69,18 @@ func NewHandler(
 	validator *validator.Validate,
 	problemWriter *problem.HttpWriter,
 	store Store,
-	tenantService *tenant.Service,
-	userService *user.Service,
+	formStore formStore,
+	tenantStore tenantStore,
+	userStore userStore,
 ) *Handler {
 	return &Handler{
 		logger:        logger,
 		validator:     validator,
 		problemWriter: problemWriter,
 		store:         store,
-		tenantService: tenantService,
-		userService:   userService,
+		formStore:     formStore,
+		tenantStore:   tenantStore,
+		userStore:     userStore,
 		tracer:        otel.Tracer("unit/handler"),
 	}
 }
@@ -113,7 +130,7 @@ type UnitMemberResponse struct {
 
 // createProfileResponseWithEmails creates a ProfileResponse with emails for a user
 func (h *Handler) createProfileResponseWithEmails(ctx context.Context, logger *zap.Logger, userID uuid.UUID, name, username, avatarURL string) user.ProfileResponse {
-	emails, err := h.userService.GetEmailsByID(ctx, userID)
+	emails, err := h.userStore.GetEmailsByID(ctx, userID)
 	if err != nil {
 		// Log the error but don't fail the request
 		logger.Warn("failed to get user emails", zap.Error(err), zap.String("user_id", userID.String()))
@@ -200,13 +217,7 @@ func (h *Handler) CreateUnit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgTenant, err := h.tenantService.GetBySlug(traceCtx, orgSlug)
-	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), logger)
-		return
-	}
-
-	createdUnit, err := h.store.CreateUnit(traceCtx, req.Name, pgtype.UUID{Bytes: orgTenant.ID, Valid: true}, req.Description, metadataBytes)
+	createdUnit, err := h.store.CreateUnit(traceCtx, req.Name, req.Description, orgSlug, metadataBytes)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to create unit: %w", err), logger)
 		return
@@ -245,25 +256,9 @@ func (h *Handler) CreateOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	exists, err := h.tenantService.SlugExists(traceCtx, req.Slug)
-	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to validate slug uniqueness: %w", err), logger)
-		return
-	}
-	if exists {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("slug already in use"), logger)
-		return
-	}
-
-	createdOrg, err := h.store.CreateOrganization(traceCtx, req.Name, req.Description, metadataBytes)
+	createdOrg, err := h.store.CreateOrganization(traceCtx, req.Name, req.Description, req.Slug, currentUser.ID, metadataBytes)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to create org: %w", err), logger)
-		return
-	}
-
-	_, err = h.tenantService.Create(traceCtx, req.Slug, createdOrg.ID, currentUser.ID)
-	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to create tenant for org: %w", err), logger)
 		return
 	}
 
@@ -303,13 +298,13 @@ func (h *Handler) GetOrgByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgTenant, err := h.tenantService.GetBySlug(traceCtx, slug)
+	_, orgID, err := h.tenantStore.GetSlugStatus(traceCtx, slug)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), logger)
 		return
 	}
 
-	orgWithSlug, err := h.store.GetOrganizationByIDWithSlug(traceCtx, orgTenant.ID)
+	orgWithSlug, err := h.store.GetOrganizationByIDWithSlug(traceCtx, orgID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get organization by ID with slug: %w", err), logger)
 		return
@@ -387,7 +382,7 @@ func (h *Handler) UpdateOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgTenant, err := h.tenantService.GetBySlug(traceCtx, slug)
+	_, orgID, err := h.tenantStore.GetSlugStatus(traceCtx, slug)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), logger)
 		return
@@ -400,7 +395,7 @@ func (h *Handler) UpdateOrg(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		exists, err := h.tenantService.SlugExists(traceCtx, req.Slug)
+		exists, err := h.tenantStore.SlugExists(traceCtx, req.Slug)
 		if err != nil {
 			h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to validate slug uniqueness: %w", err), logger)
 			return
@@ -426,13 +421,13 @@ func (h *Handler) UpdateOrg(w http.ResponseWriter, r *http.Request) {
 		dbStrategy = "isolated"
 	}
 
-	_, err = h.tenantService.Update(traceCtx, orgTenant.ID, req.Slug, dbStrategy)
+	_, err = h.tenantStore.Update(traceCtx, orgID, req.Slug, dbStrategy)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to update organization tenant: %w", err), logger)
 		return
 	}
 
-	updatedOrg, err := h.store.Update(traceCtx, orgTenant.ID, req.Name, req.Description, metadataBytes)
+	updatedOrg, err := h.store.Update(traceCtx, orgID, req.Name, req.Description, metadataBytes)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to update organization: %w", err), logger)
 		return
@@ -452,13 +447,13 @@ func (h *Handler) DeleteOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgTenant, err := h.tenantService.GetBySlug(traceCtx, slug)
+	_, orgID, err := h.tenantStore.GetSlugStatus(traceCtx, slug)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), logger)
 		return
 	}
 
-	err = h.store.Delete(traceCtx, orgTenant.ID, TypeOrg)
+	err = h.store.Delete(traceCtx, orgID, TypeOrg)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to delete unit: %w", err), logger)
 		return
@@ -530,13 +525,13 @@ func (h *Handler) ListOrgSubUnits(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgTenant, err := h.tenantService.GetBySlug(traceCtx, slug)
+	_, orgID, err := h.tenantStore.GetSlugStatus(traceCtx, slug)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), logger)
 		return
 	}
 
-	subUnits, err := h.store.ListSubUnits(traceCtx, orgTenant.ID, TypeOrg)
+	subUnits, err := h.store.ListSubUnits(traceCtx, orgID, TypeOrg)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list sub-units: %w", err), logger)
 		return
@@ -586,13 +581,13 @@ func (h *Handler) ListOrgSubUnitIDs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgTenant, err := h.tenantService.GetBySlug(traceCtx, slug)
+	_, orgID, err := h.tenantStore.GetSlugStatus(traceCtx, slug)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), logger)
 		return
 	}
 
-	subUnits, err := h.store.ListSubUnitIDs(traceCtx, orgTenant.ID, TypeOrg)
+	subUnits, err := h.store.ListSubUnitIDs(traceCtx, orgID, TypeOrg)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list sub-units: %w", err), logger)
 		return
@@ -633,7 +628,7 @@ func (h *Handler) AddOrgMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgTenant, err := h.tenantService.GetBySlug(traceCtx, slug)
+	_, orgID, err := h.tenantStore.GetSlugStatus(traceCtx, slug)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), logger)
 		return
@@ -648,19 +643,19 @@ func (h *Handler) AddOrgMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if orgTenant.ID == uuid.Nil || params.Email == "" {
+	if orgID == uuid.Nil || params.Email == "" {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("org ID or member username cannot be empty"), logger)
 		return
 	}
 
-	members, err := h.store.AddMember(traceCtx, TypeOrg, orgTenant.ID, params.Email)
+	members, err := h.store.AddMember(traceCtx, TypeOrg, orgID, params.Email)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to add org member: %w", err), logger)
 		return
 	}
 
 	orgMemberResponse := OrgMemberResponse{
-		OrgID:      orgTenant.ID,
+		OrgID:      orgID,
 		SimpleUser: h.createProfileResponseWithEmails(traceCtx, logger, members.MemberID, members.Name.String, members.Username.String, members.AvatarUrl.String),
 	}
 	handlerutil.WriteJSONResponse(w, http.StatusCreated, orgMemberResponse)
@@ -714,14 +709,14 @@ func (h *Handler) ListOrgMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgTenant, err := h.tenantService.GetBySlug(traceCtx, slug)
+	_, orgID, err := h.tenantStore.GetSlugStatus(traceCtx, slug)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), logger)
 		return
 	}
 
 	// Todo: Need to recursively obtain members of the entire organization
-	members, err := h.store.ListMembers(traceCtx, orgTenant.ID)
+	members, err := h.store.ListMembers(traceCtx, orgID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to list org members: %w", err), logger)
 		return
@@ -772,8 +767,8 @@ func (h *Handler) RemoveOrgMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgTenant, err := h.tenantService.GetBySlug(traceCtx, slug)
-	if err != nil || orgTenant.ID == uuid.Nil {
+	_, orgID, err := h.tenantStore.GetSlugStatus(traceCtx, slug)
+	if err != nil || orgID == uuid.Nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), logger)
 		return
 	}
@@ -790,7 +785,7 @@ func (h *Handler) RemoveOrgMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.store.RemoveMember(traceCtx, TypeOrg, orgTenant.ID, mID)
+	err = h.store.RemoveMember(traceCtx, TypeOrg, orgID, mID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to remove org member: %w", err), logger)
 		return

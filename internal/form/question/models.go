@@ -294,9 +294,16 @@ type RefreshToken struct {
 	ExpirationDate pgtype.Timestamptz
 }
 
+type SlugHistory struct {
+	ID        int32
+	Slug      string
+	OrgID     pgtype.UUID
+	CreatedAt pgtype.Timestamptz
+	EndedAt   pgtype.Timestamptz
+}
+
 type Tenant struct {
 	ID         uuid.UUID
-	Slug       string
 	DbStrategy DbStrategy
 	OwnerID    pgtype.UUID
 }

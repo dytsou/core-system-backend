@@ -102,10 +102,10 @@ func (q *Queries) Delete(ctx context.Context, id uuid.UUID) error {
 }
 
 const getAllOrganizations = `-- name: GetAllOrganizations :many
-SELECT u.id, u.org_id, u.parent_id, u.type, u.name, u.description, u.metadata, u.created_at, u.updated_at, t.slug
+SELECT u.id, u.org_id, u.parent_id, u.type, u.name, u.description, u.metadata, u.created_at, u.updated_at, sh.slug
 FROM units u
-LEFT JOIN tenants t ON t.id = u.id
-WHERE u.type = 'organization'
+LEFT JOIN slug_history sh ON sh.org_id = u.id
+WHERE u.type = 'organization' AND sh.ended_at IS NULL
 `
 
 type GetAllOrganizationsRow struct {
@@ -174,10 +174,10 @@ func (q *Queries) GetByID(ctx context.Context, id uuid.UUID) (Unit, error) {
 }
 
 const getOrganizationByIDWithSlug = `-- name: GetOrganizationByIDWithSlug :one
-SELECT u.id, u.org_id, u.parent_id, u.type, u.name, u.description, u.metadata, u.created_at, u.updated_at, t.slug
+SELECT u.id, u.org_id, u.parent_id, u.type, u.name, u.description, u.metadata, u.created_at, u.updated_at, sh.slug
 FROM units u
-LEFT JOIN tenants t ON t.id = u.id
-WHERE u.id = $1 AND u.type = 'organization'
+LEFT JOIN slug_history sh ON sh.org_id = u.id
+WHERE u.id = $1 AND u.type = 'organization' AND  sh.ended_at IS NULL
 `
 
 type GetOrganizationByIDWithSlugRow struct {
