@@ -40,6 +40,7 @@ var (
 	ErrOrgSlugNotFound      = errors.New("org slug not found")
 	ErrOrgSlugAlreadyExists = errors.New("org slug already exists")
 	ErrUnitNotFound         = errors.New("unit not found")
+	ErrSlugNotBelongToUnit  = errors.New("slug not belong to unit")
 
 	// Inbox Errors
 	ErrInvalidIsReadParameter     = errors.New("invalid isRead parameter")
@@ -116,6 +117,8 @@ func ErrorHandler(err error) problem.Problem {
 		return problem.NewValidateProblem("org slug already exists")
 	case errors.Is(err, ErrUnitNotFound):
 		return problem.NewNotFoundProblem("unit not found")
+	case errors.Is(err, ErrSlugNotBelongToUnit):
+		return problem.NewNotFoundProblem("slug not belong to unit")
 
 	// Form Errors
 	case errors.Is(err, ErrFormNotFound):
