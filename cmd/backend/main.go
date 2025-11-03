@@ -35,7 +35,6 @@ import (
 	_ "github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -141,10 +140,8 @@ func main() {
 	formService := form.NewService(logger, dbPool)
 	questionService := question.NewService(logger, question.New(dbPool))
 	inboxService := inbox.NewService(logger, dbPool)
-	responseService := response.NewService(logger, dbPool)
-	submitService := submit.NewService(logger, formService, questionService, responseService)
 	responseService := response.NewService(logger, response.New(dbPool))
-	submitService := submit.NewService(logger, questionService, responseService)
+	submitService := submit.NewService(logger, formService, questionService, responseService)
 	publishService := publish.NewService(logger, distributeService, formService, inboxService)
 
 	// Handler
@@ -217,14 +214,16 @@ func main() {
 	mux.Handle("PUT /api/orgs/{slug}/units/{id}", tenantAuthMiddleware.HandlerFunc(unitHandler.UpdateUnit))
 	mux.Handle("DELETE /api/orgs/{slug}", tenantAuthMiddleware.HandlerFunc(unitHandler.DeleteOrg))
 	mux.Handle("DELETE /api/orgs/{slug}/units/{id}", tenantAuthMiddleware.HandlerFunc(unitHandler.DeleteUnit))
-	mux.Handle("POST /api/orgs/{slug}/units/{unitId}/forms", tenantAuthMiddleware.HandlerFunc(unitHandler.CreateFormUnderUnit))
-	mux.Handle("GET /api/orgs/{slug}/units/{unitId}/forms", tenantBasicMiddleware.HandlerFunc(unitHandler.ListFormsByUnit))
 	mux.Handle("POST /api/orgs/{slug}/members", tenantAuthMiddleware.HandlerFunc(unitHandler.AddOrgMember))
 	mux.Handle("GET /api/orgs/{slug}/members", tenantBasicMiddleware.HandlerFunc(unitHandler.ListOrgMembers))
 	mux.Handle("DELETE /api/orgs/{slug}/members/{member_id}", tenantAuthMiddleware.HandlerFunc(unitHandler.RemoveOrgMember))
 	mux.Handle("POST /api/orgs/{slug}/units/{id}/members", tenantAuthMiddleware.HandlerFunc(unitHandler.AddUnitMember))
 	mux.Handle("GET /api/orgs/{slug}/units/{id}/members", tenantBasicMiddleware.HandlerFunc(unitHandler.ListUnitMembers))
 	mux.Handle("DELETE /api/orgs/{slug}/units/{id}/members/{member_id}", tenantAuthMiddleware.HandlerFunc(unitHandler.RemoveUnitMember))
+
+	// Slug availability and history
+	mux.Handle("GET /api/orgs/{slug}/status", basicMiddleware.HandlerFunc(tenantHandler.GetStatus))
+	mux.Handle("GET /api/orgs/{slug}/history", basicMiddleware.HandlerFunc(tenantHandler.GetStatusWithHistory))
 
 	// List sub-units
 	mux.Handle("GET /api/orgs/{slug}/units", tenantBasicMiddleware.HandlerFunc(unitHandler.ListOrgSubUnits))
@@ -239,6 +238,8 @@ func main() {
 	mux.Handle("DELETE /api/forms/{id}", authMiddleware.HandlerFunc(formHandler.DeleteHandler))
 	mux.Handle("POST /api/forms/recipients/preview", authMiddleware.HandlerFunc(publishHandler.PreviewForm))
 	mux.Handle("POST /api/forms/{id}/publish", authMiddleware.HandlerFunc(publishHandler.PublishForm))
+	mux.Handle("POST /api/orgs/{slug}/units/{unitId}/forms", tenantAuthMiddleware.HandlerFunc(formHandler.CreateUnderUnitHandler))
+	mux.Handle("GET /api/orgs/{slug}/units/{unitId}/forms", tenantBasicMiddleware.HandlerFunc(formHandler.ListByUnitHandler))
 
 	// Question routes
 	mux.Handle("GET /api/forms/{formId}/questions", authMiddleware.HandlerFunc(questionHandler.ListHandler))
