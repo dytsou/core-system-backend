@@ -294,9 +294,16 @@ type RefreshToken struct {
 	ExpirationDate pgtype.Timestamptz
 }
 
+type SlugHistory struct {
+	ID        int32
+	Slug      string
+	OrgID     pgtype.UUID
+	CreatedAt pgtype.Timestamptz
+	EndedAt   pgtype.Timestamptz
+}
+
 type Tenant struct {
 	ID         uuid.UUID
-	Slug       string
 	DbStrategy DbStrategy
 	OwnerID    pgtype.UUID
 }
@@ -328,6 +335,13 @@ type User struct {
 	UpdatedAt pgtype.Timestamptz
 }
 
+type UserEmail struct {
+	UserID    uuid.UUID
+	Value     string
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+}
+
 type UserInboxMessage struct {
 	ID         uuid.UUID
 	UserID     uuid.UUID
@@ -335,4 +349,15 @@ type UserInboxMessage struct {
 	IsRead     bool
 	IsStarred  bool
 	IsArchived bool
+}
+
+type UsersWithEmail struct {
+	ID        uuid.UUID
+	Name      pgtype.Text
+	Username  pgtype.Text
+	AvatarUrl pgtype.Text
+	Role      []string
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+	Emails    interface{}
 }

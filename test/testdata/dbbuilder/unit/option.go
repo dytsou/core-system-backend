@@ -11,9 +11,11 @@ type FactoryParams struct {
 	Name        string
 	Description string
 	OrgID       pgtype.UUID
+	Slug        string
 	Metadata    []byte
 	ParentIDs   []uuid.UUID
 	ChildIDs    []uuid.UUID
+	OwnerID     pgtype.UUID
 }
 
 func WithName(name string) Option {

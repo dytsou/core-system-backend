@@ -24,7 +24,8 @@ import (
 )
 
 type Store interface {
-	List(ctx context.Context, userID uuid.UUID) ([]ListRow, error)
+	List(ctx context.Context, userID uuid.UUID, filter *FilterRequest, page int, size int) ([]ListRow, error)
+	Count(ctx context.Context, userID uuid.UUID, filter *FilterRequest) (int64, error)
 	GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (GetByIDRow, error)
 	UpdateByID(ctx context.Context, id uuid.UUID, userID uuid.UUID, arg UserInboxMessageFilter) (UpdateByIDRow, error)
 }
@@ -159,7 +160,23 @@ func (h *Handler) GetMessageContent(ctx context.Context, contentType ContentType
 			span.RecordError(err)
 			return form.Response{}, err
 		}
-		response := form.ToResponse(currentForm)
+		response := form.ToResponse(form.Form{
+			ID:             currentForm.ID,
+			Title:          currentForm.Title,
+			Description:    currentForm.Description,
+			PreviewMessage: currentForm.PreviewMessage,
+			Status:         currentForm.Status,
+			UnitID:         currentForm.UnitID,
+			LastEditor:     currentForm.LastEditor,
+			Deadline:       currentForm.Deadline,
+			CreatedAt:      currentForm.CreatedAt,
+			UpdatedAt:      currentForm.UpdatedAt,
+		}, currentForm.UnitName.String, currentForm.OrgName.String, user.User{
+			ID:        currentForm.LastEditor,
+			Name:      currentForm.LastEditorName,
+			Username:  currentForm.LastEditorUsername,
+			AvatarUrl: currentForm.LastEditorAvatarUrl,
+		}, user.ConvertEmailsToSlice(currentForm.LastEditorEmail))
 		return response, nil
 	case ContentTypeText:
 		return nil, nil
@@ -180,13 +197,27 @@ func (h *Handler) ListHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Parse filter parameters
+	filter, err := ParseFilterRequest(r)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, err, logger)
+		return
+	}
+
 	currentUser, ok := user.GetFromContext(traceCtx)
 	if !ok {
 		h.problemWriter.WriteError(traceCtx, w, internal.ErrNoUserInContext, logger)
 		return
 	}
 
-	messages, err := h.store.List(traceCtx, currentUser.ID)
+	// Get total count for pagination
+	total, err := h.store.Count(traceCtx, currentUser.ID, filter)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, err, logger)
+		return
+	}
+
+	messages, err := h.store.List(traceCtx, currentUser.ID, filter, request.Page, request.Size)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
@@ -201,7 +232,7 @@ func (h *Handler) ListHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	response := factory.NewResponse(mappedMessage, len(mappedMessage), request.Page, request.Size)
+	response := factory.NewResponse(mappedMessage, int(total), request.Page, request.Size)
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
 }

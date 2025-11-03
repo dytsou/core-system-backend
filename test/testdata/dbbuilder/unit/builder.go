@@ -1,12 +1,10 @@
 package unitbuilder
 
 import (
-	"context"
-
 	"NYCU-SDC/core-system-backend/internal/unit"
 	"NYCU-SDC/core-system-backend/test/testdata"
 	"NYCU-SDC/core-system-backend/test/testdata/dbbuilder"
-
+	"context"
 	"testing"
 
 	"github.com/google/uuid"
@@ -33,6 +31,7 @@ func (b Builder) Create(unitType unit.UnitType, opts ...Option) unit.Unit {
 	p := &FactoryParams{
 		Name:        testdata.RandomName(),
 		Description: testdata.RandomDescription(),
+		Slug:        testdata.RandomSlug(),
 		Metadata:    []byte("{}"),
 	}
 	for _, opt := range opts {
@@ -43,12 +42,18 @@ func (b Builder) Create(unitType unit.UnitType, opts ...Option) unit.Unit {
 		p.ParentIDs = append(p.ParentIDs, uuid.UUID(p.OrgID.Bytes))
 	}
 
+	var parentID pgtype.UUID
+	if unitType == unit.UnitTypeUnit && p.OrgID.Valid {
+		parentID = p.OrgID
+	}
+
 	unitRow, err := queries.Create(context.Background(), unit.CreateParams{
 		Name:        pgtype.Text{String: p.Name, Valid: p.Name != ""},
 		OrgID:       p.OrgID,
 		Description: pgtype.Text{String: p.Description, Valid: p.Description != ""},
 		Metadata:    p.Metadata,
 		Type:        unitType,
+		ParentID:    parentID,
 	})
 	require.NoError(b.t, err)
 
@@ -65,10 +70,10 @@ func (b Builder) Create(unitType unit.UnitType, opts ...Option) unit.Unit {
 	return unitRow
 }
 
-func (b Builder) AddMember(unitID, memberID uuid.UUID) unit.UnitMember {
+func (b Builder) AddMember(unitID uuid.UUID, memberEmail string) unit.AddMemberRow {
 	member, err := b.Queries().AddMember(context.Background(), unit.AddMemberParams{
-		UnitID:   unitID,
-		MemberID: memberID,
+		UnitID:      unitID,
+		MemberEmail: memberEmail,
 	})
 	require.NoError(b.t, err)
 	return member

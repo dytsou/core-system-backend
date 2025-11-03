@@ -80,9 +80,10 @@ func (s *Service) Delete(ctx context.Context, formID uuid.UUID, id uuid.UUID) er
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "delete question")
 		span.RecordError(err)
+		return err
 	}
 
-	return err
+	return nil
 }
 
 func (s *Service) ListByFormID(ctx context.Context, formID uuid.UUID) ([]Answerable, error) {

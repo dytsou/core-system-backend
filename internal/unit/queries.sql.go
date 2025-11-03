@@ -13,22 +13,43 @@ import (
 )
 
 const addMember = `-- name: AddMember :one
-INSERT INTO unit_members (unit_id, member_id)
-VALUES ($1, $2)
-ON CONFLICT (unit_id, member_id) DO UPDATE
-    SET member_id = EXCLUDED.member_id
-RETURNING unit_id, member_id
+WITH inserted_member AS (
+    INSERT INTO unit_members (unit_id, member_id)
+    SELECT $1, user_emails.user_id
+    FROM user_emails
+        WHERE user_emails.value = $2
+    ON CONFLICT (unit_id, member_id) DO UPDATE
+        SET member_id = EXCLUDED.member_id
+    RETURNING unit_id, member_id
+)
+SELECT um.unit_id, um.member_id, u.name, u.username, u.avatar_url
+FROM inserted_member um
+LEFT JOIN users u ON u.id = um.member_id
 `
 
 type AddMemberParams struct {
-	UnitID   uuid.UUID
-	MemberID uuid.UUID
+	UnitID      uuid.UUID
+	MemberEmail string
 }
 
-func (q *Queries) AddMember(ctx context.Context, arg AddMemberParams) (UnitMember, error) {
-	row := q.db.QueryRow(ctx, addMember, arg.UnitID, arg.MemberID)
-	var i UnitMember
-	err := row.Scan(&i.UnitID, &i.MemberID)
+type AddMemberRow struct {
+	UnitID    uuid.UUID
+	MemberID  uuid.UUID
+	Name      pgtype.Text
+	Username  pgtype.Text
+	AvatarUrl pgtype.Text
+}
+
+func (q *Queries) AddMember(ctx context.Context, arg AddMemberParams) (AddMemberRow, error) {
+	row := q.db.QueryRow(ctx, addMember, arg.UnitID, arg.MemberEmail)
+	var i AddMemberRow
+	err := row.Scan(
+		&i.UnitID,
+		&i.MemberID,
+		&i.Name,
+		&i.Username,
+		&i.AvatarUrl,
+	)
 	return i, err
 }
 
@@ -81,10 +102,10 @@ func (q *Queries) Delete(ctx context.Context, id uuid.UUID) error {
 }
 
 const getAllOrganizations = `-- name: GetAllOrganizations :many
-SELECT u.id, u.org_id, u.parent_id, u.type, u.name, u.description, u.metadata, u.created_at, u.updated_at, t.slug
+SELECT u.id, u.org_id, u.parent_id, u.type, u.name, u.description, u.metadata, u.created_at, u.updated_at, sh.slug
 FROM units u
-LEFT JOIN tenants t ON t.id = u.id
-WHERE u.type = 'organization'
+LEFT JOIN slug_history sh ON sh.org_id = u.id
+WHERE u.type = 'organization' AND sh.ended_at IS NULL
 `
 
 type GetAllOrganizationsRow struct {
@@ -153,10 +174,10 @@ func (q *Queries) GetByID(ctx context.Context, id uuid.UUID) (Unit, error) {
 }
 
 const getOrganizationByIDWithSlug = `-- name: GetOrganizationByIDWithSlug :one
-SELECT u.id, u.org_id, u.parent_id, u.type, u.name, u.description, u.metadata, u.created_at, u.updated_at, t.slug
+SELECT u.id, u.org_id, u.parent_id, u.type, u.name, u.description, u.metadata, u.created_at, u.updated_at, sh.slug
 FROM units u
-LEFT JOIN tenants t ON t.id = u.id
-WHERE u.id = $1 AND u.type = 'organization'
+LEFT JOIN slug_history sh ON sh.org_id = u.id
+WHERE u.id = $1 AND u.type = 'organization' AND  sh.ended_at IS NULL
 `
 
 type GetOrganizationByIDWithSlugRow struct {
@@ -194,9 +215,10 @@ const listMembers = `-- name: ListMembers :many
 SELECT m.member_id,
        u.name,
        u.username,
-       u.avatar_url
+       u.avatar_url,
+       u.emails
 FROM unit_members m
-JOIN users u ON u.id = m.member_id
+JOIN users_with_emails u ON u.id = m.member_id
 WHERE m.unit_id = $1
 `
 
@@ -205,6 +227,7 @@ type ListMembersRow struct {
 	Name      pgtype.Text
 	Username  pgtype.Text
 	AvatarUrl pgtype.Text
+	Emails    interface{}
 }
 
 func (q *Queries) ListMembers(ctx context.Context, unitID uuid.UUID) ([]ListMembersRow, error) {
@@ -221,6 +244,7 @@ func (q *Queries) ListMembers(ctx context.Context, unitID uuid.UUID) ([]ListMemb
 			&i.Name,
 			&i.Username,
 			&i.AvatarUrl,
+			&i.Emails,
 		); err != nil {
 			return nil, err
 		}

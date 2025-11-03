@@ -1,9 +1,11 @@
-name: Dev Backend
+name: Release
 
 on:
   push:
     branches:
       - main
+    tags:
+      - v*
 
 jobs:
   Lint:
@@ -69,11 +71,19 @@ jobs:
         with:
           mockery-version: '3.5.5'
 
-      - name: Build
+      - name: Build Dev
+        if: ${{ contains(github.ref, 'refs/heads/main') }}
         run: |
           go mod download
           make gen
-          go build -o bin/backend cmd/backend/main.go
+          go build -ldflags="-X 'main.BuildTime=$(date --utc '+%FT%TZ')' -X 'main.CommitHash=${{ github.sha }}'" -o bin/backend cmd/backend/main.go
+
+      - name: Build Stage
+        if: ${{ contains(github.ref, 'refs/tags/') }}
+        run: |
+          go mod download
+          make gen
+          go build -ldflags="-X 'main.BuildTime=$(date --utc '+%FT%TZ')' -X 'main.CommitHash=${{ github.sha }}' -X 'main.Version=${{ github.ref_name }}'" -o bin/backend cmd/backend/main.go
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -86,6 +96,7 @@ jobs:
 
       - name: Build and Push Docker image
         uses: docker/build-push-action@v6
+        if: ${{ contains(github.ref, 'refs/heads/main') }}
         with:
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -95,13 +106,27 @@ jobs:
             nycusdc/core-system-backend:${{ github.sha }}
           context: .
 
-  Deploy:
+      - name: Build and Push Docker image
+        uses: docker/build-push-action@v6
+        if: ${{ contains(github.ref, 'refs/tags/') }}
+        with:
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          push: true
+          tags: |
+            nycusdc/core-system-backend:stage
+            nycusdc/core-system-backend:${{ github.ref_name }}
+            nycusdc/core-system-backend:${{ github.sha }}
+          context: .
+
+  Deploy-Dev:
     needs: Build
     runs-on: ubuntu-latest
+    if: ${{ contains(github.ref, 'refs/heads/main') }}
     steps:
       - name: Trigger n8n Deploy Webhook
         run: |
-          curl --location --fail-with-body --request POST 'https://webhook.eng.sdc.nycu.club/webhook/deploy' \
+          curl --location --fail-with-body --request POST 'https://webhook.sdc.nycu.club/webhook/deploy' \
             --header 'Content-Type: application/json' \
             --header "x-deploy-token: ${{ secrets.N8N_DEPLOY_TOKEN }}" \
             --data-raw '{
@@ -144,7 +169,62 @@ jobs:
                 "enable": true,
                 "title": "Endpoint",
                 "name": "dev.core-system.sdc.nycu.club",
-                "value": "gcp-eng-deploy:internal"
+                "value": "default-eng-deploy:internal"
+              }
+            }
+          }'
+
+  Deploy-Stage:
+    needs: Build
+    runs-on: ubuntu-latest
+    if: ${{ contains(github.ref, 'refs/tags/') }}
+    steps:
+      - name: Trigger n8n Deploy Webhook
+        run: |
+          curl --location --fail-with-body --request POST 'https://webhook.sdc.nycu.club/webhook/deploy' \
+            --header 'Content-Type: application/json' \
+            --header "x-deploy-token: ${{ secrets.N8N_DEPLOY_TOKEN }}" \
+            --data-raw '{
+            "source": {
+              "title": "Core System",
+              "repo": "${{ github.repository }}",
+              "branch": "${{ github.head_ref || github.ref_name }}",
+              "commit": "${{ github.sha }}"
+            },
+            "method": "deploy",
+            "metadata": {
+              "environment": "stage",
+              "component": "backend ${{ github.ref_name }}"
+            },
+            "setup": {
+              "inject_secret": {
+                "enable": true,
+                "project": "core-system",
+                "environment": "stage",
+                "secrets": [
+                  {
+                    "path": "/google-oauth",
+                    "secret_name": "CLIENT_ID",
+                    "env_name": "GOOGLE_OAUTH_CLIENT_ID"
+                  },
+                  {
+                    "path": "/google-oauth",
+                    "secret_name": "CLIENT_SECRET",
+                    "env_name": "GOOGLE_OAUTH_CLIENT_SECRET"
+                  }
+                ]
+              }
+            },
+            "post": {
+              "notify_discord": {
+                "enable": true,
+                "channel": "core-system-activity"
+              },
+              "setup_domain": {
+                "enable": true,
+                "title": "Endpoint",
+                "name": "stage.core-system.sdc.nycu.club",
+                "value": "default-eng-deploy:internal"
               }
             }
           }'

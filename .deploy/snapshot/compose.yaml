@@ -14,11 +14,11 @@ services:
       ENV: "snapshot"
       HOST: "0.0.0.0"
       BASE_URL: "https://$VERSION.core-system.sdc.nycu.club"
-      OAUTH_PROXY_BASE_URL: "https://oauth-proxy.eng.sdc.nycu.club"
+      OAUTH_PROXY_BASE_URL: "https://oauth-proxy.sdc.nycu.club"
       OAUTH_PROXY_SECRET: ${OAUTH_PROXY_TOKEN}
       DATABASE_URL: postgres://postgres:password@postgres:5432/core_system?sslmode=disable
       MIGRATION_SOURCE: file:///app/migrations
-      OTEL_COLLECTOR_URL: 10.140.0.3:4317
+      OTEL_COLLECTOR_URL: 10.1.252.100:4317
       GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID}
       GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET}
       VERSION: $VERSION
@@ -32,7 +32,7 @@ services:
       - "traefik.http.routers.core-system-backend-$VERSION.tls.certresolver=cloudflare"
 
   postgres:
-    image: postgres:latest
+    image: postgres:18
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
