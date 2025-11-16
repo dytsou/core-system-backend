@@ -28,7 +28,8 @@ type Store interface {
 	GetByID(ctx context.Context, id uuid.UUID, unitType Type) (Unit, error)
 	GetAllOrganizations(ctx context.Context) ([]Organization, error)
 	ListOrganizationsOfUser(ctx context.Context, userID uuid.UUID) ([]Organization, error)
-	Update(ctx context.Context, id uuid.UUID, name string, description string, metadata []byte) (Unit, error)
+	UpdateOrg(ctx context.Context, originalSlug string, slug string, name string, description string, dbStrategy string, metadata []byte) (Unit, error)
+	UpdateUnit(ctx context.Context, id uuid.UUID, name string, description string, metadata []byte) (Unit, error)
 	Delete(ctx context.Context, id uuid.UUID, unitType Type) error
 	AddParent(ctx context.Context, id uuid.UUID, parentID uuid.UUID) (Unit, error)
 	ListSubUnits(ctx context.Context, id uuid.UUID, unitType Type) ([]Unit, error)
@@ -333,31 +334,6 @@ func (h *Handler) GetAllOrganizations(w http.ResponseWriter, r *http.Request) {
 	handlerutil.WriteJSONResponse(w, http.StatusOK, orgResponses)
 }
 
-func (h *Handler) ListOrganizationsOfCurrentUser(w http.ResponseWriter, r *http.Request) {
-	traceCtx, span := h.tracer.Start(r.Context(), "ListOrganizationsOfCurrentUser")
-	defer span.End()
-	logger := logutil.WithContext(traceCtx, h.logger)
-
-	currentUser, ok := user.GetFromContext(traceCtx)
-	if !ok {
-		h.problemWriter.WriteError(traceCtx, w, internal.ErrNoUserInContext, logger)
-		return
-	}
-
-	organizationsOfUser, err := h.store.ListOrganizationsOfUser(traceCtx, currentUser.ID)
-	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get all organizations of user: %w", err), logger)
-		return
-	}
-
-	orgResponses := make([]OrganizationResponse, 0, len(organizationsOfUser))
-	for _, org := range organizationsOfUser {
-		orgResponses = append(orgResponses, convertOrgResponse(org.Unit, org.Slug))
-	}
-
-	handlerutil.WriteJSONResponse(w, http.StatusOK, orgResponses)
-}
-
 func (h *Handler) UpdateUnit(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "UpdateUnit")
 	defer span.End()
@@ -382,7 +358,7 @@ func (h *Handler) UpdateUnit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updatedUnit, err := h.store.Update(traceCtx, id, req.Name, req.Description, metadataBytes)
+	updatedUnit, err := h.store.UpdateUnit(traceCtx, id, req.Name, req.Description, metadataBytes)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to update unit: %w", err), logger)
 		return
@@ -408,52 +384,15 @@ func (h *Handler) UpdateOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, orgID, err := h.tenantStore.GetSlugStatus(traceCtx, slug)
-	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get org ID by slug: %w", err), logger)
-		return
-	}
-
-	if req.Slug != slug {
-		matched, err := regexp.MatchString(slugPattern, req.Slug)
-		if err != nil || !matched {
-			h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid slug format: must contain only alphanumeric characters, dashes, and underscores"), logger)
-			return
-		}
-
-		exists, err := h.tenantStore.SlugExists(traceCtx, req.Slug)
-		if err != nil {
-			h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to validate slug uniqueness: %w", err), logger)
-			return
-		}
-		if exists {
-			h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("slug already in use"), logger)
-			return
-		}
-	}
-	// TODO: Slug Validator
-
 	metadataBytes, err := json.Marshal(req.Metadata)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to marshal metadata: %w", err), logger)
 		return
 	}
 
-	var dbStrategy tenant.DbStrategy
+	// TODO: Slug Validator
 
-	if req.DbStrategy == "" || req.DbStrategy == string(DbStrategyShared) {
-		dbStrategy = "shared"
-	} else if req.DbStrategy == string(DbStrategyIsolated) {
-		dbStrategy = "isolated"
-	}
-
-	_, err = h.tenantStore.Update(traceCtx, orgID, req.Slug, dbStrategy)
-	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to update organization tenant: %w", err), logger)
-		return
-	}
-
-	updatedOrg, err := h.store.Update(traceCtx, orgID, req.Name, req.Description, metadataBytes)
+	updatedOrg, err := h.store.UpdateOrg(traceCtx, slug, req.Slug, req.Name, req.Description, req.DbStrategy, metadataBytes)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to update organization: %w", err), logger)
 		return
