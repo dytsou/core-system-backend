@@ -27,6 +27,7 @@ type Store interface {
 	CreateUnit(ctx context.Context, name string, description string, slug string, metadata []byte) (Unit, error)
 	GetByID(ctx context.Context, id uuid.UUID, unitType Type) (Unit, error)
 	GetAllOrganizations(ctx context.Context) ([]Organization, error)
+	ListOrganizationsOfUser(ctx context.Context, userID uuid.UUID) ([]Organization, error)
 	UpdateOrg(ctx context.Context, originalSlug string, slug string, name string, description string, dbStrategy string, metadata []byte) (Unit, error)
 	UpdateUnit(ctx context.Context, id uuid.UUID, name string, description string, metadata []byte) (Unit, error)
 	Delete(ctx context.Context, id uuid.UUID, unitType Type) error
@@ -333,6 +334,31 @@ func (h *Handler) GetAllOrganizations(w http.ResponseWriter, r *http.Request) {
 	handlerutil.WriteJSONResponse(w, http.StatusOK, orgResponses)
 }
 
+func (h *Handler) ListOrganizationsOfCurrentUser(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "ListOrganizationsOfCurrentUser")
+	defer span.End()
+	logger := logutil.WithContext(traceCtx, h.logger)
+
+	currentUser, ok := user.GetFromContext(traceCtx)
+	if !ok {
+		h.problemWriter.WriteError(traceCtx, w, internal.ErrNoUserInContext, logger)
+		return
+	}
+
+	organizationsOfUser, err := h.store.ListOrganizationsOfUser(traceCtx, currentUser.ID)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to get all organizations of user: %w", err), logger)
+		return
+	}
+
+	orgResponses := make([]OrganizationResponse, 0, len(organizationsOfUser))
+	for _, org := range organizationsOfUser {
+		orgResponses = append(orgResponses, convertOrgResponse(org.Unit, org.Slug))
+	}
+
+	handlerutil.WriteJSONResponse(w, http.StatusOK, orgResponses)
+}
+
 func (h *Handler) UpdateUnit(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "UpdateUnit")
 	defer span.End()
@@ -392,7 +418,6 @@ func (h *Handler) UpdateOrg(w http.ResponseWriter, r *http.Request) {
 	// TODO: Slug Validator
 
 	updatedOrg, err := h.store.UpdateOrg(traceCtx, slug, req.Slug, req.Name, req.Description, req.DbStrategy, metadataBytes)
-
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to update organization: %w", err), logger)
 		return
