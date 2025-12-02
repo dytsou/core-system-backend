@@ -1,0 +1,7 @@
+# k6 test results
+*.json
+!package.json
+
+# k6 logs
+*.log
+
