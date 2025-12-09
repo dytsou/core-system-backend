@@ -61,9 +61,13 @@ func (h *Handler) ChatHandler(w http.ResponseWriter, r *http.Request) {
 		var fileContent string
 
 		file, _, err := r.FormFile("file")
-		switch {
-		case err == nil:
-			defer file.Close()
+		switch err {
+		case nil:
+			defer func() {
+				if closeErr := file.Close(); closeErr != nil {
+					logger.Warn("failed to close uploaded file", zap.Error(closeErr))
+				}
+			}()
 
 			limited := io.LimitReader(file, maxUploadSizeBytes+1)
 			data, readErr := io.ReadAll(limited)
@@ -76,7 +80,7 @@ func (h *Handler) ChatHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			fileContent = string(data)
-		case err == http.ErrMissingFile:
+		case http.ErrMissingFile:
 			// no file provided; prompt may still be present
 		default:
 			h.problemWriter.WriteError(traceCtx, w, err, logger)

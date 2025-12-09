@@ -74,7 +74,11 @@ func (s *Service) Chat(ctx context.Context, req GeminiAPIRequest) (Response, err
 		span.RecordError(err)
 		return Response{}, fmt.Errorf("failed to send request to Gemini API: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
 	// Read response body
 	body, err := io.ReadAll(resp.Body)
@@ -86,12 +90,13 @@ func (s *Service) Chat(ctx context.Context, req GeminiAPIRequest) (Response, err
 
 	// Check status code
 	if resp.StatusCode != http.StatusOK {
+		err := fmt.Errorf("gemini API returned status %d: %s", resp.StatusCode, string(body))
 		logger.Error("Gemini API returned error",
 			zap.Int("status_code", resp.StatusCode),
 			zap.String("response", string(body)),
 		)
-		span.RecordError(fmt.Errorf("Gemini API returned status %d: %s", resp.StatusCode, string(body)))
-		return Response{}, fmt.Errorf("Gemini API returned status %d: %s", resp.StatusCode, string(body))
+		span.RecordError(err)
+		return Response{}, err
 	}
 
 	// Parse response
