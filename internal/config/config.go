@@ -38,6 +38,7 @@ type Config struct {
 	OtelCollectorUrl          string                  `yaml:"otel_collector_url" envconfig:"OTEL_COLLECTOR_URL"`
 	AllowOrigins              []string                `yaml:"allow_origins"      envconfig:"ALLOW_ORIGINS"`
 	GoogleOauth               googleOauth.GoogleOauth `yaml:"google_oauth"`
+	GeminiAPIKey              string                  `yaml:"gemini_api_key"      envconfig:"GEMINI_API_KEY"`
 
 	AccessTokenExpiration  time.Duration `yaml:"-"`
 	RefreshTokenExpiration time.Duration `yaml:"-"`
@@ -134,6 +135,7 @@ func Load() (Config, *LogBuffer) {
 		RefreshTokenExpirationStr: "720h",
 		OtelCollectorUrl:          "",
 		GoogleOauth:               googleOauth.GoogleOauth{},
+		GeminiAPIKey:              "",
 	}
 
 	var err error
@@ -203,6 +205,7 @@ func FromEnv(config *Config, logger *LogBuffer) (*Config, error) {
 		DatabaseURL:       os.Getenv("DATABASE_URL"),
 		MigrationSource:   os.Getenv("MIGRATION_SOURCE"),
 		OtelCollectorUrl:  os.Getenv("OTEL_COLLECTOR_URL"),
+		GeminiAPIKey:      os.Getenv("GEMINI_API_KEY"),
 		GoogleOauth: googleOauth.GoogleOauth{
 			ClientID:     os.Getenv("GOOGLE_OAUTH_CLIENT_ID"),
 			ClientSecret: os.Getenv("GOOGLE_OAUTH_CLIENT_SECRET"),
@@ -224,6 +227,7 @@ func FromFlags(config *Config) (*Config, error) {
 	flag.StringVar(&flagConfig.DatabaseURL, "database_url", "", "database url")
 	flag.StringVar(&flagConfig.MigrationSource, "migration_source", "", "migration source")
 	flag.StringVar(&flagConfig.OtelCollectorUrl, "otel_collector_url", "", "OpenTelemetry collector URL")
+	flag.StringVar(&flagConfig.GeminiAPIKey, "gemini_api_key", "", "Gemini API key")
 	flag.StringVar(&flagConfig.GoogleOauth.ClientID, "google_oauth_client_id", "", "Google OAuth client ID")
 	flag.StringVar(&flagConfig.GoogleOauth.ClientSecret, "google_oauth_client_secret", "", "Google OAuth client secret")
 

@@ -38,3 +38,6 @@ otel_collector_url: ""
 google_oauth:
   client_id: "your-google-oauth-client-id"
   client_secret: "your-google-oauth-client-secret"
+
+# Gemini API key
+gemini_api_key: "your-gemini-api-key"
