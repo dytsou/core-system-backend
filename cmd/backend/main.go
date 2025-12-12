@@ -264,8 +264,9 @@ func main() {
 	mux.Handle("GET /api/inbox/{id}", authMiddleware.HandlerFunc(inboxHandler.GetHandler))
 	mux.Handle("PUT /api/inbox/{id}", authMiddleware.HandlerFunc(inboxHandler.UpdateHandler))
 
-	// Gemini API route
-	mux.Handle("POST /api/gemini/chat", authMiddleware.HandlerFunc(geminiHandler.ChatHandler))
+	// Gemini API routes
+	mux.Handle("POST /api/gemini/chat", basicMiddleware.HandlerFunc(geminiHandler.ChatHandler))
+	mux.Handle("POST /api/gemini/analyze", basicMiddleware.HandlerFunc(geminiHandler.AnalyzeLogHandler))
 
 	// handle interrupt signal
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

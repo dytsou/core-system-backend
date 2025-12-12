@@ -1,9 +1,15 @@
 package gemini
 
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+)
+
 // Request represents the incoming request to the Gemini API endpoint.
 // Prompt is optional when a file upload supplies the content instead.
 type Request struct {
-	Prompt string `json:"prompt"`
+	Prompt json.RawMessage `json:"prompt"`
 }
 
 // GeminiAPIRequest represents the request format for Gemini API
@@ -29,7 +35,7 @@ func (r *Request) ToGeminiAPIRequest() GeminiAPIRequest {
 			{
 				Parts: []Part{
 					{
-						Text: r.Prompt,
+						Text: string(r.Prompt),
 					},
 				},
 			},
@@ -87,4 +93,78 @@ func (g *GeminiAPIResponse) ToResponse() Response {
 	return Response{
 		Text: "",
 	}
+}
+
+// AnalysisMode represents the classification mode from triage stage
+type AnalysisMode string
+
+const (
+	ModeClientConfig           AnalysisMode = "MODE_CLIENT_CONFIG"
+	ModeDatabaseLogic          AnalysisMode = "MODE_DATABASE_LOGIC"
+	ModePerformanceConcurrency AnalysisMode = "MODE_PERFORMANCE_CONCURRENCY"
+)
+
+// TriageRequest represents the request for Stage 1 triage analysis
+type TriageRequest struct {
+	SystemInstruction string `json:"system_instruction"`
+	FileContent       string `json:"file_content"`
+}
+
+// TriageResponse represents the JSON response from Stage 1 triage
+type TriageResponse struct {
+	AnalysisMode     AnalysisMode `json:"analysis_mode"`
+	DetectedKeywords []string     `json:"detected_keywords"`
+	PrimaryErrorLog  string       `json:"primary_error_log"`
+}
+
+// ExpertRequest represents the request for Stage 2 expert analysis
+type ExpertRequest struct {
+	SystemInstruction string `json:"system_instruction"`
+	FileContent       string `json:"file_content"`
+}
+
+// ExpertResponse represents the response from Stage 2 expert analysis
+// This is a free-form text response, not structured JSON
+type ExpertResponse struct {
+	Text string `json:"text"`
+}
+
+// AnalyzeLogRequest represents the request for the two-stage log analysis
+type AnalyzeLogRequest struct {
+	TriagePrompt  string            `json:"triage_prompt" validate:"required"`  // Stage 1 prompt
+	ExpertPrompts map[string]string `json:"expert_prompts" validate:"required"` // Stage 2 prompts: key is analysis_mode, value is prompt
+	FileContent   string            `json:"file_content" validate:"required"`   // Log file content
+}
+
+// ParseTriageResponse attempts to parse a JSON response from the triage stage
+// It handles both pure JSON and JSON wrapped in markdown code blocks
+func ParseTriageResponse(text string) (*TriageResponse, error) {
+	// Remove markdown code blocks if present
+	cleaned := strings.TrimSpace(text)
+	if strings.HasPrefix(cleaned, "```json") {
+		cleaned = strings.TrimPrefix(cleaned, "```json")
+		cleaned = strings.TrimSuffix(cleaned, "```")
+		cleaned = strings.TrimSpace(cleaned)
+	} else if strings.HasPrefix(cleaned, "```") {
+		cleaned = strings.TrimPrefix(cleaned, "```")
+		cleaned = strings.TrimSuffix(cleaned, "```")
+		cleaned = strings.TrimSpace(cleaned)
+	}
+
+	var triageResp TriageResponse
+	if err := json.Unmarshal([]byte(cleaned), &triageResp); err != nil {
+		return nil, err
+	}
+
+	return &triageResp, nil
+}
+
+// GetExpertPrompt returns the appropriate expert prompt from the provided map based on the analysis mode
+func GetExpertPrompt(expertPrompts map[string]string, mode AnalysisMode) (string, error) {
+	modeStr := string(mode)
+	prompt, exists := expertPrompts[modeStr]
+	if !exists {
+		return "", fmt.Errorf("expert prompt not found for mode: %s", modeStr)
+	}
+	return prompt, nil
 }
