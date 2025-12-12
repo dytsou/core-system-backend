@@ -24,6 +24,8 @@ const (
 
 type ChatOperator interface {
 	Chat(ctx context.Context, req GeminiAPIRequest) (Response, error)
+	ExtractUniqueCallers(ctx context.Context) ([]string, error)
+	GetFileContent(ctx context.Context, filenames []string) (map[string]string, error)
 }
 
 type Handler struct {
@@ -141,4 +143,24 @@ func (h *Handler) ChatHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
+}
+
+func (h *Handler) CallerHandler(w http.ResponseWriter, r *http.Request) {
+	traceCtx, span := h.tracer.Start(r.Context(), "CallerHandler")
+	defer span.End()
+	logger := logutil.WithContext(traceCtx, h.logger)
+
+	callers, err := h.operator.ExtractUniqueCallers(traceCtx)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, err, logger)
+		return
+	}
+
+	contents, err := h.operator.GetFileContent(traceCtx, callers)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, err, logger)
+		return
+	}
+
+	handlerutil.WriteJSONResponse(w, http.StatusOK, contents)
 }

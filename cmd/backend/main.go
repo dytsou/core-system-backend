@@ -145,7 +145,7 @@ func main() {
 	responseService := response.NewService(logger, dbPool)
 	submitService := submit.NewService(logger, formService, questionService, responseService)
 	publishService := publish.NewService(logger, distributeService, formService, inboxService)
-	geminiService := gemini.NewService(logger, cfg.GeminiAPIKey)
+	geminiService := gemini.NewService(logger, cfg.GeminiAPIKey, cfg.ErrLogPath)
 
 	// Handler
 	authHandler := auth.NewHandler(logger, validator, problemWriter, userService, jwtService, jwtService, cfg.BaseURL, cfg.OauthProxyBaseURL, Environment, cfg.Dev, cfg.AccessTokenExpiration, cfg.RefreshTokenExpiration, cfg.GoogleOauth)
@@ -266,6 +266,7 @@ func main() {
 
 	// Gemini API route
 	mux.Handle("POST /api/gemini/chat", authMiddleware.HandlerFunc(geminiHandler.ChatHandler))
+	mux.Handle("GET /api/gemini/caller", basicMiddleware.HandlerFunc(geminiHandler.CallerHandler))
 
 	// handle interrupt signal
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

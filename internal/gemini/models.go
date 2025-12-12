@@ -88,3 +88,16 @@ func (g *GeminiAPIResponse) ToResponse() Response {
 		Text: "",
 	}
 }
+
+type LogMessage struct {
+	Caller string `json:"caller"`
+}
+type Details struct {
+	Message string `json:"message"`
+}
+type TimelineEntry struct {
+	Details *Details `json:"details"`
+}
+type Incident struct {
+	Timeline []TimelineEntry `json:"timeline"`
+}
