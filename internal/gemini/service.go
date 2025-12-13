@@ -150,19 +150,129 @@ func (s *Service) ExtractUniqueCallers(ctx context.Context) ([]string, error) {
 
 	callersSet := make(map[string]struct{})
 
-	for _, t := range incident.Timeline {
-		if t.Details == nil || t.Details.Message == "" {
-			continue
-		}
-
-		// details.message is json
+	for _, entry := range incident.Timeline {
 		var msg LogMessage
-		err := json.Unmarshal([]byte(t.Details.Message), &msg)
-		if err != nil {
+
+		// Handle different timeline formats
+		switch v := entry.(type) {
+		case string:
+			// New format: entry is a JSON string directly (e.g., incident_0001_59e41abb-full.json)
+			err := json.Unmarshal([]byte(v), &msg)
+			if err != nil {
+				continue
+			}
+		case map[string]interface{}:
+			// Old format: entry is an object with details.message
+			details, ok := v["details"].(map[string]interface{})
+			if !ok {
+				continue
+			}
+			message, ok := details["message"].(string)
+			if !ok || message == "" {
+				continue
+			}
+			err := json.Unmarshal([]byte(message), &msg)
+			if err != nil {
+				continue
+			}
+		default:
+			// Try to unmarshal as old format TimelineEntry
+			entryBytes, err := json.Marshal(entry)
+			if err != nil {
+				continue
+			}
+			var timelineEntry TimelineEntry
+			if err := json.Unmarshal(entryBytes, &timelineEntry); err != nil {
+				continue
+			}
+			if timelineEntry.Details == nil || timelineEntry.Details.Message == "" {
+				continue
+			}
+			err = json.Unmarshal([]byte(timelineEntry.Details.Message), &msg)
+			if err != nil {
+				continue
+			}
+		}
+
+		// Extract filename from caller
+		if msg.Caller == "" {
 			continue
 		}
 
-		// pass the non-json message
+		parts := strings.Split(msg.Caller, ":")
+		filename := parts[0]
+		callersSet[filename] = struct{}{}
+	}
+
+	callers := make([]string, 0, len(callersSet))
+	for c := range callersSet {
+		callers = append(callers, c)
+	}
+	sort.Strings(callers)
+
+	return callers, nil
+}
+
+// ExtractUniqueCallersFromContent extracts unique caller filenames from log content string
+// This is similar to ExtractUniqueCallers but works with content instead of reading from file
+func (s *Service) ExtractUniqueCallersFromContent(ctx context.Context, content string) ([]string, error) {
+	_, span := s.tracer.Start(ctx, "ExtractUniqueCallersFromContent")
+	defer span.End()
+	logger := logutil.WithContext(ctx, s.logger)
+
+	var incident Incident
+	if err := json.Unmarshal([]byte(content), &incident); err != nil {
+		logger.Error("failed to unmarshal log content", zap.Error(err))
+		span.RecordError(err)
+		return nil, err
+	}
+
+	callersSet := make(map[string]struct{})
+
+	for _, entry := range incident.Timeline {
+		var msg LogMessage
+
+		// Handle different timeline formats
+		switch v := entry.(type) {
+		case string:
+			err := json.Unmarshal([]byte(v), &msg)
+			if err != nil {
+				continue
+			}
+		case map[string]interface{}:
+			// Old format: entry is an object with details.message
+			details, ok := v["details"].(map[string]interface{})
+			if !ok {
+				continue
+			}
+			message, ok := details["message"].(string)
+			if !ok || message == "" {
+				continue
+			}
+			err := json.Unmarshal([]byte(message), &msg)
+			if err != nil {
+				continue
+			}
+		default:
+			// Try to unmarshal as old format TimelineEntry
+			entryBytes, err := json.Marshal(entry)
+			if err != nil {
+				continue
+			}
+			var timelineEntry TimelineEntry
+			if err := json.Unmarshal(entryBytes, &timelineEntry); err != nil {
+				continue
+			}
+			if timelineEntry.Details == nil || timelineEntry.Details.Message == "" {
+				continue
+			}
+			err = json.Unmarshal([]byte(timelineEntry.Details.Message), &msg)
+			if err != nil {
+				continue
+			}
+		}
+
+		// Extract filename from caller
 		if msg.Caller == "" {
 			continue
 		}
