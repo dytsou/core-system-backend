@@ -107,5 +107,6 @@ Ready-to-use prompts for both endpoints are available in [`prompt.md`](./prompt.
 - **Chat Endpoint Prompt**: System and user prompts for crash reproduction
 - **Triage Prompt**: Classification prompt for Stage 1 analysis
 - **Expert Prompts**: Three expert prompts for Stage 2 analysis
+- **Reproduction Prompt**: The prompt within error analysis in stage 1 for generating crash reproduction scripts.
 
 You can copy these prompts directly from the markdown file and use them in your API requests.
