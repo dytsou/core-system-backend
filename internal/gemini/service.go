@@ -7,6 +7,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"sort"
+	"strings"
 
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"go.opentelemetry.io/otel"
@@ -16,21 +19,25 @@ import (
 
 const (
 	geminiAPIBaseURL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+	repoAPI          = "https://api.github.com/repos/NYCU-SDC/core-system-backend/contents/internal"
+	summerAPI        = "https://api.github.com/repos/NYCU-SDC/summer/contents/pkg"
 )
 
 type Service struct {
-	logger *zap.Logger
-	tracer trace.Tracer
-	apiKey string
-	client *http.Client
+	logger  *zap.Logger
+	tracer  trace.Tracer
+	apiKey  string
+	logPath string
+	client  *http.Client
 }
 
-func NewService(logger *zap.Logger, apiKey string) *Service {
+func NewService(logger *zap.Logger, apiKey string, logPath string) *Service {
 	return &Service{
-		logger: logger,
-		tracer: otel.Tracer("gemini/service"),
-		apiKey: apiKey,
-		client: &http.Client{},
+		logger:  logger,
+		tracer:  otel.Tracer("gemini/service"),
+		apiKey:  apiKey,
+		logPath: logPath,
+		client:  &http.Client{},
 	}
 }
 
@@ -120,4 +127,135 @@ func (s *Service) Chat(ctx context.Context, req GeminiAPIRequest) (Response, err
 	logger.Info("successfully received response from Gemini API", zap.String("text_length", fmt.Sprintf("%d", len(response.Text))))
 
 	return response, nil
+}
+
+func (s *Service) ExtractUniqueCallers(ctx context.Context) ([]string, error) {
+	_, span := s.tracer.Start(ctx, "ExtractUniqueCallers")
+	defer span.End()
+	logger := logutil.WithContext(ctx, s.logger)
+
+	content, err := os.ReadFile(s.logPath)
+	if err != nil {
+		logger.Error("failed to read log file", zap.Error(err))
+		span.RecordError(err)
+		return nil, err
+	}
+
+	var incident Incident
+	if err := json.Unmarshal(content, &incident); err != nil {
+		logger.Error("failed to unmarshal log file", zap.Error(err))
+		span.RecordError(err)
+		return nil, err
+	}
+
+	callersSet := make(map[string]struct{})
+
+	for _, t := range incident.Timeline {
+		if t.Details == nil || t.Details.Message == "" {
+			continue
+		}
+
+		// details.message is json
+		var msg LogMessage
+		err := json.Unmarshal([]byte(t.Details.Message), &msg)
+		if err != nil {
+			continue
+		}
+
+		// pass the non-json message
+		if msg.Caller == "" {
+			continue
+		}
+
+		parts := strings.Split(msg.Caller, ":")
+		filename := parts[0]
+		callersSet[filename] = struct{}{}
+	}
+
+	callers := make([]string, 0, len(callersSet))
+	for c := range callersSet {
+		callers = append(callers, c)
+	}
+	sort.Strings(callers)
+
+	return callers, nil
+}
+
+func (s *Service) fetchGithubFile(ctx context.Context, baseAPI, filename string) (string, int, error) {
+	logger := logutil.WithContext(ctx, s.logger)
+
+	fileURL := fmt.Sprintf("%s/%s",
+		strings.TrimRight(baseAPI, "/"),
+		strings.TrimLeft(filename, "/"),
+	)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fileURL, nil)
+	if err != nil {
+		logger.Error("failed to create HTTP request", zap.Error(err))
+		return "", 0, fmt.Errorf("failed to create HTTP request: %w", err)
+	}
+
+	req.Header.Set("Accept", "application/vnd.github.raw+json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		logger.Error("failed to send request to GitHub API", zap.Error(err))
+		return "", 0, fmt.Errorf("failed to send request to GitHub API: %w", err)
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		logger.Error("failed to read GitHub response body", zap.Error(err))
+		return "", resp.StatusCode, fmt.Errorf("failed to read GitHub response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", resp.StatusCode,
+			fmt.Errorf("github API status=%d body=%s", resp.StatusCode, string(body))
+	}
+
+	return string(body), http.StatusOK, nil
+}
+
+func (s *Service) GetFileContent(ctx context.Context, filenames []string) (map[string]string, error) {
+	_, span := s.tracer.Start(ctx, "GetFileContent")
+	defer span.End()
+	logger := logutil.WithContext(ctx, s.logger)
+
+	files := make(map[string]string, len(filenames))
+	repoBases := []string{repoAPI, summerAPI}
+	for _, filename := range filenames {
+		var content string
+		found := false
+
+		for _, base := range repoBases {
+			body, status, err := s.fetchGithubFile(ctx, base, filename)
+			if err != nil {
+				if status != http.StatusNotFound {
+					span.RecordError(err)
+					return nil, err
+				}
+				logger.Warn("file not found in repo", zap.String("repo", base), zap.String("filename", filename), zap.Error(err))
+				continue
+			}
+
+			content = body
+			found = true
+			break
+		}
+
+		if !found {
+			logger.Warn("file not found in any repo", zap.String("filename", filename))
+			continue
+		}
+
+		files[filename] = content
+	}
+	return files, nil
 }
