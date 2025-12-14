@@ -122,6 +122,5 @@ I will provide a JSON object with the following structure:
    - Return only the Golang code block.
    - Add comments explaining *why* this script reproduces the error based on the input JSON.
 
-# Input JSON
-[PASTE YOUR JSON HERE]
+# Input JSON is as following
 ```
