@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 
 	"NYCU-SDC/core-system-backend/internal"
@@ -381,6 +382,18 @@ func (h *Handler) AnalyzeLogHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	// Always include raw text for reference
 	result["expert_analysis_raw"] = expertResponse.Text
+
+	// Write response JSON to analysis.json file
+	resultJSON, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		logger.Warn("Failed to marshal result to JSON for file writing", zap.Error(err))
+	} else {
+		if err := os.WriteFile("analysis.json", resultJSON, 0644); err != nil {
+			logger.Warn("Failed to write analysis.json file", zap.Error(err))
+		} else {
+			logger.Info("Response JSON written to analysis.json")
+		}
+	}
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, result)
 }
