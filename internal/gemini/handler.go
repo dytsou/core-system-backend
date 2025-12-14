@@ -118,6 +118,14 @@ func (h *Handler) ChatHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Write Go code to file if present in response
+		filePath, err := WriteCodeToFile(response, "scripts/auto_race_reproduction")
+		if err != nil {
+			logger.Warn("Failed to extract and write Go code to file", zap.Error(err))
+		} else {
+			logger.Info("Go code written to file", zap.String("filePath", filePath))
+		}
+
 		handlerutil.WriteJSONResponse(w, http.StatusOK, response)
 		return
 	}
@@ -142,6 +150,14 @@ func (h *Handler) ChatHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
+	}
+
+	// Write Go code to file if present in response
+	filePath, err := WriteCodeToFile(response, "scripts/auto_race_reproduction")
+	if err != nil {
+		logger.Warn("Failed to extract and write Go code to file", zap.Error(err))
+	} else {
+		logger.Info("Go code written to file", zap.String("filePath", filePath))
 	}
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
