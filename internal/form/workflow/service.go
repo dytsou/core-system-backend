@@ -16,6 +16,7 @@ type Querier interface {
 	Get(ctx context.Context, formID uuid.UUID) (GetRow, error)
 	Update(ctx context.Context, arg UpdateParams) (UpdateRow, error)
 	CreateNode(ctx context.Context, arg CreateNodeParams) (CreateNodeRow, error)
+	DeleteNode(ctx context.Context, arg DeleteNodeParams) ([]byte, error)
 	Activate(ctx context.Context, formID uuid.UUID) (WorkflowVersion, error)
 }
 
@@ -108,6 +109,26 @@ func (s *Service) CreateNode(ctx context.Context, formID uuid.UUID, nodeType Nod
 	}
 
 	return createdNode, nil
+}
+
+func (s *Service) DeleteNode(ctx context.Context, formID uuid.UUID, nodeID uuid.UUID, userID uuid.UUID) ([]byte, error) {
+	methodName := "DeleteNode"
+	ctx, span := s.tracer.Start(ctx, methodName)
+	defer span.End()
+	logger := logutil.WithContext(ctx, s.logger)
+
+	deleted, err := s.queries.DeleteNode(ctx, DeleteNodeParams{
+		FormID:     formID,
+		LastEditor: userID,
+		NodeID:     nodeID,
+	})
+	if err != nil {
+		err = databaseutil.WrapDBErrorWithKeyValue(err, "workflow", "formId", formID.String(), logger, "delete node")
+		span.RecordError(err)
+		return []byte{}, err
+	}
+
+	return deleted, nil
 }
 
 func (s *Service) Activate(ctx context.Context, formID uuid.UUID) (WorkflowVersion, error) {

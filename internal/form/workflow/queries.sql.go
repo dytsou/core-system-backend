@@ -112,6 +112,135 @@ func (q *Queries) CreateNode(ctx context.Context, arg CreateNodeParams) (CreateN
 	return i, err
 }
 
+const deleteNode = `-- name: DeleteNode :one
+WITH latest_workflow AS (
+    SELECT wv.id, wv.is_active, wv.form_id, wv.workflow
+    FROM workflow_versions AS wv
+    WHERE wv.form_id = $1
+    ORDER BY wv.updated_at DESC
+    LIMIT 1
+    FOR UPDATE
+),
+deleted_node_id AS (
+    SELECT to_jsonb($3::uuid)::text AS deleted_id
+),
+node_to_delete AS (
+    SELECT 
+        node->>'id' AS node_id,
+        node->>'type' AS node_type
+    FROM latest_workflow AS lw,
+    LATERAL jsonb_array_elements(COALESCE(lw.workflow, '[]'::jsonb)) AS node
+    WHERE node->>'id' = (SELECT deleted_id FROM deleted_node_id)
+    LIMIT 1
+),
+deleted_section AS (
+    DELETE FROM sections
+    WHERE id = (SELECT node_id::uuid FROM node_to_delete)
+      AND EXISTS (SELECT 1 FROM node_to_delete WHERE node_type = 'section')
+    RETURNING id
+),
+remaining_nodes AS (
+    SELECT node
+    FROM latest_workflow AS lw,
+    LATERAL jsonb_array_elements(COALESCE(lw.workflow, '[]'::jsonb)) AS node
+    WHERE node->>'id' != (SELECT deleted_id FROM deleted_node_id)
+),
+/* 
+Example of node_fields_expanded: 
+node                    | field_key  | cleaned_value
+{"id":"node-a",...}     | "id"       | "node-a"
+{"id":"node-a",...}     | "type"     | "start"
+{"id":"node-a",...}     | "label"    | "Start"
+{"id":"node-a",...}     | "next"     | null  ← NULLIFIED!
+{"id":"node-c",...}     | "id"       | "node-c"
+{"id":"node-c",...}     | "type"     | "condition"
+{"id":"node-c",...}     | "label"    | "Check"
+{"id":"node-c",...}     | "nextTrue" | null  ← NULLIFIED!
+{"id":"node-c",...}     | "nextFalse"| "node-d"
+{"id":"node-d",...}     | "id"       | "node-d"
+{"id":"node-d",...}     | "type"     | "end"
+{"id":"node-d",...}     | "label"    | "End"
+*/
+node_fields_expanded AS (
+    SELECT 
+        node,
+        field_key,
+        field_value
+    FROM remaining_nodes,
+    LATERAL jsonb_each(COALESCE(node, '{}'::jsonb)) AS node_fields(field_key, field_value)
+),
+cleaned_node_fields AS (
+    SELECT 
+        node,
+        field_key,
+        CASE 
+            -- Nullify reference fields that point to the deleted node
+            WHEN field_key IN ('next', 'nextTrue', 'nextFalse') 
+             AND field_value::text = (SELECT deleted_id FROM deleted_node_id)
+            THEN 'null'::jsonb
+            ELSE field_value
+        END AS cleaned_value
+    FROM node_fields_expanded
+),
+cleaned_nodes AS (
+    SELECT 
+        jsonb_object_agg(field_key, cleaned_value) AS cleaned_node
+    FROM cleaned_node_fields
+    GROUP BY node
+),
+cleaned_workflow AS (
+    SELECT jsonb_agg(cleaned_node) AS workflow
+    FROM cleaned_nodes
+),
+updated AS (
+    UPDATE workflow_versions AS wv
+    SET 
+        workflow = COALESCE(cw.workflow, '[]'::jsonb),
+        last_editor = $2,
+        updated_at = now()
+    FROM latest_workflow AS lw, cleaned_workflow AS cw
+    WHERE wv.id = lw.id 
+      AND lw.is_active = false
+    RETURNING wv.workflow
+),
+created AS (
+    INSERT INTO workflow_versions (form_id, last_editor, workflow)
+    SELECT $1, $2, COALESCE(cw.workflow, '[]'::jsonb)
+    FROM latest_workflow AS lw, cleaned_workflow AS cw
+    WHERE lw.is_active = true
+    RETURNING workflow
+)
+SELECT workflow FROM updated
+UNION ALL
+SELECT workflow FROM created
+`
+
+type DeleteNodeParams struct {
+	FormID     uuid.UUID
+	LastEditor uuid.UUID
+	NodeID     uuid.UUID
+}
+
+// Deletes a node from the workflow and nullifies all references to it in other nodes
+// Convert deleted node ID to text format for JSONB comparison
+// Extract information about the node to be deleted
+// Delete associated section if the node is a section type
+// Get all nodes except the one being deleted
+// Expand each node into individual key-value pairs
+// ----------------------|------------|------------
+// Clean each field: nullify reference fields that point to the deleted node
+// Rebuild nodes from cleaned fields
+// Rebuild the workflow array from cleaned nodes
+// Update draft workflow version in place
+// Create new draft version if current version is active
+// Return workflow as JSONB
+func (q *Queries) DeleteNode(ctx context.Context, arg DeleteNodeParams) ([]byte, error) {
+	row := q.db.QueryRow(ctx, deleteNode, arg.FormID, arg.LastEditor, arg.NodeID)
+	var workflow []byte
+	err := row.Scan(&workflow)
+	return workflow, err
+}
+
 const get = `-- name: Get :one
 SELECT workflow, id, form_id, last_editor, is_active, created_at, updated_at
 FROM workflow_versions
