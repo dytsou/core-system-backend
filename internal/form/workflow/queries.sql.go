@@ -44,3 +44,63 @@ func (q *Queries) Get(ctx context.Context, formID uuid.UUID) (GetRow, error) {
 	)
 	return i, err
 }
+
+const update = `-- name: Update :one
+WITH latest AS (
+    SELECT wv.id, wv.is_active, wv.form_id
+    FROM workflow_versions AS wv
+    WHERE wv.form_id = $1
+    ORDER BY wv.updated_at DESC
+    LIMIT 1
+    FOR UPDATE
+),
+updated AS (
+    UPDATE workflow_versions AS wv
+    SET workflow = $3, last_editor = $2, updated_at = now()
+    FROM latest
+    WHERE wv.id = latest.id 
+      AND latest.is_active = false
+    RETURNING wv.workflow, wv.id, wv.form_id, wv.last_editor, wv.is_active, wv.created_at, wv.updated_at
+),
+created AS (
+    INSERT INTO workflow_versions (form_id, last_editor, workflow)
+    SELECT $1, $2, $3
+    FROM latest
+    WHERE latest.is_active = true
+    RETURNING workflow, id, form_id, last_editor, is_active, created_at, updated_at
+)
+SELECT workflow, id, form_id, last_editor, is_active, created_at, updated_at FROM updated
+UNION ALL
+SELECT workflow, id, form_id, last_editor, is_active, created_at, updated_at FROM created
+`
+
+type UpdateParams struct {
+	FormID     uuid.UUID
+	LastEditor uuid.UUID
+	Workflow   []byte
+}
+
+type UpdateRow struct {
+	Workflow   []byte
+	ID         uuid.UUID
+	FormID     uuid.UUID
+	LastEditor uuid.UUID
+	IsActive   bool
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
+}
+
+func (q *Queries) Update(ctx context.Context, arg UpdateParams) (UpdateRow, error) {
+	row := q.db.QueryRow(ctx, update, arg.FormID, arg.LastEditor, arg.Workflow)
+	var i UpdateRow
+	err := row.Scan(
+		&i.Workflow,
+		&i.ID,
+		&i.FormID,
+		&i.LastEditor,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}

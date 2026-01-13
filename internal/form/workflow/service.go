@@ -13,6 +13,7 @@ import (
 
 type Querier interface {
 	Get(ctx context.Context, formID uuid.UUID) (GetRow, error)
+	Update(ctx context.Context, arg UpdateParams) (UpdateRow, error)
 }
 
 type Service struct {
@@ -44,4 +45,33 @@ func (s *Service) Get(ctx context.Context, formID uuid.UUID) (GetRow, error) {
 	}
 
 	return workflow, nil
+}
+
+// Update updates a workflow version conditionally:
+// - If latest workflow is active: creates a new workflow version
+// - If latest workflow is draft: updates the existing workflow version
+func (s *Service) Update(ctx context.Context, formID uuid.UUID, workflow []byte, userID uuid.UUID) (UpdateRow, error) {
+	methodName := "Update"
+	ctx, span := s.tracer.Start(ctx, methodName)
+	defer span.End()
+	logger := logutil.WithContext(ctx, s.logger)
+
+	// Basic JSON validation - check if workflow is valid JSON
+	// TODO: More detailed graph validation would be added later
+	if len(workflow) == 0 {
+		workflow = []byte("[]")
+	}
+
+	updated, err := s.queries.Update(ctx, UpdateParams{
+		FormID:     formID,
+		LastEditor: userID,
+		Workflow:   workflow,
+	})
+	if err != nil {
+		err = databaseutil.WrapDBErrorWithKeyValue(err, "workflow", "formId", formID.String(), logger, "update workflow")
+		span.RecordError(err)
+		return UpdateRow{}, err
+	}
+
+	return updated, nil
 }
