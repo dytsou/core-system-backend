@@ -80,9 +80,17 @@ created AS (
     WHERE lw.is_active = true
     RETURNING workflow, id, form_id, last_editor, is_active, created_at, updated_at
 )
-SELECT (SELECT node->>'id' FROM new_node)::uuid AS node_id FROM updated, new_node
+SELECT 
+    (SELECT node->>'id' FROM new_node)::uuid AS id,
+    (SELECT node->>'type' FROM new_node)::node_type AS type,
+    (SELECT node->>'label' FROM new_node) AS label
+FROM updated, new_node
 UNION ALL
-SELECT (SELECT node->>'id' FROM new_node)::uuid AS node_id FROM created, new_node
+SELECT 
+    (SELECT node->>'id' FROM new_node)::uuid AS id,
+    (SELECT node->>'type' FROM new_node)::node_type AS type,
+    (SELECT node->>'label' FROM new_node) AS label
+FROM created, new_node
 `
 
 type CreateNodeParams struct {
@@ -91,11 +99,17 @@ type CreateNodeParams struct {
 	Type       NodeType
 }
 
-func (q *Queries) CreateNode(ctx context.Context, arg CreateNodeParams) (uuid.UUID, error) {
+type CreateNodeRow struct {
+	ID    uuid.UUID
+	Type  NodeType
+	Label interface{}
+}
+
+func (q *Queries) CreateNode(ctx context.Context, arg CreateNodeParams) (CreateNodeRow, error) {
 	row := q.db.QueryRow(ctx, createNode, arg.FormID, arg.LastEditor, arg.Type)
-	var node_id uuid.UUID
-	err := row.Scan(&node_id)
-	return node_id, err
+	var i CreateNodeRow
+	err := row.Scan(&i.ID, &i.Type, &i.Label)
+	return i, err
 }
 
 const get = `-- name: Get :one

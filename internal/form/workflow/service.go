@@ -15,7 +15,7 @@ import (
 type Querier interface {
 	Get(ctx context.Context, formID uuid.UUID) (GetRow, error)
 	Update(ctx context.Context, arg UpdateParams) (UpdateRow, error)
-	CreateNode(ctx context.Context, arg CreateNodeParams) (uuid.UUID, error)
+	CreateNode(ctx context.Context, arg CreateNodeParams) (CreateNodeRow, error)
 	Activate(ctx context.Context, formID uuid.UUID) (WorkflowVersion, error)
 }
 
@@ -79,7 +79,7 @@ func (s *Service) Update(ctx context.Context, formID uuid.UUID, workflow []byte,
 	return updated, nil
 }
 
-func (s *Service) CreateNode(ctx context.Context, formID uuid.UUID, nodeType NodeType, userID uuid.UUID) (uuid.UUID, error) {
+func (s *Service) CreateNode(ctx context.Context, formID uuid.UUID, nodeType NodeType, userID uuid.UUID) (CreateNodeRow, error) {
 	methodName := "CreateNode"
 	ctx, span := s.tracer.Start(ctx, methodName)
 	defer span.End()
@@ -93,10 +93,10 @@ func (s *Service) CreateNode(ctx context.Context, formID uuid.UUID, nodeType Nod
 	default:
 		err := fmt.Errorf("invalid node type: %s", nodeType)
 		span.RecordError(err)
-		return uuid.UUID{}, err
+		return CreateNodeRow{}, err
 	}
 
-	nodeID, err := s.queries.CreateNode(ctx, CreateNodeParams{
+	createdNode, err := s.queries.CreateNode(ctx, CreateNodeParams{
 		FormID:     formID,
 		LastEditor: userID,
 		Type:       nodeType,
@@ -104,10 +104,10 @@ func (s *Service) CreateNode(ctx context.Context, formID uuid.UUID, nodeType Nod
 	if err != nil {
 		err = databaseutil.WrapDBErrorWithKeyValue(err, "workflow", "formId", formID.String(), logger, "create node")
 		span.RecordError(err)
-		return uuid.UUID{}, err
+		return CreateNodeRow{}, err
 	}
 
-	return nodeID, nil
+	return createdNode, nil
 }
 
 func (s *Service) Activate(ctx context.Context, formID uuid.UUID) (WorkflowVersion, error) {
