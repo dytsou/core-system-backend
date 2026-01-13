@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"fmt"
 
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
@@ -82,6 +83,17 @@ func (s *Service) CreateNode(ctx context.Context, formID uuid.UUID, nodeType Nod
 	ctx, span := s.tracer.Start(ctx, methodName)
 	defer span.End()
 	logger := logutil.WithContext(ctx, s.logger)
+
+	// Validate node type
+	switch nodeType {
+	case NodeTypeSection:
+	case NodeTypeCondition:
+		break
+	default:
+		err := fmt.Errorf("invalid node type: %s", nodeType)
+		span.RecordError(err)
+		return uuid.UUID{}, err
+	}
 
 	nodeID, err := s.queries.CreateNode(ctx, CreateNodeParams{
 		FormID:     formID,
