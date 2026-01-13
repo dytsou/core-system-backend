@@ -80,3 +80,11 @@ created AS (
 SELECT (SELECT node->>'id' FROM new_node)::uuid AS node_id FROM updated, new_node
 UNION ALL
 SELECT (SELECT node->>'id' FROM new_node)::uuid AS node_id FROM created, new_node;
+
+-- name: Activate :one
+UPDATE workflow_versions AS wv
+SET is_active = true
+WHERE wv.form_id = $1
+  AND wv.is_active = false
+  AND wv.updated_at = (SELECT MAX(updated_at) FROM workflow_versions WHERE form_id = $1)
+RETURNING *;

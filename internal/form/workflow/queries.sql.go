@@ -12,6 +12,30 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const activate = `-- name: Activate :one
+UPDATE workflow_versions AS wv
+SET is_active = true
+WHERE wv.form_id = $1
+  AND wv.is_active = false
+  AND wv.updated_at = (SELECT MAX(updated_at) FROM workflow_versions WHERE form_id = $1)
+RETURNING id, form_id, last_editor, is_active, workflow, created_at, updated_at
+`
+
+func (q *Queries) Activate(ctx context.Context, formID uuid.UUID) (WorkflowVersion, error) {
+	row := q.db.QueryRow(ctx, activate, formID)
+	var i WorkflowVersion
+	err := row.Scan(
+		&i.ID,
+		&i.FormID,
+		&i.LastEditor,
+		&i.IsActive,
+		&i.Workflow,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const createNode = `-- name: CreateNode :one
 WITH latest_workflow AS (
     SELECT wv.id, wv.is_active, wv.form_id, wv.workflow

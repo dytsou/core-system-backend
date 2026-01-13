@@ -16,6 +16,7 @@ type Querier interface {
 	Get(ctx context.Context, formID uuid.UUID) (GetRow, error)
 	Update(ctx context.Context, arg UpdateParams) (UpdateRow, error)
 	CreateNode(ctx context.Context, arg CreateNodeParams) (uuid.UUID, error)
+	Activate(ctx context.Context, formID uuid.UUID) (WorkflowVersion, error)
 }
 
 type Service struct {
@@ -107,4 +108,20 @@ func (s *Service) CreateNode(ctx context.Context, formID uuid.UUID, nodeType Nod
 	}
 
 	return nodeID, nil
+}
+
+func (s *Service) Activate(ctx context.Context, formID uuid.UUID) (WorkflowVersion, error) {
+	methodName := "Activate"
+	ctx, span := s.tracer.Start(ctx, methodName)
+	defer span.End()
+	logger := logutil.WithContext(ctx, s.logger)
+
+	activatedVersion, err := s.queries.Activate(ctx, formID)
+	if err != nil {
+		err = databaseutil.WrapDBErrorWithKeyValue(err, "workflow", "formId", formID.String(), logger, "activate workflow")
+		span.RecordError(err)
+		return WorkflowVersion{}, err
+	}
+
+	return activatedVersion, nil
 }
