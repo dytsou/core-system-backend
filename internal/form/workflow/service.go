@@ -14,6 +14,7 @@ import (
 type Querier interface {
 	Get(ctx context.Context, formID uuid.UUID) (GetRow, error)
 	Update(ctx context.Context, arg UpdateParams) (UpdateRow, error)
+	CreateNode(ctx context.Context, arg CreateNodeParams) (uuid.UUID, error)
 }
 
 type Service struct {
@@ -74,4 +75,24 @@ func (s *Service) Update(ctx context.Context, formID uuid.UUID, workflow []byte,
 	}
 
 	return updated, nil
+}
+
+func (s *Service) CreateNode(ctx context.Context, formID uuid.UUID, nodeType NodeType, userID uuid.UUID) (uuid.UUID, error) {
+	methodName := "CreateNode"
+	ctx, span := s.tracer.Start(ctx, methodName)
+	defer span.End()
+	logger := logutil.WithContext(ctx, s.logger)
+
+	nodeID, err := s.queries.CreateNode(ctx, CreateNodeParams{
+		FormID:     formID,
+		LastEditor: userID,
+		Type:       nodeType,
+	})
+	if err != nil {
+		err = databaseutil.WrapDBErrorWithKeyValue(err, "workflow", "formId", formID.String(), logger, "create node")
+		span.RecordError(err)
+		return uuid.UUID{}, err
+	}
+
+	return nodeID, nil
 }
