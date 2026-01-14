@@ -1,6 +1,6 @@
 DO $$
 DECLARE
-org_uuid UUID := '00000000-0000-0000-0000-000000000001';
+org_uuid UUID := 'cfc4e7f4-629f-420e-a79d-a58849cfd236';
 BEGIN
 
 INSERT INTO units (id, org_id, parent_id, type, name, description, metadata)
@@ -22,5 +22,5 @@ VALUES (
        );
 
 INSERT INTO slug_history (slug, org_id)
-VALUES ('default-org', org_uuid);
+VALUES ('SDC', org_uuid);
 END $$;
