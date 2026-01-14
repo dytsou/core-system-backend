@@ -6,7 +6,7 @@ BEGIN
 SELECT org_id
 INTO org_uuid
 FROM slug_history
-WHERE slug = 'default-org'
+WHERE slug = 'SDC'
 ORDER BY id DESC
     LIMIT 1;
 
