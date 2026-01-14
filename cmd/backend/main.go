@@ -35,6 +35,7 @@ import (
 	_ "github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -138,9 +139,9 @@ func main() {
 	unitService := unit.NewService(logger, dbPool, tenantService)
 	distributeService := distribute.NewService(logger, unitService)
 	formService := form.NewService(logger, dbPool)
-	questionService := question.NewService(logger, question.New(dbPool))
+	questionService := question.NewService(logger, dbPool)
 	inboxService := inbox.NewService(logger, dbPool)
-	responseService := response.NewService(logger, response.New(dbPool))
+	responseService := response.NewService(logger, dbPool)
 	submitService := submit.NewService(logger, formService, questionService, responseService)
 	publishService := publish.NewService(logger, distributeService, formService, inboxService)
 
@@ -344,7 +345,7 @@ func initOpenTelemetry(appName, version, buildTime, commitHash, environment, ote
 	serviceName := semconv.ServiceNameKey.String(appName)
 	serviceVersion := semconv.ServiceVersionKey.String(version)
 	serviceNamespace := semconv.ServiceNamespaceKey.String("example")
-	serviceCommitHash := semconv.ServiceVersionKey.String(commitHash)
+	serviceCommitHash := attribute.String("service.commit_hash", commitHash)
 	serviceEnvironment := semconv.DeploymentEnvironmentKey.String(environment)
 
 	res, err := resource.New(ctx,
