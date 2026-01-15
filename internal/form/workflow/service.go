@@ -17,7 +17,7 @@ type Querier interface {
 	Update(ctx context.Context, arg UpdateParams) (UpdateRow, error)
 	CreateNode(ctx context.Context, arg CreateNodeParams) (CreateNodeRow, error)
 	DeleteNode(ctx context.Context, arg DeleteNodeParams) ([]byte, error)
-	Activate(ctx context.Context, formID uuid.UUID) (ActivateRow, error)
+	Activate(ctx context.Context, arg ActivateParams) (ActivateRow, error)
 }
 
 type Service struct {
@@ -133,13 +133,16 @@ func (s *Service) DeleteNode(ctx context.Context, formID uuid.UUID, nodeID uuid.
 	return deleted, nil
 }
 
-func (s *Service) Activate(ctx context.Context, formID uuid.UUID) (ActivateRow, error) {
+func (s *Service) Activate(ctx context.Context, formID uuid.UUID, userID uuid.UUID) (ActivateRow, error) {
 	methodName := "Activate"
 	ctx, span := s.tracer.Start(ctx, methodName)
 	defer span.End()
 	logger := logutil.WithContext(ctx, s.logger)
 
-	activatedVersion, err := s.queries.Activate(ctx, formID)
+	activatedVersion, err := s.queries.Activate(ctx, ActivateParams{
+		FormID:     formID,
+		LastEditor: userID,
+	})
 	if err != nil {
 		err = databaseutil.WrapDBErrorWithKeyValue(err, "workflow", "formId", formID.String(), logger, "activate workflow")
 		span.RecordError(err)

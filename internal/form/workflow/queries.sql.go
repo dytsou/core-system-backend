@@ -22,7 +22,8 @@ WITH deactivated AS (
 ),
 activated AS (
     UPDATE workflow_versions AS wv
-    SET is_active = true
+    SET is_active = true, 
+        last_editor = $2
     WHERE wv.form_id = $1
       AND wv.is_active = false
       AND wv.updated_at = (SELECT MAX(updated_at) FROM workflow_versions WHERE form_id = $1 AND is_active = false)
@@ -47,6 +48,11 @@ UNION ALL
 SELECT id, form_id, last_editor, is_active, workflow, created_at, updated_at FROM reverted
 `
 
+type ActivateParams struct {
+	FormID     uuid.UUID
+	LastEditor uuid.UUID
+}
+
 type ActivateRow struct {
 	ID         uuid.UUID
 	FormID     uuid.UUID
@@ -57,8 +63,8 @@ type ActivateRow struct {
 	UpdatedAt  pgtype.Timestamptz
 }
 
-func (q *Queries) Activate(ctx context.Context, formID uuid.UUID) (ActivateRow, error) {
-	row := q.db.QueryRow(ctx, activate, formID)
+func (q *Queries) Activate(ctx context.Context, arg ActivateParams) (ActivateRow, error) {
+	row := q.db.QueryRow(ctx, activate, arg.FormID, arg.LastEditor)
 	var i ActivateRow
 	err := row.Scan(
 		&i.ID,
