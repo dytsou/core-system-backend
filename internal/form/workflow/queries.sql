@@ -68,26 +68,28 @@ updated AS (
     FROM latest_workflow AS lw, new_node
     WHERE wv.id = lw.id 
       AND lw.is_active = false
-    RETURNING wv.workflow, wv.id, wv.form_id, wv.last_editor, wv.is_active, wv.created_at, wv.updated_at
+    RETURNING wv.id, wv.form_id, wv.last_editor, wv.is_active, wv.workflow, wv.created_at, wv.updated_at
 ),
 created AS (
     INSERT INTO workflow_versions (form_id, last_editor, workflow)
     SELECT $1, $2, lw.workflow || jsonb_build_array(new_node.node)
     FROM latest_workflow AS lw, new_node
     WHERE lw.is_active = true
-    RETURNING workflow, id, form_id, last_editor, is_active, created_at, updated_at
+    RETURNING id, form_id, last_editor, is_active, workflow, created_at, updated_at
 )
 SELECT 
-    (SELECT node->>'id' FROM new_node)::uuid AS id,
-    (SELECT node->>'type' FROM new_node)::node_type AS type,
-    (SELECT node->>'label' FROM new_node) AS label
-FROM updated, new_node
+    (SELECT node->>'id' FROM new_node)::uuid AS node_id,
+    (SELECT node->>'type' FROM new_node)::node_type AS node_type,
+    (SELECT node->>'label' FROM new_node) AS node_label,
+    u.workflow AS workflow
+FROM updated AS u, new_node
 UNION ALL
 SELECT 
-    (SELECT node->>'id' FROM new_node)::uuid AS id,
-    (SELECT node->>'type' FROM new_node)::node_type AS type,
-    (SELECT node->>'label' FROM new_node) AS label
-FROM created, new_node;
+    (SELECT node->>'id' FROM new_node)::uuid AS node_id,
+    (SELECT node->>'type' FROM new_node)::node_type AS node_type,
+    (SELECT node->>'label' FROM new_node) AS node_label,
+    c.workflow AS workflow
+FROM created AS c, new_node;
 
 -- name: DeleteNode :one
 -- Deletes a node from the workflow and nullifies all references to it in other nodes

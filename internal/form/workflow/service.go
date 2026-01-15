@@ -97,7 +97,7 @@ func (s *Service) CreateNode(ctx context.Context, formID uuid.UUID, nodeType Nod
 		return CreateNodeRow{}, err
 	}
 
-	createdNode, err := s.queries.CreateNode(ctx, CreateNodeParams{
+	createdRow, err := s.queries.CreateNode(ctx, CreateNodeParams{
 		FormID:     formID,
 		LastEditor: userID,
 		Type:       nodeType,
@@ -108,7 +108,9 @@ func (s *Service) CreateNode(ctx context.Context, formID uuid.UUID, nodeType Nod
 		return CreateNodeRow{}, err
 	}
 
-	return createdNode, nil
+	// TODO: Validate created workflow
+
+	return createdRow, nil
 }
 
 func (s *Service) DeleteNode(ctx context.Context, formID uuid.UUID, nodeID uuid.UUID, userID uuid.UUID) ([]byte, error) {
