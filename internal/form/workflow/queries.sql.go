@@ -13,17 +13,53 @@ import (
 )
 
 const activate = `-- name: Activate :one
-UPDATE workflow_versions AS wv
-SET is_active = true
-WHERE wv.form_id = $1
-  AND wv.is_active = false
-  AND wv.updated_at = (SELECT MAX(updated_at) FROM workflow_versions WHERE form_id = $1)
-RETURNING id, form_id, last_editor, is_active, workflow, created_at, updated_at
+WITH deactivated AS (
+    UPDATE workflow_versions AS wv
+    SET is_active = false
+    WHERE wv.form_id = $1
+      AND wv.is_active = true
+    RETURNING wv.id, wv.form_id, wv.last_editor, wv.is_active, wv.workflow, wv.created_at, wv.updated_at
+),
+activated AS (
+    UPDATE workflow_versions AS wv
+    SET is_active = true
+    WHERE wv.form_id = $1
+      AND wv.is_active = false
+      AND wv.updated_at = (SELECT MAX(updated_at) FROM workflow_versions WHERE form_id = $1 AND is_active = false)
+    RETURNING id, form_id, last_editor, is_active, workflow, created_at, updated_at
+),
+reverted_update AS (
+    UPDATE workflow_versions AS wv
+    SET is_active = true
+    FROM deactivated AS d
+    WHERE wv.id = d.id
+      AND NOT EXISTS (SELECT 1 FROM activated)
+    RETURNING wv.id, wv.form_id, wv.last_editor, wv.is_active, wv.workflow, wv.created_at, wv.updated_at
+),
+reverted AS (
+    SELECT id, form_id, last_editor, is_active, workflow, created_at, updated_at
+    FROM reverted_update
+    ORDER BY updated_at DESC
+    LIMIT 1
+)
+SELECT id, form_id, last_editor, is_active, workflow, created_at, updated_at FROM activated
+UNION ALL
+SELECT id, form_id, last_editor, is_active, workflow, created_at, updated_at FROM reverted
 `
 
-func (q *Queries) Activate(ctx context.Context, formID uuid.UUID) (WorkflowVersion, error) {
+type ActivateRow struct {
+	ID         uuid.UUID
+	FormID     uuid.UUID
+	LastEditor uuid.UUID
+	IsActive   bool
+	Workflow   []byte
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
+}
+
+func (q *Queries) Activate(ctx context.Context, formID uuid.UUID) (ActivateRow, error) {
 	row := q.db.QueryRow(ctx, activate, formID)
-	var i WorkflowVersion
+	var i ActivateRow
 	err := row.Scan(
 		&i.ID,
 		&i.FormID,
@@ -242,40 +278,6 @@ func (q *Queries) DeleteNode(ctx context.Context, arg DeleteNodeParams) ([]byte,
 }
 
 const get = `-- name: Get :one
-/*
- * Reusable CTE Pattern for Update-or-Create Workflow Version
- * 
- * This pattern is used in Update, CreateNode, and DeleteNode queries.
- * It updates the draft version if exists, or creates a new version if current is active.
- * 
- * Template:
- * WITH latest_workflow AS (
- *     SELECT wv.id, wv.is_active, wv.form_id, wv.workflow
- *     FROM workflow_versions AS wv
- *     WHERE wv.form_id = $1
- *     ORDER BY wv.updated_at DESC
- *     LIMIT 1
- *     FOR UPDATE
- * ),
- * updated AS (
- *     UPDATE workflow_versions AS wv
- *     SET workflow = <new_workflow>, last_editor = $2, updated_at = now()
- *     FROM latest_workflow AS lw
- *     WHERE wv.id = lw.id AND lw.is_active = false
- *     RETURNING <columns>
- * ),
- * created AS (
- *     INSERT INTO workflow_versions (form_id, last_editor, workflow)
- *     SELECT $1, $2, <new_workflow>
- *     FROM latest_workflow AS lw
- *     WHERE lw.is_active = true
- *     RETURNING <columns>
- * )
- * SELECT <columns> FROM updated
- * UNION ALL
- * SELECT <columns> FROM created;
- */
-
 SELECT workflow, id, form_id, last_editor, is_active, created_at, updated_at
 FROM workflow_versions
 WHERE form_id = $1

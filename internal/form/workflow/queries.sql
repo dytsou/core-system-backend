@@ -205,9 +205,35 @@ UNION ALL
 SELECT workflow FROM created;
 
 -- name: Activate :one
-UPDATE workflow_versions AS wv
-SET is_active = true
-WHERE wv.form_id = $1
-  AND wv.is_active = false
-  AND wv.updated_at = (SELECT MAX(updated_at) FROM workflow_versions WHERE form_id = $1)
-RETURNING *;
+WITH deactivated AS (
+    UPDATE workflow_versions AS wv
+    SET is_active = false
+    WHERE wv.form_id = $1
+      AND wv.is_active = true
+    RETURNING wv.*
+),
+activated AS (
+    UPDATE workflow_versions AS wv
+    SET is_active = true
+    WHERE wv.form_id = $1
+      AND wv.is_active = false
+      AND wv.updated_at = (SELECT MAX(updated_at) FROM workflow_versions WHERE form_id = $1 AND is_active = false)
+    RETURNING *
+),
+reverted_update AS (
+    UPDATE workflow_versions AS wv
+    SET is_active = true
+    FROM deactivated AS d
+    WHERE wv.id = d.id
+      AND NOT EXISTS (SELECT 1 FROM activated)
+    RETURNING wv.*
+),
+reverted AS (
+    SELECT *
+    FROM reverted_update
+    ORDER BY updated_at DESC
+    LIMIT 1
+)
+SELECT * FROM activated
+UNION ALL
+SELECT * FROM reverted;

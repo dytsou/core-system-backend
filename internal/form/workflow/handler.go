@@ -23,7 +23,7 @@ type Store interface {
 	Update(ctx context.Context, formID uuid.UUID, workflow []byte, userID uuid.UUID) (UpdateRow, error)
 	CreateNode(ctx context.Context, formID uuid.UUID, nodeType NodeType, userID uuid.UUID) (CreateNodeRow, error)
 	DeleteNode(ctx context.Context, formID uuid.UUID, nodeID uuid.UUID, userID uuid.UUID) ([]byte, error)
-	Activate(ctx context.Context, formID uuid.UUID) (WorkflowVersion, error)
+	Activate(ctx context.Context, formID uuid.UUID) (ActivateRow, error)
 }
 
 type Handler struct {
