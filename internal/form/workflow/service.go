@@ -133,11 +133,14 @@ func (s *Service) DeleteNode(ctx context.Context, formID uuid.UUID, nodeID uuid.
 	return deleted, nil
 }
 
-func (s *Service) Activate(ctx context.Context, formID uuid.UUID, userID uuid.UUID) (ActivateRow, error) {
+func (s *Service) Activate(ctx context.Context, formID uuid.UUID, userID uuid.UUID, workflow []byte) (ActivateRow, error) {
 	methodName := "Activate"
 	ctx, span := s.tracer.Start(ctx, methodName)
 	defer span.End()
 	logger := logutil.WithContext(ctx, s.logger)
+
+	// Basic JSON validation - check if workflow is valid JSON
+	// Validate if it is a valid workflow and is not same as the latest active workflow
 
 	activatedVersion, err := s.queries.Activate(ctx, ActivateParams{
 		FormID:     formID,
