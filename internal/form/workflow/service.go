@@ -140,11 +140,12 @@ func (s *Service) Activate(ctx context.Context, formID uuid.UUID, userID uuid.UU
 	logger := logutil.WithContext(ctx, s.logger)
 
 	// Basic JSON validation - check if workflow is valid JSON
-	// Validate if it is a valid workflow and is not same as the latest active workflow
+	// TODO: More detailed graph validation would be added later
 
 	activatedVersion, err := s.queries.Activate(ctx, ActivateParams{
 		FormID:     formID,
 		LastEditor: userID,
+		Workflow:   workflow,
 	})
 	if err != nil {
 		err = databaseutil.WrapDBErrorWithKeyValue(err, "workflow", "formId", formID.String(), logger, "activate workflow")

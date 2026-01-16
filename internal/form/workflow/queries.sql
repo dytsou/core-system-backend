@@ -207,36 +207,141 @@ UNION ALL
 SELECT workflow FROM created;
 
 -- name: Activate :one
-WITH deactivated AS (
-    UPDATE workflow_versions AS wv
-    SET is_active = false
+WITH current_active AS (
+    -- Get the currently active workflow version (if any) for comparison
+    SELECT wv.id, wv.workflow
+    FROM workflow_versions AS wv
     WHERE wv.form_id = $1
       AND wv.is_active = true
-    RETURNING wv.*
+    ORDER BY wv.updated_at DESC
+    LIMIT 1
+),
+latest AS (
+    -- Get the latest workflow version (regardless of active status)
+    SELECT wv.id, wv.is_active, wv.workflow
+    FROM workflow_versions AS wv
+    WHERE wv.form_id = $1
+    ORDER BY wv.updated_at DESC
+    LIMIT 1
+),
+request_workflow AS (
+    -- Use the workflow from the request body
+    SELECT @workflow::jsonb AS workflow
+),
+should_activate AS (
+    /*
+    Determine if activation should proceed and what action to take:
+    
+    Decision logic:
+    1. If request_workflow == current_active AND latest is active -> skip (unchanged)
+    2. Else if latest is not active -> update latest with request_workflow, then activate
+    3. Else (latest is active but request != current_active) -> create new version, then activate
+    
+    Fields:
+    - latest_id: ID of the latest workflow version (by updated_at)
+    - latest_is_active: Whether the latest version is currently active
+    - can_activate: Whether we should proceed with activation
+    - should_update_latest: Whether to update the latest version (vs creating new one)
+    */
+    SELECT 
+        l.id AS latest_id,
+        l.is_active AS latest_is_active,
+        CASE 
+            -- No latest version exists - nothing to activate
+            WHEN l.id IS NULL THEN false
+            -- Request matches current active AND latest is active - skip activation
+            WHEN ca.id IS NOT NULL AND rw.workflow IS NOT DISTINCT FROM ca.workflow AND l.is_active = true THEN false
+            -- Latest version is inactive - can activate (will update it first)
+            WHEN l.is_active = false THEN true
+            -- Latest is active but request differs from current active - can activate (will create new version)
+            ELSE true
+        END AS can_activate,
+        CASE 
+            -- Update latest version if it's inactive (before activating it)
+            WHEN l.is_active = false THEN true
+            -- Do not update if latest is active (will create a new version)
+            ELSE false
+        END AS should_update_latest
+    FROM request_workflow AS rw
+    LEFT JOIN latest AS l ON true
+    LEFT JOIN current_active AS ca ON true
+),
+updated_latest AS (
+    -- Update the latest workflow version with request workflow if it's inactive
+    UPDATE workflow_versions AS wv
+    SET workflow = rw.workflow,
+        last_editor = $2,
+        updated_at = now()
+    FROM should_activate AS sa, request_workflow AS rw
+    WHERE wv.id = sa.latest_id
+      AND wv.form_id = $1
+      AND sa.should_update_latest = true
+      AND sa.can_activate = true
+    RETURNING wv.id, wv.form_id, wv.last_editor, wv.is_active, wv.workflow, wv.created_at, wv.updated_at
+),
+created_version AS (
+    -- Create a new workflow version if latest is active but request differs from current active
+    INSERT INTO workflow_versions (form_id, last_editor, workflow)
+    SELECT $1, $2, rw.workflow
+    FROM request_workflow AS rw, should_activate AS sa
+    WHERE sa.can_activate = true
+      AND sa.should_update_latest = false
+      AND sa.latest_id IS NOT NULL
+    RETURNING id, form_id, last_editor, is_active, workflow, created_at, updated_at
+),
+deactivated AS (
+    -- Deactivate all currently active workflow versions (only if we're going to activate a new one)
+    UPDATE workflow_versions AS wv
+    SET is_active = false
+    FROM should_activate AS sa
+    WHERE wv.form_id = $1
+      AND wv.is_active = true
+      AND sa.can_activate = true
+    RETURNING wv.id, wv.form_id, wv.last_editor, wv.is_active, wv.workflow, wv.created_at, wv.updated_at
 ),
 activated AS (
+    -- Activate the updated latest version or the newly created version
     UPDATE workflow_versions AS wv
     SET is_active = true, 
         last_editor = $2
     WHERE wv.form_id = $1
+      AND (
+        wv.id IN (SELECT id FROM updated_latest)
+        OR wv.id IN (SELECT id FROM created_version)
+      )
       AND wv.is_active = false
-      AND wv.updated_at = (SELECT MAX(updated_at) FROM workflow_versions WHERE form_id = $1 AND is_active = false)
-    RETURNING *
+    RETURNING wv.id, wv.form_id, wv.last_editor, wv.is_active, wv.workflow, wv.created_at, wv.updated_at
 ),
 reverted_update AS (
+    -- Revert deactivation if activation failed (restore previous active state)
     UPDATE workflow_versions AS wv
     SET is_active = true
     FROM deactivated AS d
     WHERE wv.id = d.id
       AND NOT EXISTS (SELECT 1 FROM activated)
-    RETURNING wv.*
+    RETURNING wv.id, wv.form_id, wv.last_editor, wv.is_active, wv.workflow, wv.created_at, wv.updated_at
 ),
 reverted AS (
+    -- Select the most recently reverted workflow version
     SELECT *
     FROM reverted_update
     ORDER BY updated_at DESC
     LIMIT 1
+),
+unchanged AS (
+    -- Return the current active workflow when activation is skipped
+    -- (request_workflow == current_active AND latest is active)
+    SELECT wv.id, wv.form_id, wv.last_editor, wv.is_active, wv.workflow, wv.created_at, wv.updated_at
+    FROM workflow_versions AS wv
+    WHERE wv.id IN (SELECT id FROM current_active)
+      AND EXISTS (
+        SELECT 1 FROM should_activate AS sa 
+        WHERE sa.can_activate = false
+      )
 )
+-- Return the activated version, reverted version (if activation failed), or unchanged version (if skipped)
 SELECT * FROM activated
 UNION ALL
-SELECT * FROM reverted;
+SELECT * FROM reverted
+UNION ALL
+SELECT * FROM unchanged;
