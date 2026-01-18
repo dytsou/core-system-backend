@@ -133,13 +133,7 @@ func (h *Handler) UpdateWorkflow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	workflowResponse, err := json.Marshal(row.Workflow)
-	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, err, logger)
-		return
-	}
-
-	handlerutil.WriteJSONResponse(w, http.StatusOK, json.RawMessage(workflowResponse))
+	handlerutil.WriteJSONResponse(w, http.StatusOK, json.RawMessage(row.Workflow))
 }
 
 func (h *Handler) CreateNode(w http.ResponseWriter, r *http.Request) {
