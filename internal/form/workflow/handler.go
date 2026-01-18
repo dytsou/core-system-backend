@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 
 	handlerutil "github.com/NYCU-SDC/summer/pkg/handler"
@@ -207,12 +208,30 @@ func (h *Handler) ActivateWorkflow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Read request body as json.RawMessage
+	// json.RawMessage doesn't need struct validation, so read body directly
 	var req json.RawMessage
-	err = handlerutil.ParseAndValidateRequestBody(traceCtx, h.validator, r, &req)
-	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, err, logger)
+	if r.Body == nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("request body is nil"), logger)
 		return
 	}
+	bodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to read request body: %w", err), logger)
+		return
+	}
+	if len(bodyBytes) == 0 {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("request body is empty"), logger)
+		return
+	}
+
+	var unmarshalTest interface{}
+	err = json.Unmarshal(bodyBytes, &unmarshalTest)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid JSON in request body: %w", err), logger)
+		return
+	}
+	req = json.RawMessage(bodyBytes)
 
 	currentUser, ok := user.GetFromContext(traceCtx)
 	if !ok {
