@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	handlerutil "github.com/NYCU-SDC/summer/pkg/handler"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
@@ -53,7 +54,7 @@ func NewHandler(
 }
 
 type createNodeRequest struct {
-	Type string `json:"type" validate:"required,oneof=section condition"`
+	Type string `json:"type" validate:"required,oneof=SECTION CONDITION"`
 }
 
 type createNodeResponse struct {
@@ -148,7 +149,8 @@ func (h *Handler) CreateNode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	nodeType := NodeType(req.Type)
+	// Convert uppercase request value to lowercase for database storage
+	nodeType := NodeType(strings.ToLower(req.Type))
 	created, err := h.store.CreateNode(traceCtx, formID, nodeType, currentUser.ID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
