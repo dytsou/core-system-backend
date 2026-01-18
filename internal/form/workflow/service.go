@@ -122,7 +122,7 @@ func (s *Service) DeleteNode(ctx context.Context, formID uuid.UUID, nodeID uuid.
 	deleted, err := s.queries.DeleteNode(ctx, DeleteNodeParams{
 		FormID:     formID,
 		LastEditor: userID,
-		NodeID:     nodeID,
+		NodeID:     nodeID.String(),
 	})
 	if err != nil {
 		err = databaseutil.WrapDBErrorWithKeyValue(err, "workflow", "formId", formID.String(), logger, "delete node")

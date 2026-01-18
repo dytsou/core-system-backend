@@ -103,7 +103,7 @@ WITH latest_workflow AS (
 ),
 -- Convert deleted node ID to text format for JSONB comparison
 deleted_node_id AS (
-    SELECT to_jsonb(@node_id::uuid)::text AS deleted_id
+    SELECT @node_id::text AS deleted_id
 ),
 -- Extract information about the node to be deleted
 node_to_delete AS (
@@ -132,24 +132,24 @@ remaining_nodes AS (
 -- Expand each node into individual key-value pairs
 /* 
 Example of node_fields_expanded: 
-node                    | field_key  | cleaned_value
-------------------------|------------|------------
-{"id":"node-a",...}     | "id"       | "node-a"
-{"id":"node-a",...}     | "type"     | "start"
-{"id":"node-a",...}     | "label"    | "Start"
-{"id":"node-a",...}     | "next"     | null  ← NULLIFIED!
-{"id":"node-c",...}     | "id"       | "node-c"
-{"id":"node-c",...}     | "type"     | "condition"
-{"id":"node-c",...}     | "label"    | "Check"
-{"id":"node-c",...}     | "nextTrue" | null  ← NULLIFIED!
-{"id":"node-c",...}     | "nextFalse"| "node-d"
-{"id":"node-d",...}     | "id"       | "node-d"
-{"id":"node-d",...}     | "type"     | "end"
-{"id":"node-d",...}     | "label"    | "End"
+node_id   | field_key  | cleaned_value
+----------|------------|------------
+"node-a"  | "id"       | "node-a"
+"node-a"  | "type"     | "start"
+"node-a"  | "label"    | "Start"
+"node-a"  | "next"     | null  ← NULLIFIED!
+"node-c"  | "id"       | "node-c"
+"node-c"  | "type"     | "condition"
+"node-c"  | "label"    | "Check"
+"node-c"  | "nextTrue" | null  ← NULLIFIED!
+"node-c"  | "nextFalse"| "node-d"
+"node-d"  | "id"       | "node-d"
+"node-d"  | "type"     | "end"
+"node-d"  | "label"    | "End"
 */
 node_fields_expanded AS (
     SELECT 
-        node,
+        node->>'id' AS node_id,
         field_key,
         field_value
     FROM remaining_nodes,
@@ -158,7 +158,7 @@ node_fields_expanded AS (
 -- Clean each field: nullify reference fields that point to the deleted node
 cleaned_node_fields AS (
     SELECT 
-        node,
+        node_id,
         field_key,
         CASE 
             -- Nullify reference fields that point to the deleted node
@@ -172,13 +172,13 @@ cleaned_node_fields AS (
 -- Rebuild nodes from cleaned fields
 cleaned_nodes AS (
     SELECT 
-        jsonb_object_agg(field_key, cleaned_value) AS cleaned_node
+        jsonb_object_agg(field_key, cleaned_value ORDER BY field_key) AS cleaned_node
     FROM cleaned_node_fields
-    GROUP BY node
+    GROUP BY node_id
 ),
 -- Rebuild the workflow array from cleaned nodes
 cleaned_workflow AS (
-    SELECT jsonb_agg(cleaned_node) AS workflow
+    SELECT COALESCE(jsonb_agg(cleaned_node), '[]'::jsonb) AS workflow
     FROM cleaned_nodes
 ),
 -- Update draft workflow version in place
