@@ -255,12 +255,17 @@ func (h *Handler) ActivateWorkflow(w http.ResponseWriter, r *http.Request) {
 
 	activatedVersion, err := h.store.Activate(traceCtx, formID, currentUser.ID, req)
 	if err != nil {
+		logger.Error("failed to activate workflow", zap.Error(err), zap.String("formId", formID.String()))
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
 
 	if !activatedVersion.IsActive {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to activate workflow"), logger)
+		logger.Error("workflow activation returned inactive version",
+			zap.String("formId", formID.String()),
+			zap.String("versionId", activatedVersion.ID.String()),
+			zap.Bool("isActive", activatedVersion.IsActive))
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to activate workflow: returned version is not active"), logger)
 		return
 	}
 
