@@ -39,12 +39,13 @@ should_activate AS (
     Determine if activation should proceed and what action to take:
     
     Decision logic:
-    1. If request_workflow == current_active AND latest is active -> skip (unchanged)
-    2. Else if latest is not active -> update latest with request_workflow, then activate
-    3. Else (latest is active but request != current_active) -> create new version, then activate
+    1. If no workflow version exists -> create first version, then activate
+    2. Else if request_workflow == current_active AND latest is active -> skip (unchanged)
+    3. Else if latest is not active -> update latest with request_workflow, then activate
+    4. Else (latest is active but request != current_active) -> create new version, then activate
     
     Fields:
-    - latest_id: ID of the latest workflow version (by updated_at)
+    - latest_id: ID of the latest workflow version (by updated_at), NULL if none exists
     - latest_is_active: Whether the latest version is currently active
     - can_activate: Whether we should proceed with activation
     - should_update_latest: Whether to update the latest version (vs creating new one)
@@ -53,8 +54,8 @@ should_activate AS (
         l.id AS latest_id,
         l.is_active AS latest_is_active,
         CASE 
-            -- No latest version exists - nothing to activate
-            WHEN l.id IS NULL THEN false
+            -- No latest version exists - can activate (will create first version)
+            WHEN l.id IS NULL THEN true
             -- Request matches current active AND latest is active - skip activation
             WHEN ca.id IS NOT NULL AND rw.workflow IS NOT DISTINCT FROM ca.workflow AND l.is_active = true THEN false
             -- Latest version is inactive - can activate (will update it first)
@@ -65,7 +66,7 @@ should_activate AS (
         CASE 
             -- Update latest version if it's inactive (before activating it)
             WHEN l.is_active = false THEN true
-            -- Do not update if latest is active (will create a new version)
+            -- Do not update if latest is active or doesn't exist (will create a new version)
             ELSE false
         END AS should_update_latest
     FROM request_workflow AS rw
@@ -86,13 +87,13 @@ updated_latest AS (
     RETURNING wv.id, wv.form_id, wv.last_editor, wv.is_active, wv.workflow, wv.created_at, wv.updated_at
 ),
 created_version AS (
-    -- Create a new workflow version if latest is active but request differs from current active
+    -- Create a new workflow version if latest is active but request differs from current active,
+    -- OR if no workflow version exists yet (first activation)
     INSERT INTO workflow_versions (form_id, last_editor, workflow)
     SELECT $1, $2, rw.workflow
     FROM request_workflow AS rw, should_activate AS sa
     WHERE sa.can_activate = true
       AND sa.should_update_latest = false
-      AND sa.latest_id IS NOT NULL
     RETURNING id, form_id, last_editor, is_active, workflow, created_at, updated_at
 ),
 deactivated AS (
