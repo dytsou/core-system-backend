@@ -42,6 +42,17 @@ func NewService(logger *zap.Logger, db DBTX) *Service {
 	}
 }
 
+// NewServiceForTesting creates a Service with injected dependencies for testing.
+// This allows unit tests to mock the Querier and Validator interfaces.
+func NewServiceForTesting(logger *zap.Logger, tracer trace.Tracer, queries Querier, validator Validator) *Service {
+	return &Service{
+		logger:    logger,
+		queries:   queries,
+		tracer:    tracer,
+		validator: validator,
+	}
+}
+
 // Get retrieves the latest workflow version for a form
 func (s *Service) Get(ctx context.Context, formID uuid.UUID) (GetRow, error) {
 	methodName := "Get"
