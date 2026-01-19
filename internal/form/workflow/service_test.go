@@ -51,15 +51,15 @@ type mockValidator struct {
 	mock.Mock
 }
 
-func (m *mockValidator) Activate(workflow []byte) error {
-	args := m.Called(workflow)
+func (m *mockValidator) Activate(ctx context.Context, formID uuid.UUID, workflow []byte, questionStore workflow.QuestionStore) error {
+	args := m.Called(ctx, formID, workflow, questionStore)
 	return args.Error(0)
 }
 
 // createTestService creates a workflow.Service with mocked dependencies
-func createTestService(t *testing.T, logger *zap.Logger, tracer trace.Tracer, mockQuerier *mockQuerier, mockValidator *mockValidator) *workflow.Service {
+func createTestService(t *testing.T, logger *zap.Logger, tracer trace.Tracer, mockQuerier *mockQuerier, mockValidator *mockValidator, questionStore workflow.QuestionStore) *workflow.Service {
 	t.Helper()
-	return workflow.NewServiceForTesting(logger, tracer, mockQuerier, mockValidator)
+	return workflow.NewServiceForTesting(logger, tracer, mockQuerier, mockValidator, questionStore)
 }
 
 func TestService_Activate(t *testing.T) {
@@ -101,9 +101,9 @@ func TestService_Activate(t *testing.T) {
 
 			mockQuerier := new(mockQuerier)
 			mockValidator := new(mockValidator)
-			service := createTestService(t, logger, tracer, mockQuerier, mockValidator)
+			service := createTestService(t, logger, tracer, mockQuerier, mockValidator, nil)
 
-			mockValidator.On("Activate", tc.params.workflowJSON).Return(nil).Once()
+			mockValidator.On("Activate", mock.Anything, formID, tc.params.workflowJSON, mock.Anything).Return(nil).Once()
 
 			mockQuerier.On("Activate", mock.Anything, workflow.ActivateParams{
 				FormID:     formID,
@@ -231,9 +231,9 @@ func TestService_Activate_validation(t *testing.T) {
 
 			mockQuerier := new(mockQuerier)
 			mockValidator := new(mockValidator)
-			service := createTestService(t, logger, tracer, mockQuerier, mockValidator)
+			service := createTestService(t, logger, tracer, mockQuerier, mockValidator, nil)
 
-			mockValidator.On("Activate", tc.params.workflowJSON).Return(fmt.Errorf("workflow validation failed")).Once()
+			mockValidator.On("Activate", mock.Anything, formID, tc.params.workflowJSON, mock.Anything).Return(fmt.Errorf("workflow validation failed")).Once()
 
 			_, err := service.Activate(ctx, formID, userID, tc.params.workflowJSON)
 

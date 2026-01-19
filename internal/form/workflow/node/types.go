@@ -1,11 +1,23 @@
 package node
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+
+	"NYCU-SDC/core-system-backend/internal/form/question"
+
+	"github.com/google/uuid"
+)
+
+// QuestionStore defines the interface for querying form questions
+type QuestionStore interface {
+	GetByID(ctx context.Context, id uuid.UUID) (question.Answerable, error)
+}
 
 // Validatable defines the interface for node validation
 // Similar to Answerable in question package
 type Validatable interface {
-	Validate(nodeMap map[string]map[string]interface{}) error
+	Validate(ctx context.Context, formID uuid.UUID, nodeMap map[string]map[string]interface{}, questionStore QuestionStore) error
 }
 
 // ConditionSource represents the source type for condition rules

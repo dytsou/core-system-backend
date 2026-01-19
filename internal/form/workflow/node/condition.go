@@ -1,9 +1,12 @@
 package node
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"regexp"
+
+	"github.com/google/uuid"
 )
 
 // ConditionNode represents a condition node
@@ -15,7 +18,7 @@ func NewConditionNode(node map[string]interface{}) (Validatable, error) {
 	return &ConditionNode{node: node}, nil
 }
 
-func (n *ConditionNode) Validate(nodeMap map[string]map[string]interface{}) error {
+func (n *ConditionNode) Validate(ctx context.Context, formID uuid.UUID, nodeMap map[string]map[string]interface{}, questionStore QuestionStore) error {
 	nodeID, _ := n.node["id"].(string)
 
 	// Validate field names (check for typos and invalid fields)
@@ -62,7 +65,7 @@ func (n *ConditionNode) Validate(nodeMap map[string]map[string]interface{}) erro
 	}
 
 	// Validate conditionRule fields
-	err = n.validateConditionRule(nodeID, conditionRule, nodeMap)
+	err = n.validateConditionRule(ctx, formID, nodeID, conditionRule, nodeMap, questionStore)
 	if err != nil {
 		return err
 	}
@@ -95,7 +98,7 @@ func (n *ConditionNode) validateFieldNames(nodeID string) error {
 	return nil
 }
 
-func (n *ConditionNode) validateConditionRule(nodeID string, rule ConditionRule, nodeMap map[string]map[string]interface{}) error {
+func (n *ConditionNode) validateConditionRule(ctx context.Context, formID uuid.UUID, nodeID string, rule ConditionRule, nodeMap map[string]map[string]interface{}, questionStore QuestionStore) error {
 	// Validate source
 	if rule.Source != ConditionSourceChoice && rule.Source != ConditionSourceNonChoice {
 		return fmt.Errorf("condition node '%s' has invalid conditionRule.source: '%s'", nodeID, rule.Source)
@@ -121,6 +124,40 @@ func (n *ConditionNode) validateConditionRule(nodeID string, rule ConditionRule,
 	_, err := regexp.Compile(rule.Pattern)
 	if err != nil {
 		return fmt.Errorf("condition node '%s' conditionRule.pattern is not a valid regex: %w", nodeID, err)
+	}
+
+	// Validate question ID exists and type matches condition source
+	if questionStore != nil {
+		questionID, err := uuid.Parse(rule.Key)
+		if err != nil {
+			return fmt.Errorf("condition node '%s' conditionRule.key '%s' is not a valid UUID", nodeID, rule.Key)
+		}
+
+		answerable, err := questionStore.GetByID(ctx, questionID)
+		if err != nil {
+			return fmt.Errorf("condition node '%s' references non-existent question '%s' in conditionRule.key", nodeID, rule.Key)
+		}
+
+		q := answerable.Question()
+
+		// Validate question belongs to the form
+		if q.FormID != formID {
+			return fmt.Errorf("condition node '%s' references question '%s' that belongs to a different form", nodeID, rule.Key)
+		}
+
+		// Validate question type matches condition source
+		switch rule.Source {
+		case ConditionSourceChoice:
+			// Choice source requires single_choice or multiple_choice question type
+			if string(q.Type) != "single_choice" && string(q.Type) != "multiple_choice" {
+				return fmt.Errorf("condition node '%s' with source 'choice' requires question type 'single_choice' or 'multiple_choice', but question '%s' has type '%s'", nodeID, rule.Key, q.Type)
+			}
+		case ConditionSourceNonChoice:
+			// NonChoice source requires short_text, long_text, or date question type
+			if string(q.Type) != "short_text" && string(q.Type) != "long_text" && string(q.Type) != "date" {
+				return fmt.Errorf("condition node '%s' with source 'nonChoice' requires question type 'short_text', 'long_text', or 'date', but question '%s' has type '%s'", nodeID, rule.Key, q.Type)
+			}
+		}
 	}
 
 	return nil

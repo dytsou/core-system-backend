@@ -1,6 +1,11 @@
 package node
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+
+	"github.com/google/uuid"
+)
 
 // EndNode represents an end node
 type EndNode struct {
@@ -11,7 +16,7 @@ func NewEndNode(node map[string]interface{}) (Validatable, error) {
 	return &EndNode{node: node}, nil
 }
 
-func (n *EndNode) Validate(nodeMap map[string]map[string]interface{}) error {
+func (n *EndNode) Validate(ctx context.Context, formID uuid.UUID, nodeMap map[string]map[string]interface{}, questionStore QuestionStore) error {
 	nodeID, _ := n.node["id"].(string)
 
 	// Validate field names (check for typos and invalid fields)

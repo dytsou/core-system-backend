@@ -1,19 +1,28 @@
 package workflow
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 
+	"NYCU-SDC/core-system-backend/internal/form/question"
 	"NYCU-SDC/core-system-backend/internal/form/workflow/node"
 
 	"github.com/google/uuid"
 )
 
-type validatorFunc func([]byte) error
+// QuestionStore defines the interface for querying form questions
+// This allows the validator to check if condition rule question IDs exist and match expected types
+type QuestionStore interface {
+	GetByID(ctx context.Context, id uuid.UUID) (question.Answerable, error)
+	ListByFormID(ctx context.Context, formID uuid.UUID) ([]question.Answerable, error)
+}
 
-func (f validatorFunc) Activate(workflow []byte) error {
-	return f(workflow)
+type validatorFunc func(context.Context, uuid.UUID, []byte, QuestionStore) error
+
+func (f validatorFunc) Activate(ctx context.Context, formID uuid.UUID, workflow []byte, questionStore QuestionStore) error {
+	return f(ctx, formID, workflow, questionStore)
 }
 
 // NewValidator creates a new workflow validator using the built-in NodeType set.
@@ -28,8 +37,9 @@ func NewValidator() Validator {
 // - Node structure and required fields
 // - Valid node types
 // - Graph connectivity (all nodes are reachable)
+// - Condition rule question IDs exist and types match
 // Returns all validation errors if validation fails
-func Activate(workflow []byte) error {
+func Activate(ctx context.Context, formID uuid.UUID, workflow []byte, questionStore QuestionStore) error {
 	var validationErrors []error
 
 	// Validate workflow length
@@ -52,7 +62,7 @@ func Activate(workflow []byte) error {
 	}
 
 	// Validate all nodes and build node map
-	nodeMap, startNodeCount, endNodeCount, nodeErrors := validateNodes(nodes)
+	nodeMap, startNodeCount, endNodeCount, nodeErrors := validateNodes(ctx, formID, nodes, questionStore)
 	if len(nodeErrors) > 0 {
 		validationErrors = append(validationErrors, nodeErrors...)
 	}
@@ -138,7 +148,7 @@ func validateNodeID(node map[string]interface{}, index int) (string, error) {
 // - startNodeCount: number of start nodes found
 // - endNodeCount: number of end nodes found
 // - errors: all validation errors collected
-func validateNodes(nodes []map[string]interface{}) (map[string]map[string]interface{}, int, int, []error) {
+func validateNodes(ctx context.Context, formID uuid.UUID, nodes []map[string]interface{}, questionStore QuestionStore) (map[string]map[string]interface{}, int, int, []error) {
 	nodeMap := make(map[string]map[string]interface{})
 	nodeIDs := make(map[string]bool)
 	validatedNodes := make([]node.Validatable, 0, len(nodes))
@@ -189,7 +199,9 @@ func validateNodes(nodes []map[string]interface{}) (map[string]map[string]interf
 	// This validates node-specific rules (e.g., condition nodes must have conditionRule)
 	// Only validate nodes that were successfully created
 	for i, validatedNode := range validatedNodes {
-		if err := validatedNode.Validate(nodeMap); err != nil {
+		// Pass context, formID, and questionStore for condition rule validation
+		err := validatedNode.Validate(ctx, formID, nodeMap, questionStore)
+		if err != nil {
 			validationErrors = append(validationErrors, fmt.Errorf("node at index %d: %w", i, err))
 		}
 	}

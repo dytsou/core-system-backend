@@ -23,33 +23,36 @@ type Querier interface {
 }
 
 type Validator interface {
-	Activate(workflow []byte) error
+	Activate(ctx context.Context, formID uuid.UUID, workflow []byte, questionStore QuestionStore) error
 }
 
 type Service struct {
-	logger    *zap.Logger
-	queries   Querier
-	tracer    trace.Tracer
-	validator Validator
+	logger        *zap.Logger
+	queries       Querier
+	tracer        trace.Tracer
+	validator     Validator
+	questionStore QuestionStore
 }
 
-func NewService(logger *zap.Logger, db DBTX) *Service {
+func NewService(logger *zap.Logger, db DBTX, questionService QuestionStore) *Service {
 	return &Service{
-		logger:    logger,
-		queries:   New(db),
-		tracer:    otel.Tracer("workflow/service"),
-		validator: NewValidator(),
+		logger:        logger,
+		queries:       New(db),
+		tracer:        otel.Tracer("workflow/service"),
+		validator:     NewValidator(),
+		questionStore: questionService,
 	}
 }
 
 // NewServiceForTesting creates a Service with injected dependencies for testing.
 // This allows unit tests to mock the Querier and Validator interfaces.
-func NewServiceForTesting(logger *zap.Logger, tracer trace.Tracer, queries Querier, validator Validator) *Service {
+func NewServiceForTesting(logger *zap.Logger, tracer trace.Tracer, queries Querier, validator Validator, questionStore QuestionStore) *Service {
 	return &Service{
-		logger:    logger,
-		queries:   queries,
-		tracer:    tracer,
-		validator: validator,
+		logger:        logger,
+		queries:       queries,
+		tracer:        tracer,
+		validator:     validator,
+		questionStore: questionStore,
 	}
 }
 
@@ -159,7 +162,7 @@ func (s *Service) Activate(ctx context.Context, formID uuid.UUID, userID uuid.UU
 	logger := logutil.WithContext(ctx, s.logger)
 
 	// Validate workflow before activation
-	err := s.validator.Activate(workflow)
+	err := s.validator.Activate(ctx, formID, workflow, s.questionStore)
 	if err != nil {
 		// Wrap validation error to return 400 instead of 500
 		err = fmt.Errorf("%w: %w", internal.ErrWorkflowValidationFailed, err)

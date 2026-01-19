@@ -1,6 +1,11 @@
 package node
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+
+	"github.com/google/uuid"
+)
 
 // SectionNode represents a section node
 type SectionNode struct {
@@ -11,7 +16,7 @@ func NewSectionNode(node map[string]interface{}) (Validatable, error) {
 	return &SectionNode{node: node}, nil
 }
 
-func (n *SectionNode) Validate(nodeMap map[string]map[string]interface{}) error {
+func (n *SectionNode) Validate(ctx context.Context, formID uuid.UUID, nodeMap map[string]map[string]interface{}, questionStore QuestionStore) error {
 	nodeID, _ := n.node["id"].(string)
 
 	// Validate field names (check for typos and invalid fields)

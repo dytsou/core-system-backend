@@ -1,6 +1,7 @@
 package workflow_test
 
 import (
+	"context"
 	"testing"
 
 	"NYCU-SDC/core-system-backend/internal/form/workflow"
@@ -38,12 +39,14 @@ func TestActivate_InvalidNodeReferences(t *testing.T) {
 	}
 
 	validator := workflow.NewValidator()
+	ctx := context.Background()
+	formID := uuid.New()
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := validator.Activate(tc.workflowJSON)
+			err := validator.Activate(ctx, formID, tc.workflowJSON, nil)
 
 			require.Error(t, err, "expected validation error")
 		})
