@@ -162,8 +162,9 @@ cleaned_node_fields AS (
         field_key,
         CASE 
             -- Nullify reference fields that point to the deleted node
+            -- Use #>>'{}' to extract text value from JSONB string without quotes
             WHEN field_key IN ('next', 'nextTrue', 'nextFalse') 
-             AND field_value::text = (SELECT deleted_id FROM deleted_node_id)
+             AND field_value#>>'{}' = (SELECT deleted_id FROM deleted_node_id)
             THEN 'null'::jsonb
             ELSE field_value
         END AS cleaned_value
