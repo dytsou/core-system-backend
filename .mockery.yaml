@@ -1,0 +1,27 @@
+all: false
+dir: "{{.InterfaceDir}}"
+filename: "{{.InterfaceName}}.go"
+force-file-write: true
+formatter: goimports
+include-auto-generated: false
+log-level: info
+structname: "{{.Mock}}{{.InterfaceName}}"
+pkgname: "{{.SrcPackageName}}"
+recursive: false
+require-template-schema-exists: true
+template: testify
+template-schema: "{{.Template}}.schema.json"
+
+packages:
+  NYCU-SDC/core-system-backend/internal/form/workflow:
+    interfaces:
+      Querier:
+        config:
+          inpackage: false
+          pkgname: mocks
+          dir: "{{.InterfaceDir}}/mocks"
+      Validator:
+        config:
+          inpackage: false
+          pkgname: mocks
+          dir: "{{.InterfaceDir}}/mocks"
