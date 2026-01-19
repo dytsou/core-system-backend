@@ -118,7 +118,8 @@ func (n *ConditionNode) validateConditionRule(nodeID string, rule ConditionRule,
 	}
 
 	// Validate pattern is a valid regex
-	if _, err := regexp.Compile(rule.Pattern); err != nil {
+	_, err := regexp.Compile(rule.Pattern)
+	if err != nil {
 		return fmt.Errorf("condition node '%s' conditionRule.pattern is not a valid regex: %w", nodeID, err)
 	}
 
