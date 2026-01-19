@@ -133,7 +133,6 @@ func validateNodeID(node map[string]interface{}, index int) (string, error) {
 	return id, nil
 }
 
-
 // validateNodes validates all nodes in the workflow and returns:
 // - nodeMap: map of node ID to node
 // - startNodeCount: number of start nodes found
@@ -223,14 +222,9 @@ func validateRequiredNodeTypes(startNodeCount, endNodeCount int) []error {
 func validateGraphConnectivity(nodes []map[string]interface{}, nodeMap map[string]map[string]interface{}) error {
 	// Build graph and validate references
 	graph := make(map[string][]string)
-	incomingEdges := make(map[string]int)
+	var referenceErrors []error
 
-	// Initialize incoming edge counts
-	for id := range nodeMap {
-		incomingEdges[id] = 0
-	}
-
-	// Build adjacency list
+	// Build adjacency list and validate references
 	for _, node := range nodes {
 		nodeID, _ := node["id"].(string)
 		nodeType, _ := node["type"].(string)
@@ -240,23 +234,46 @@ func validateGraphConnectivity(nodes []map[string]interface{}, nodeMap map[strin
 		// Handle different node types and their connection fields
 		if nodeType == string(NodeTypeCondition) {
 			// Condition nodes have nextTrue and nextFalse
-			if nextTrue, ok := node["nextTrue"].(string); ok && nextTrue != "" {
-				nextNodes = append(nextNodes, nextTrue)
-				incomingEdges[nextTrue]++
+			nextTrue, ok := node["nextTrue"].(string)
+			if ok && nextTrue != "" {
+				// Validate that nextTrue references an existing node
+				_, exists := nodeMap[nextTrue]
+				if !exists {
+					referenceErrors = append(referenceErrors, fmt.Errorf("condition node '%s' references non-existent node '%s' in nextTrue", nodeID, nextTrue))
+				} else {
+					nextNodes = append(nextNodes, nextTrue)
+				}
 			}
-			if nextFalse, ok := node["nextFalse"].(string); ok && nextFalse != "" {
-				nextNodes = append(nextNodes, nextFalse)
-				incomingEdges[nextFalse]++
+			nextFalse, ok := node["nextFalse"].(string)
+			if ok && nextFalse != "" {
+				// Validate that nextFalse references an existing node
+				_, exists := nodeMap[nextFalse]
+				if !exists {
+					referenceErrors = append(referenceErrors, fmt.Errorf("condition node '%s' references non-existent node '%s' in nextFalse", nodeID, nextFalse))
+				} else {
+					nextNodes = append(nextNodes, nextFalse)
+				}
 			}
 		} else {
 			// Other nodes have next field
-			if next, ok := node["next"].(string); ok && next != "" {
-				nextNodes = append(nextNodes, next)
-				incomingEdges[next]++
+			next, ok := node["next"].(string)
+			if ok && next != "" {
+				// Validate that next references an existing node
+				_, exists := nodeMap[next]
+				if !exists {
+					referenceErrors = append(referenceErrors, fmt.Errorf("node '%s' references non-existent node '%s' in next", nodeID, next))
+				} else {
+					nextNodes = append(nextNodes, next)
+				}
 			}
 		}
 
 		graph[nodeID] = nextNodes
+	}
+
+	// Return early if there are reference errors
+	if len(referenceErrors) > 0 {
+		return fmt.Errorf("invalid node references found: %w", errors.Join(referenceErrors...))
 	}
 
 	// Find the start node (there should be exactly one)
