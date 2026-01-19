@@ -315,20 +315,18 @@ cleaned_node_fields AS (
     SELECT 
         node_id,
         field_key,
-        CASE 
-            -- Nullify reference fields that point to the deleted node
-            -- Extract text value from JSONB string by removing quotes from text representation
-            WHEN field_key IN ('next', 'nextTrue', 'nextFalse') 
-             AND jsonb_typeof(field_value) = 'string'
-             AND trim(both '"' from field_value::text) = (SELECT deleted_id FROM deleted_node_id)
-            THEN 'null'::jsonb
-            ELSE field_value
-        END AS cleaned_value
+        field_value
     FROM node_fields_expanded
+    WHERE NOT (
+        -- Remove (omit) reference fields that point to the deleted node
+        field_key IN ('next', 'nextTrue', 'nextFalse') 
+        AND jsonb_typeof(field_value) = 'string'
+        AND trim(both '"' from field_value::text) = (SELECT deleted_id FROM deleted_node_id)
+    )
 ),
 cleaned_nodes AS (
     SELECT 
-        jsonb_object_agg(field_key, cleaned_value ORDER BY field_key) AS cleaned_node
+        jsonb_object_agg(field_key, field_value ORDER BY field_key) AS cleaned_node
     FROM cleaned_node_fields
     GROUP BY node_id
 ),
@@ -372,7 +370,7 @@ type DeleteNodeParams struct {
 // Get all nodes except the one being deleted
 // Expand each node into individual key-value pairs
 // --------|------------|------------
-// Clean each field: nullify reference fields that point to the deleted node
+// Clean each field: remove reference fields that point to the deleted node (omit them entirely)
 // Rebuild nodes from cleaned fields
 // Rebuild the workflow array from cleaned nodes
 // Update draft workflow version in place

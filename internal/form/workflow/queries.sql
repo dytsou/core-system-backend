@@ -155,26 +155,24 @@ node_fields_expanded AS (
     FROM remaining_nodes,
     LATERAL jsonb_each(COALESCE(node, '{}'::jsonb)) AS node_fields(field_key, field_value)
 ),
--- Clean each field: nullify reference fields that point to the deleted node
+-- Clean each field: remove reference fields that point to the deleted node (omit them entirely)
 cleaned_node_fields AS (
     SELECT 
         node_id,
         field_key,
-        CASE 
-            -- Nullify reference fields that point to the deleted node
-            -- Extract text value from JSONB string by removing quotes from text representation
-            WHEN field_key IN ('next', 'nextTrue', 'nextFalse') 
-             AND jsonb_typeof(field_value) = 'string'
-             AND trim(both '"' from field_value::text) = (SELECT deleted_id FROM deleted_node_id)
-            THEN 'null'::jsonb
-            ELSE field_value
-        END AS cleaned_value
+        field_value
     FROM node_fields_expanded
+    WHERE NOT (
+        -- Remove (omit) reference fields that point to the deleted node
+        field_key IN ('next', 'nextTrue', 'nextFalse') 
+        AND jsonb_typeof(field_value) = 'string'
+        AND trim(both '"' from field_value::text) = (SELECT deleted_id FROM deleted_node_id)
+    )
 ),
 -- Rebuild nodes from cleaned fields
 cleaned_nodes AS (
     SELECT 
-        jsonb_object_agg(field_key, cleaned_value ORDER BY field_key) AS cleaned_node
+        jsonb_object_agg(field_key, field_value ORDER BY field_key) AS cleaned_node
     FROM cleaned_node_fields
     GROUP BY node_id
 ),
