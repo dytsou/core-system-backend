@@ -4,9 +4,12 @@ import (
 	"context"
 	"testing"
 
+	"NYCU-SDC/core-system-backend/internal"
+	"NYCU-SDC/core-system-backend/internal/form/question"
 	"NYCU-SDC/core-system-backend/internal/form/workflow"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/require"
 )
 
@@ -195,4 +198,305 @@ func createWorkflowWithInvalidConditionRefs(t *testing.T) []byte {
 			"next":  conditionID.String(),
 		},
 	})
+}
+
+// TestActivate_ConditionRuleValidation tests strict condition rule validation
+func TestActivate_ConditionRuleValidation(t *testing.T) {
+	t.Parallel()
+
+	formID := uuid.New()
+	otherFormID := uuid.New()
+
+	type testCase struct {
+		name        string
+		setup       func() ([]byte, workflow.QuestionStore)
+		expectedErr bool
+	}
+
+	testCases := []testCase{
+		{
+			name: "condition rule with non-existent question ID",
+			setup: func() ([]byte, workflow.QuestionStore) {
+				questionID := uuid.New().String()
+				return createWorkflowWithConditionRule(t, questionID),
+					&mockQuestionStore{questions: make(map[uuid.UUID]question.Answerable)}
+			},
+			expectedErr: true,
+		},
+		{
+			name: "condition rule with question from different form",
+			setup: func() ([]byte, workflow.QuestionStore) {
+				questionID := uuid.New().String()
+				questionUUID := mustParseUUID(t, questionID)
+				return createWorkflowWithConditionRule(t, questionID),
+					&mockQuestionStore{
+						questions: map[uuid.UUID]question.Answerable{
+							questionUUID: createMockAnswerable(t, otherFormID, question.QuestionTypeShortText),
+						},
+					}
+			},
+			expectedErr: true,
+		},
+		{
+			name: "condition rule with source=choice but question type is short_text",
+			setup: func() ([]byte, workflow.QuestionStore) {
+				questionID := uuid.New().String()
+				questionUUID := mustParseUUID(t, questionID)
+				return createWorkflowWithConditionRuleSourceWithQuestionID(t, "choice", questionID),
+					&mockQuestionStore{
+						questions: map[uuid.UUID]question.Answerable{
+							questionUUID: createMockAnswerable(t, formID, question.QuestionTypeShortText),
+						},
+					}
+			},
+			expectedErr: true,
+		},
+		{
+			name: "condition rule with source=nonChoice but question type is single_choice",
+			setup: func() ([]byte, workflow.QuestionStore) {
+				questionID := uuid.New().String()
+				questionUUID := mustParseUUID(t, questionID)
+				return createWorkflowWithConditionRuleSourceWithQuestionID(t, "nonChoice", questionID),
+					&mockQuestionStore{
+						questions: map[uuid.UUID]question.Answerable{
+							questionUUID: createMockAnswerable(t, formID, question.QuestionTypeSingleChoice),
+						},
+					}
+			},
+			expectedErr: true,
+		},
+		{
+			name: "valid condition rule with source=choice and single_choice question",
+			setup: func() ([]byte, workflow.QuestionStore) {
+				questionID := uuid.New().String()
+				questionUUID := mustParseUUID(t, questionID)
+				return createWorkflowWithConditionRuleSourceWithQuestionID(t, "choice", questionID),
+					&mockQuestionStore{
+						questions: map[uuid.UUID]question.Answerable{
+							questionUUID: createMockAnswerable(t, formID, question.QuestionTypeSingleChoice),
+						},
+					}
+			},
+			expectedErr: false,
+		},
+		{
+			name: "valid condition rule with source=choice and multiple_choice question",
+			setup: func() ([]byte, workflow.QuestionStore) {
+				questionID := uuid.New().String()
+				questionUUID := mustParseUUID(t, questionID)
+				return createWorkflowWithConditionRuleSourceWithQuestionID(t, "choice", questionID),
+					&mockQuestionStore{
+						questions: map[uuid.UUID]question.Answerable{
+							questionUUID: createMockAnswerable(t, formID, question.QuestionTypeMultipleChoice),
+						},
+					}
+			},
+			expectedErr: false,
+		},
+		{
+			name: "valid condition rule with source=nonChoice and short_text question",
+			setup: func() ([]byte, workflow.QuestionStore) {
+				questionID := uuid.New().String()
+				questionUUID := mustParseUUID(t, questionID)
+				return createWorkflowWithConditionRuleSourceWithQuestionID(t, "nonChoice", questionID),
+					&mockQuestionStore{
+						questions: map[uuid.UUID]question.Answerable{
+							questionUUID: createMockAnswerable(t, formID, question.QuestionTypeShortText),
+						},
+					}
+			},
+			expectedErr: false,
+		},
+		{
+			name: "valid condition rule with source=nonChoice and long_text question",
+			setup: func() ([]byte, workflow.QuestionStore) {
+				questionID := uuid.New().String()
+				questionUUID := mustParseUUID(t, questionID)
+				return createWorkflowWithConditionRuleSourceWithQuestionID(t, "nonChoice", questionID),
+					&mockQuestionStore{
+						questions: map[uuid.UUID]question.Answerable{
+							questionUUID: createMockAnswerable(t, formID, question.QuestionTypeLongText),
+						},
+					}
+			},
+			expectedErr: false,
+		},
+		{
+			name: "valid condition rule with source=nonChoice and date question",
+			setup: func() ([]byte, workflow.QuestionStore) {
+				questionID := uuid.New().String()
+				questionUUID := mustParseUUID(t, questionID)
+				return createWorkflowWithConditionRuleSourceWithQuestionID(t, "nonChoice", questionID),
+					&mockQuestionStore{
+						questions: map[uuid.UUID]question.Answerable{
+							questionUUID: createMockAnswerable(t, formID, question.QuestionTypeDate),
+						},
+					}
+			},
+			expectedErr: false,
+		},
+	}
+
+	validator := workflow.NewValidator()
+	ctx := context.Background()
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			workflowJSON, questionStore := tc.setup()
+			err := validator.Activate(ctx, formID, workflowJSON, questionStore)
+
+			if tc.expectedErr {
+				require.Error(t, err, "expected validation error but got nil")
+			} else {
+				require.NoError(t, err, "expected validation to pass but got error: %v", err)
+			}
+		})
+	}
+}
+
+// mockQuestionStore is a mock implementation of workflow.QuestionStore for testing
+type mockQuestionStore struct {
+	questions map[uuid.UUID]question.Answerable
+}
+
+func (m *mockQuestionStore) GetByID(ctx context.Context, id uuid.UUID) (question.Answerable, error) {
+	if q, ok := m.questions[id]; ok {
+		return q, nil
+	}
+	return nil, internal.ErrQuestionNotFound
+}
+
+func (m *mockQuestionStore) ListByFormID(ctx context.Context, formID uuid.UUID) ([]question.Answerable, error) {
+	var result []question.Answerable
+	for _, q := range m.questions {
+		if q.Question().FormID == formID {
+			result = append(result, q)
+		}
+	}
+	return result, nil
+}
+
+// Helper functions for condition rule validation tests
+
+func createWorkflowWithConditionRule(t *testing.T, questionID string) []byte {
+	t.Helper()
+	if questionID == "" {
+		questionID = uuid.New().String()
+	}
+	startID := uuid.New()
+	conditionID := uuid.New()
+	endID := uuid.New()
+	sectionID := uuid.New()
+
+	return createWorkflowJSON(t, []map[string]interface{}{
+		{
+			"id":    startID.String(),
+			"type":  "start",
+			"label": "Start",
+			"next":  sectionID.String(),
+		},
+		{
+			"id":    sectionID.String(),
+			"type":  "section",
+			"label": "Section",
+			"next":  conditionID.String(),
+		},
+		{
+			"id":        conditionID.String(),
+			"type":      "condition",
+			"label":     "Condition",
+			"nextTrue":  endID.String(),
+			"nextFalse": endID.String(),
+			"conditionRule": map[string]interface{}{
+				"source":  "choice",
+				"nodeId":  sectionID.String(),
+				"key":     questionID,
+				"pattern": "yes",
+			},
+		},
+		{
+			"id":    endID.String(),
+			"type":  "end",
+			"label": "End",
+		},
+	})
+}
+
+func createWorkflowWithConditionRuleSourceWithQuestionID(t *testing.T, source string, questionID string) []byte {
+	t.Helper()
+	startID := uuid.New()
+	conditionID := uuid.New()
+	endID := uuid.New()
+	sectionID := uuid.New()
+
+	return createWorkflowJSON(t, []map[string]interface{}{
+		{
+			"id":    startID.String(),
+			"type":  "start",
+			"label": "Start",
+			"next":  sectionID.String(),
+		},
+		{
+			"id":    sectionID.String(),
+			"type":  "section",
+			"label": "Section",
+			"next":  conditionID.String(),
+		},
+		{
+			"id":        conditionID.String(),
+			"type":      "condition",
+			"label":     "Condition",
+			"nextTrue":  endID.String(),
+			"nextFalse": endID.String(),
+			"conditionRule": map[string]interface{}{
+				"source":  source,
+				"nodeId":  sectionID.String(),
+				"key":     questionID,
+				"pattern": "yes",
+			},
+		},
+		{
+			"id":    endID.String(),
+			"type":  "end",
+			"label": "End",
+		},
+	})
+}
+
+func createMockAnswerable(t *testing.T, formID uuid.UUID, questionType question.QuestionType) question.Answerable {
+	t.Helper()
+	q := question.Question{
+		ID:       uuid.New(),
+		FormID:   formID,
+		Required: false,
+		Type:     questionType,
+		Title:    pgtype.Text{String: "Test Question", Valid: true},
+		Order:    1,
+	}
+
+	// Generate metadata for choice-based questions
+	if questionType == question.QuestionTypeSingleChoice || questionType == question.QuestionTypeMultipleChoice {
+		metadata, err := question.GenerateMetadata(string(questionType), []question.ChoiceOption{
+			{Name: "Option 1"},
+			{Name: "Option 2"},
+		})
+		require.NoError(t, err)
+		q.Metadata = metadata
+	} else {
+		// For non-choice questions, use empty metadata
+		q.Metadata = []byte("{}")
+	}
+
+	answerable, err := question.NewAnswerable(q)
+	require.NoError(t, err)
+	return answerable
+}
+
+func mustParseUUID(t *testing.T, s string) uuid.UUID {
+	t.Helper()
+	id, err := uuid.Parse(s)
+	require.NoError(t, err)
+	return id
 }
