@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"NYCU-SDC/core-system-backend/internal"
+
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/google/uuid"
@@ -20,17 +22,23 @@ type Querier interface {
 	Activate(ctx context.Context, arg ActivateParams) (ActivateRow, error)
 }
 
+type Validator interface {
+	Activate(workflow []byte) error
+}
+
 type Service struct {
-	logger  *zap.Logger
-	queries Querier
-	tracer  trace.Tracer
+	logger    *zap.Logger
+	queries   Querier
+	tracer    trace.Tracer
+	validator Validator
 }
 
 func NewService(logger *zap.Logger, db DBTX) *Service {
 	return &Service{
-		logger:  logger,
-		queries: New(db),
-		tracer:  otel.Tracer("workflow/service"),
+		logger:    logger,
+		queries:   New(db),
+		tracer:    otel.Tracer("workflow/service"),
+		validator: NewValidator(),
 	}
 }
 
@@ -139,8 +147,14 @@ func (s *Service) Activate(ctx context.Context, formID uuid.UUID, userID uuid.UU
 	defer span.End()
 	logger := logutil.WithContext(ctx, s.logger)
 
-	// Basic JSON validation - check if workflow is valid JSON
-	// TODO: More detailed graph validation would be added later
+	// Validate workflow before activation
+	err := s.validator.Activate(workflow)
+	if err != nil {
+		// Wrap validation error to return 400 instead of 500
+		err = fmt.Errorf("%w: %w", internal.ErrWorkflowValidationFailed, err)
+		span.RecordError(err)
+		return ActivateRow{}, err
+	}
 
 	activatedVersion, err := s.queries.Activate(ctx, ActivateParams{
 		FormID:     formID,
