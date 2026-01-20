@@ -56,6 +56,11 @@ func (m *mockValidator) Activate(ctx context.Context, formID uuid.UUID, workflow
 	return args.Error(0)
 }
 
+func (m *mockValidator) Validate(ctx context.Context, formID uuid.UUID, workflow []byte, questionStore workflow.QuestionStore) error {
+	args := m.Called(ctx, formID, workflow, questionStore)
+	return args.Error(0)
+}
+
 // createTestService creates a workflow.Service with mocked dependencies
 func createTestService(t *testing.T, logger *zap.Logger, tracer trace.Tracer, mockQuerier *mockQuerier, mockValidator *mockValidator, questionStore workflow.QuestionStore) *workflow.Service {
 	t.Helper()

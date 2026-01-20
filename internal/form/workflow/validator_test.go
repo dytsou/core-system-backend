@@ -500,3 +500,141 @@ func mustParseUUID(t *testing.T, s string) uuid.UUID {
 	require.NoError(t, err)
 	return id
 }
+
+// TestValidate tests the Validate method which should reuse the same validation logic as Activate
+func TestValidate(t *testing.T) {
+	t.Parallel()
+
+	type testCase struct {
+		name        string
+		setup       func() ([]byte, workflow.QuestionStore)
+		expectedErr bool
+	}
+
+	formID := uuid.New()
+
+	testCases := []testCase{
+		{
+			name: "valid workflow",
+			setup: func() ([]byte, workflow.QuestionStore) {
+				startID := uuid.New()
+				endID := uuid.New()
+				nodes := []map[string]interface{}{
+					{
+						"id":    startID.String(),
+						"type":  "start",
+						"label": "Start",
+						"next":  endID.String(),
+					},
+					{
+						"id":    endID.String(),
+						"type":  "end",
+						"label": "End",
+					},
+				}
+				return createWorkflowJSON(t, nodes), &mockQuestionStore{questions: make(map[uuid.UUID]question.Answerable)}
+			},
+			expectedErr: false,
+		},
+		{
+			name: "invalid workflow - missing start node",
+			setup: func() ([]byte, workflow.QuestionStore) {
+				endID := uuid.New()
+				nodes := []map[string]interface{}{
+					{
+						"id":    endID.String(),
+						"type":  "end",
+						"label": "End",
+					},
+				}
+				return createWorkflowJSON(t, nodes), &mockQuestionStore{questions: make(map[uuid.UUID]question.Answerable)}
+			},
+			expectedErr: true,
+		},
+		{
+			name: "invalid workflow - duplicate node IDs",
+			setup: func() ([]byte, workflow.QuestionStore) {
+				startID := uuid.New()
+				endID := uuid.New()
+				nodes := []map[string]interface{}{
+					{
+						"id":    startID.String(),
+						"type":  "start",
+						"label": "Start",
+						"next":  endID.String(),
+					},
+					{
+						"id":    startID.String(), // Duplicate ID
+						"type":  "end",
+						"label": "End",
+					},
+				}
+				return createWorkflowJSON(t, nodes), &mockQuestionStore{questions: make(map[uuid.UUID]question.Answerable)}
+			},
+			expectedErr: true,
+		},
+		{
+			name: "invalid workflow - unreachable node",
+			setup: func() ([]byte, workflow.QuestionStore) {
+				startID := uuid.New()
+				endID := uuid.New()
+				orphanID := uuid.New()
+				nodes := []map[string]interface{}{
+					{
+						"id":    startID.String(),
+						"type":  "start",
+						"label": "Start",
+						"next":  endID.String(),
+					},
+					{
+						"id":    endID.String(),
+						"type":  "end",
+						"label": "End",
+					},
+					{
+						"id":    orphanID.String(),
+						"type":  "section",
+						"label": "Orphan",
+						// No connections - unreachable
+					},
+				}
+				return createWorkflowJSON(t, nodes), &mockQuestionStore{questions: make(map[uuid.UUID]question.Answerable)}
+			},
+			expectedErr: true,
+		},
+		{
+			name: "invalid workflow - invalid node reference",
+			setup: func() ([]byte, workflow.QuestionStore) {
+				return createWorkflowWithInvalidNextRef(t), &mockQuestionStore{questions: make(map[uuid.UUID]question.Answerable)}
+			},
+			expectedErr: true,
+		},
+		{
+			name: "invalid workflow - condition rule with non-existent question",
+			setup: func() ([]byte, workflow.QuestionStore) {
+				questionID := uuid.New().String()
+				return createWorkflowWithConditionRule(t, questionID),
+					&mockQuestionStore{questions: make(map[uuid.UUID]question.Answerable)}
+			},
+			expectedErr: true,
+		},
+	}
+
+	validator := workflow.NewValidator()
+	ctx := context.Background()
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			workflowJSON, questionStore := tc.setup()
+			err := validator.Validate(ctx, formID, workflowJSON, questionStore)
+
+			if tc.expectedErr {
+				require.Error(t, err, "expected validation error")
+			} else {
+				require.NoError(t, err, "expected validation to pass but got error: %v", err)
+			}
+		})
+	}
+}
