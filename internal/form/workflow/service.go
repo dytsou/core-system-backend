@@ -24,6 +24,7 @@ type Querier interface {
 
 type Validator interface {
 	Activate(ctx context.Context, formID uuid.UUID, workflow []byte, questionStore QuestionStore) error
+	Validate(ctx context.Context, formID uuid.UUID, workflow []byte, questionStore QuestionStore) error
 }
 
 type Service struct {

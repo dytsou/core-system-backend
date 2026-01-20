@@ -25,6 +25,11 @@ func (f validatorFunc) Activate(ctx context.Context, formID uuid.UUID, workflow 
 	return f(ctx, formID, workflow, questionStore)
 }
 
+func (f validatorFunc) Validate(ctx context.Context, formID uuid.UUID, workflow []byte, questionStore QuestionStore) error {
+	// Validate reuses the same logic as Activate
+	return f(ctx, formID, workflow, questionStore)
+}
+
 // NewValidator creates a new workflow validator using the built-in NodeType set.
 func NewValidator() Validator {
 	return validatorFunc(Activate)
