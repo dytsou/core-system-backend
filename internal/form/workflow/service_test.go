@@ -685,6 +685,63 @@ func TestService_CreateNode(t *testing.T) {
 	}
 }
 
+func TestService_Get(t *testing.T) {
+	t.Parallel()
+
+	type testCase struct {
+		name      string
+		formID    uuid.UUID
+		setupMock func(*mockQuerier, uuid.UUID)
+		expectErr bool
+	}
+
+	testCases := []testCase{
+		{
+			name:   "successful get",
+			formID: uuid.New(),
+			setupMock: func(mq *mockQuerier, formID uuid.UUID) {
+				expectedRow := workflow.GetRow{
+					ID:         uuid.New(),
+					FormID:     formID,
+					LastEditor: uuid.New(),
+					IsActive:   false,
+					Workflow:   createSimpleValidWorkflow(t),
+				}
+				mq.On("Get", mock.Anything, formID).Return(expectedRow, nil).Once()
+			},
+			expectErr: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			logger := zap.NewNop()
+			tracer := noop.NewTracerProvider().Tracer("test")
+			mockQuerier := new(mockQuerier)
+			mockValidator := new(mockValidator)
+			service := createTestService(t, logger, tracer, mockQuerier, mockValidator, nil)
+
+			tc.setupMock(mockQuerier, tc.formID)
+
+			result, err := service.Get(ctx, tc.formID)
+
+			if tc.expectErr {
+				require.Error(t, err)
+				require.Equal(t, workflow.GetRow{}, result)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, result.ID)
+				require.Equal(t, tc.formID, result.FormID)
+			}
+
+			mockQuerier.AssertExpectations(t)
+		})
+	}
+}
+
 func TestService_DeleteNode(t *testing.T) {
 	t.Parallel()
 
