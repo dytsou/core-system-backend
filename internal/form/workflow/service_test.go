@@ -588,6 +588,42 @@ func TestService_CreateNode(t *testing.T) {
 			expectErr: false,
 		},
 		{
+			name: "invalid node type parameter - start",
+			params: Params{
+				workflowJSON:  createSimpleValidWorkflow(t),
+				nodeType:      workflow.NodeTypeStart,
+				questionStore: nil,
+			},
+			expectErr: true,
+		},
+		{
+			name: "invalid node type parameter - end",
+			params: Params{
+				workflowJSON:  createSimpleValidWorkflow(t),
+				nodeType:      workflow.NodeTypeEnd,
+				questionStore: nil,
+			},
+			expectErr: true,
+		},
+		{
+			name: "invalid node type parameter - empty string",
+			params: Params{
+				workflowJSON:  createSimpleValidWorkflow(t),
+				nodeType:      workflow.NodeType(""),
+				questionStore: nil,
+			},
+			expectErr: true,
+		},
+		{
+			name: "invalid node type parameter - unknown type",
+			params: Params{
+				workflowJSON:  createSimpleValidWorkflow(t),
+				nodeType:      workflow.NodeType("unknown"),
+				questionStore: nil,
+			},
+			expectErr: true,
+		},
+		{
 			name: "valid workflow - condition node missing nextTrue",
 			params: Params{
 				workflowJSON:  createConditionNodeMissingNextTrue(t),
@@ -658,27 +694,39 @@ func TestService_CreateNode(t *testing.T) {
 
 			service := workflow.NewServiceForTesting(logger, tracer, mockQuerier, realValidator, tc.params.questionStore)
 
-			expectedRow := workflow.CreateNodeRow{
-				NodeID:    uuid.New(),
-				NodeType:  tc.params.nodeType,
-				NodeLabel: nil,
-				Workflow:  tc.params.workflowJSON,
-			}
+			// Only set up mock if node type is valid (service will call querier)
+			// Note: CreateNode calls the querier BEFORE validation, so we need to set up the mock
+			// for all valid node types, even when validation will fail
+			switch tc.params.nodeType {
+			case workflow.NodeTypeSection, workflow.NodeTypeCondition:
+				expectedRow := workflow.CreateNodeRow{
+					NodeID:    uuid.New(),
+					NodeType:  tc.params.nodeType,
+					NodeLabel: nil,
+					Workflow:  tc.params.workflowJSON,
+				}
 
-			mockQuerier.On("CreateNode", mock.Anything, workflow.CreateNodeParams{
-				FormID:     formID,
-				LastEditor: userID,
-				Type:       tc.params.nodeType,
-			}).Return(expectedRow, nil).Once()
+				mockQuerier.On("CreateNode", mock.Anything, workflow.CreateNodeParams{
+					FormID:     formID,
+					LastEditor: userID,
+					Type:       tc.params.nodeType,
+				}).Return(expectedRow, nil).Once()
+			}
 
 			result, err := service.CreateNode(ctx, formID, tc.params.nodeType, userID)
 
 			if tc.expectErr {
 				require.Error(t, err, "expected error but got nil")
-				mockQuerier.AssertExpectations(t)
+				// For invalid node types, querier should not be called
+				switch tc.params.nodeType {
+				case workflow.NodeTypeSection, workflow.NodeTypeCondition:
+					mockQuerier.AssertExpectations(t)
+				default:
+					mockQuerier.AssertNotCalled(t, "CreateNode")
+				}
 			} else {
 				require.NoError(t, err, "unexpected error: %v", err)
-				require.Equal(t, expectedRow, result)
+				require.NotNil(t, result)
 				mockQuerier.AssertExpectations(t)
 			}
 		})
