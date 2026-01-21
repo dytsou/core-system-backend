@@ -115,17 +115,20 @@ func validateWorkflowJSON(workflow []byte) ([]map[string]interface{}, error) {
 // validateRequiredFields validates that a node has all required fields: id, type, label
 func validateRequiredFields(node map[string]interface{}, index int) error {
 	// Check for 'id' field
-	if _, ok := node["id"]; !ok {
+	_, ok := node["id"]
+	if !ok || node["id"] == "" {
 		return fmt.Errorf("node at index %d missing required field 'id'", index)
 	}
 
 	// Check for 'type' field
-	if _, ok := node["type"]; !ok {
+	_, ok = node["type"]
+	if !ok || node["type"] == "" {
 		return fmt.Errorf("node at index %d missing required field 'type'", index)
 	}
 
 	// Check for 'label' field
-	if _, ok := node["label"]; !ok {
+	_, ok = node["label"]
+	if !ok || node["label"] == "" {
 		return fmt.Errorf("node at index %d missing required field 'label'", index)
 	}
 
