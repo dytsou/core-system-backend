@@ -314,14 +314,21 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 
 	// Inactivate the current refresh token from cookie
 	refreshTokenCookie, err := r.Cookie(RefreshTokenCookieName)
-	if err == nil && refreshTokenCookie.Value != "" {
-		refreshTokenID, err := uuid.Parse(refreshTokenCookie.Value)
-		if err == nil {
-			err = h.jwtStore.InactivateRefreshToken(traceCtx, refreshTokenID)
-			if err != nil {
-				logger.Warn("Failed to inactivate refresh token during logout", zap.Error(err))
-			}
-		}
+	if err != nil {
+		logger.Error("Failed to get refresh token cookie during logout", zap.Error(err))
+		return
+	}
+
+	refreshTokenID, err := uuid.Parse(refreshTokenCookie.Value)
+	if err != nil {
+		logger.Error("Invalid refresh token format during logout", zap.Error(err))
+		return
+	}
+
+	err = h.jwtStore.InactivateRefreshToken(traceCtx, refreshTokenID)
+	if err != nil {
+		logger.Warn("Failed to inactivate refresh token during logout", zap.Error(err))
+		return
 	}
 
 	h.clearAccessAndRefreshCookies(w)
