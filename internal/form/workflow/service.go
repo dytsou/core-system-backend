@@ -165,6 +165,13 @@ func (s *Service) DeleteNode(ctx context.Context, formID uuid.UUID, nodeID uuid.
 		return []byte{}, err
 	}
 
+	// Validate deleted workflow (relaxed draft validation)
+	if err := s.validator.Validate(ctx, formID, deleted, s.questionStore); err != nil {
+		err = fmt.Errorf("%w: %w", internal.ErrWorkflowValidationFailed, err)
+		span.RecordError(err)
+		return []byte{}, err
+	}
+
 	return deleted, nil
 }
 
