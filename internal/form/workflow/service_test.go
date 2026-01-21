@@ -249,6 +249,201 @@ func TestService_Activate_validation(t *testing.T) {
 	}
 }
 
+func TestService_Update(t *testing.T) {
+	t.Parallel()
+
+	type Params struct {
+		workflowJSON []byte
+	}
+
+	type testCase struct {
+		name      string
+		params    Params
+		expectErr bool
+	}
+
+	testCases := []testCase{
+		{
+			name: "invalid JSON format",
+			params: Params{
+				workflowJSON: []byte(`{invalid json}`),
+			},
+			expectErr: true,
+		},
+		{
+			name: "empty workflow",
+			params: Params{
+				workflowJSON: []byte(`[]`),
+			},
+			expectErr: true,
+		},
+		{
+			name: "missing start node",
+			params: Params{
+				workflowJSON: createWorkflowJSON(t, []map[string]interface{}{createEndNode(t)}),
+			},
+			expectErr: true,
+		},
+		{
+			name: "missing end node",
+			params: Params{
+				workflowJSON: createWorkflowJSON(t, []map[string]interface{}{createStartNode(t, uuid.New().String())}),
+			},
+			expectErr: true,
+		},
+		{
+			name: "multiple start nodes",
+			params: Params{
+				workflowJSON: createWorkflowWithMultipleStarts(t),
+			},
+			expectErr: true,
+		},
+		{
+			name: "multiple end nodes",
+			params: Params{
+				workflowJSON: createWorkflowWithMultipleEnds(t),
+			},
+			expectErr: true,
+		},
+		{
+			name: "duplicate node IDs",
+			params: Params{
+				workflowJSON: createWorkflowWithDuplicateIDs(t),
+			},
+			expectErr: true,
+		},
+		{
+			name: "invalid node ID format",
+			params: Params{
+				workflowJSON: createWorkflowWithInvalidID(t),
+			},
+			expectErr: true,
+		},
+		{
+			name: "missing required fields",
+			params: Params{
+				workflowJSON: createWorkflowMissingFields(t),
+			},
+			expectErr: true,
+		},
+		{
+			name: "unreachable nodes",
+			params: Params{
+				workflowJSON: createWorkflowWithOrphan(t),
+			},
+			expectErr: false,
+		},
+		{
+			name: "invalid node references",
+			params: Params{
+				workflowJSON: createWorkflowWithInvalidRef(t),
+			},
+			expectErr: true,
+		},
+		{
+			name: "invalid node type",
+			params: Params{
+				workflowJSON: createWorkflowWithInvalidType(t),
+			},
+			expectErr: true,
+		},
+		{
+			name: "start node missing next field",
+			params: Params{
+				workflowJSON: createStartNodeMissingNext(t),
+			},
+			expectErr: false,
+		},
+		{
+			name: "condition node missing conditionRule",
+			params: Params{
+				workflowJSON: createConditionNodeMissingRule(t),
+			},
+			expectErr: false,
+		},
+		{
+			name: "condition node missing nextTrue",
+			params: Params{
+				workflowJSON: createConditionNodeMissingNextTrue(t),
+			},
+			expectErr: false,
+		},
+		{
+			name: "condition node missing nextFalse",
+			params: Params{
+				workflowJSON: createConditionNodeMissingNextFalse(t),
+			},
+			expectErr: false,
+		},
+		{
+			name: "condition node invalid source",
+			params: Params{
+				workflowJSON: createConditionNodeInvalidSource(t),
+			},
+			expectErr: true,
+		},
+		{
+			name: "condition node invalid regex pattern",
+			params: Params{
+				workflowJSON: createConditionNodeInvalidRegex(t),
+			},
+			expectErr: false,
+		},
+		{
+			name: "successful update with simple workflow",
+			params: Params{
+				workflowJSON: createSimpleValidWorkflow(t),
+			},
+			expectErr: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			logger := zap.NewNop()
+			tracer := noop.NewTracerProvider().Tracer("test")
+			formID := uuid.New()
+			userID := uuid.New()
+
+			mockQuerier := new(mockQuerier)
+			realValidator := workflow.NewValidator()
+
+			service := workflow.NewServiceForTesting(logger, tracer, mockQuerier, realValidator, nil)
+
+			workflowJSON := tc.params.workflowJSON
+
+			var expectedRow workflow.UpdateRow
+			if !tc.expectErr {
+				expectedRow = workflow.UpdateRow{
+					FormID:     formID,
+					LastEditor: userID,
+					Workflow:   workflowJSON,
+				}
+
+				mockQuerier.On("Update", mock.Anything, workflow.UpdateParams{
+					FormID:     formID,
+					LastEditor: userID,
+					Workflow:   workflowJSON,
+				}).Return(expectedRow, nil).Once()
+			}
+
+			result, err := service.Update(ctx, formID, workflowJSON, userID)
+
+			if tc.expectErr {
+				require.Error(t, err, "expected error but got nil")
+				mockQuerier.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
+			} else {
+				require.NoError(t, err, "unexpected error: %v", err)
+				require.Equal(t, expectedRow, result)
+				mockQuerier.AssertExpectations(t)
+			}
+		})
+	}
+}
+
 // Helper functions to create test workflows
 
 func createSimpleValidWorkflow(t *testing.T) []byte {
@@ -346,6 +541,15 @@ func createEndNode(t *testing.T) map[string]interface{} {
 	}
 }
 
+func createEndNodeWithID(t *testing.T, id string) map[string]interface{} {
+	t.Helper()
+	return map[string]interface{}{
+		"id":    id,
+		"type":  "end",
+		"label": "End",
+	}
+}
+
 func createWorkflowWithMultipleStarts(t *testing.T) []byte {
 	t.Helper()
 	endID := uuid.New()
@@ -418,7 +622,7 @@ func createWorkflowWithOrphan(t *testing.T) []byte {
 	orphanID := uuid.New()
 	return createWorkflowJSON(t, []map[string]interface{}{
 		createStartNode(t, endID.String()),
-		createEndNode(t),
+		createEndNodeWithID(t, endID.String()),
 		{
 			"id":    orphanID.String(),
 			"type":  "section",
@@ -483,7 +687,7 @@ func createConditionNodeMissingRule(t *testing.T) []byte {
 			"nextFalse": endID.String(),
 			// missing "conditionRule"
 		},
-		createEndNode(t),
+		createEndNodeWithID(t, endID.String()),
 	})
 }
 
@@ -508,7 +712,7 @@ func createConditionNodeMissingNextTrue(t *testing.T) []byte {
 				"pattern": fmt.Sprintf("^%s$", choiceID.String()),
 			},
 		},
-		createEndNode(t),
+		createEndNodeWithID(t, endID.String()),
 	})
 }
 
@@ -533,7 +737,7 @@ func createConditionNodeMissingNextFalse(t *testing.T) []byte {
 				"pattern": fmt.Sprintf("^%s$", choiceID.String()),
 			},
 		},
-		createEndNode(t),
+		createEndNodeWithID(t, endID.String()),
 	})
 }
 
@@ -585,6 +789,6 @@ func createConditionNodeInvalidRegex(t *testing.T) []byte {
 				"pattern": fmt.Sprintf("[%s", choiceID.String()), // intentionally invalid regex
 			},
 		},
-		createEndNode(t),
+		createEndNodeWithID(t, endID.String()),
 	})
 }
