@@ -83,10 +83,17 @@ func (s *Service) Update(ctx context.Context, formID uuid.UUID, workflow []byte,
 	defer span.End()
 	logger := logutil.WithContext(ctx, s.logger)
 
-	// Basic JSON validation - check if workflow is valid JSON
-	// TODO: More detailed graph validation would be added later
 	if len(workflow) == 0 {
 		workflow = []byte("[]")
+	}
+
+	// Validate workflow before updating
+	err := s.validator.Validate(ctx, formID, workflow, s.questionStore)
+	if err != nil {
+		// Wrap validation error to return 400 instead of 500
+		err = fmt.Errorf("%w: %w", internal.ErrWorkflowValidationFailed, err)
+		span.RecordError(err)
+		return UpdateRow{}, err
 	}
 
 	updated, err := s.queries.Update(ctx, UpdateParams{
