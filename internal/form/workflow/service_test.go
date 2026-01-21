@@ -685,6 +685,241 @@ func TestService_CreateNode(t *testing.T) {
 	}
 }
 
+func TestService_DeleteNode(t *testing.T) {
+	t.Parallel()
+
+	type Params struct {
+		workflowJSON  []byte
+		nodeID        uuid.UUID
+		questionStore workflow.QuestionStore
+	}
+
+	type testCase struct {
+		name      string
+		params    Params
+		expectErr bool
+	}
+
+	testCases := []testCase{
+		{
+			name: "invalid workflow - invalid JSON format",
+			params: Params{
+				workflowJSON:  []byte(`{invalid json}`),
+				nodeID:        uuid.New(),
+				questionStore: nil,
+			},
+			expectErr: true,
+		},
+		{
+			name: "invalid workflow - empty workflow",
+			params: Params{
+				workflowJSON:  []byte(`[]`),
+				nodeID:        uuid.New(),
+				questionStore: nil,
+			},
+			expectErr: true,
+		},
+		{
+			name: "invalid workflow - missing start node",
+			params: Params{
+				workflowJSON:  createWorkflowJSON(t, []map[string]interface{}{createEndNode(t)}),
+				nodeID:        uuid.New(),
+				questionStore: nil,
+			},
+			expectErr: true,
+		},
+		{
+			name: "invalid workflow - missing end node",
+			params: Params{
+				workflowJSON:  createWorkflowJSON(t, []map[string]interface{}{createStartNode(t, uuid.New().String())}),
+				nodeID:        uuid.New(),
+				questionStore: nil,
+			},
+			expectErr: true,
+		},
+		{
+			name: "invalid workflow - multiple start nodes",
+			params: Params{
+				workflowJSON:  createWorkflowWithMultipleStarts(t),
+				nodeID:        uuid.New(),
+				questionStore: nil,
+			},
+			expectErr: true,
+		},
+		{
+			name: "invalid workflow - multiple end nodes",
+			params: Params{
+				workflowJSON:  createWorkflowWithMultipleEnds(t),
+				nodeID:        uuid.New(),
+				questionStore: nil,
+			},
+			expectErr: true,
+		},
+		{
+			name: "invalid workflow - duplicate node IDs",
+			params: Params{
+				workflowJSON:  createWorkflowWithDuplicateIDs(t),
+				nodeID:        uuid.New(),
+				questionStore: nil,
+			},
+			expectErr: true,
+		},
+		{
+			name: "invalid workflow - invalid node ID format",
+			params: Params{
+				workflowJSON:  createWorkflowWithInvalidID(t),
+				nodeID:        uuid.New(),
+				questionStore: nil,
+			},
+			expectErr: true,
+		},
+		{
+			name: "invalid workflow - missing required fields",
+			params: Params{
+				workflowJSON:  createWorkflowMissingFields(t),
+				nodeID:        uuid.New(),
+				questionStore: nil,
+			},
+			expectErr: true,
+		},
+		{
+			name: "valid workflow - unreachable nodes",
+			params: Params{
+				workflowJSON:  createWorkflowWithOrphan(t),
+				nodeID:        uuid.New(),
+				questionStore: nil,
+			},
+			expectErr: false,
+		},
+		{
+			name: "invalid workflow - invalid node reference",
+			params: Params{
+				workflowJSON:  createWorkflowWithInvalidRef(t),
+				nodeID:        uuid.New(),
+				questionStore: nil,
+			},
+			expectErr: true,
+		},
+		{
+			name: "invalid workflow - invalid node type",
+			params: Params{
+				workflowJSON:  createWorkflowWithInvalidType(t),
+				nodeID:        uuid.New(),
+				questionStore: nil,
+			},
+			expectErr: true,
+		},
+		{
+			name: "valid workflow - start node missing next field",
+			params: Params{
+				workflowJSON:  createStartNodeMissingNext(t),
+				nodeID:        uuid.New(),
+				questionStore: nil,
+			},
+			expectErr: false,
+		},
+		{
+			name: "valid workflow - condition node missing conditionRule",
+			params: Params{
+				workflowJSON:  createConditionNodeMissingRule(t),
+				nodeID:        uuid.New(),
+				questionStore: nil,
+			},
+			expectErr: false,
+		},
+		{
+			name: "valid workflow - condition node missing nextTrue",
+			params: Params{
+				workflowJSON:  createConditionNodeMissingNextTrue(t),
+				nodeID:        uuid.New(),
+				questionStore: nil,
+			},
+			expectErr: false,
+		},
+		{
+			name: "valid workflow - condition node missing nextFalse",
+			params: Params{
+				workflowJSON:  createConditionNodeMissingNextFalse(t),
+				nodeID:        uuid.New(),
+				questionStore: nil,
+			},
+			expectErr: false,
+		},
+		{
+			name: "invalid workflow - condition node invalid source",
+			params: Params{
+				workflowJSON:  createConditionNodeInvalidSource(t),
+				nodeID:        uuid.New(),
+				questionStore: nil,
+			},
+			expectErr: true,
+		},
+		{
+			name: "valid workflow - condition node invalid regex pattern",
+			params: Params{
+				workflowJSON:  createConditionNodeInvalidRegex(t),
+				nodeID:        uuid.New(),
+				questionStore: nil,
+			},
+			expectErr: false,
+		},
+		{
+			name: "invalid workflow - condition rule with non-existent question",
+			params: Params{
+				workflowJSON:  createWorkflowWithConditionRule(t, uuid.New().String()),
+				nodeID:        uuid.New(),
+				questionStore: &mockQuestionStore{questions: make(map[uuid.UUID]question.Answerable)},
+			},
+			expectErr: true,
+		},
+		{
+			name: "valid workflow - simple workflow after deletion",
+			params: Params{
+				workflowJSON:  createSimpleValidWorkflow(t),
+				nodeID:        uuid.New(),
+				questionStore: nil,
+			},
+			expectErr: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			logger := zap.NewNop()
+			tracer := noop.NewTracerProvider().Tracer("test")
+			formID := uuid.New()
+			userID := uuid.New()
+
+			mockQuerier := new(mockQuerier)
+			realValidator := workflow.NewValidator()
+
+			service := workflow.NewServiceForTesting(logger, tracer, mockQuerier, realValidator, tc.params.questionStore)
+
+			workflowJSON := tc.params.workflowJSON
+
+			mockQuerier.On("DeleteNode", mock.Anything, workflow.DeleteNodeParams{
+				FormID:     formID,
+				LastEditor: userID,
+				NodeID:     tc.params.nodeID.String(),
+			}).Return(workflowJSON, nil).Once()
+
+			result, err := service.DeleteNode(ctx, formID, tc.params.nodeID, userID)
+
+			if tc.expectErr {
+				require.Error(t, err, "expected error but got nil")
+				mockQuerier.AssertExpectations(t)
+			} else {
+				require.NoError(t, err, "unexpected error: %v", err)
+				require.Equal(t, workflowJSON, result)
+				mockQuerier.AssertExpectations(t)
+			}
+		})
+	}
+}
+
 // Helper functions to create test workflows
 
 func createSimpleValidWorkflow(t *testing.T) []byte {
