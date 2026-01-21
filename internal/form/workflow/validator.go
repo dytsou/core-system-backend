@@ -145,6 +145,24 @@ func ValidateDraft(ctx context.Context, formID uuid.UUID, workflow []byte, quest
 		if err != nil {
 			validationErrors = append(validationErrors, fmt.Errorf("graph validation failed: %w", err))
 		}
+
+		if questionStore != nil {
+			for _, n := range nodes {
+				nodeType, _ := n["type"].(string)
+				if nodeType != string(NodeTypeCondition) {
+					continue
+				}
+				rawRule, ok := n["conditionRule"]
+				if !ok {
+					// Missing conditionRule is allowed in draft
+					continue
+				}
+				nodeID, _ := n["id"].(string)
+				if err := validateDraftConditionQuestion(ctx, formID, nodeID, rawRule, questionStore); err != nil {
+					validationErrors = append(validationErrors, err)
+				}
+			}
+		}
 	}
 
 	if len(validationErrors) > 0 {
@@ -428,5 +446,64 @@ func validateGraphReferences(nodes []map[string]interface{}, nodeMap map[string]
 	if len(referenceErrors) > 0 {
 		return fmt.Errorf("invalid node references found: %w", errors.Join(referenceErrors...))
 	}
+	return nil
+}
+
+// validateDraftConditionQuestion performs the subset of conditionRule validation that must hold
+// even for draft workflows: that the referenced question exists, belongs to the form, and its
+// type is compatible with the condition source. It deliberately skips regex validation and
+// other strict checks used during activation.
+func validateDraftConditionQuestion(
+	ctx context.Context,
+	formID uuid.UUID,
+	nodeID string,
+	rawRule interface{},
+	questionStore QuestionStore,
+) error {
+	// Marshal-then-unmarshal into ConditionRule to reuse the shared struct definition.
+	conditionRuleBytes, err := json.Marshal(rawRule)
+	if err != nil {
+		return fmt.Errorf("condition node '%s' has invalid conditionRule format: %w", nodeID, err)
+	}
+
+	var rule node.ConditionRule
+	if err := json.Unmarshal(conditionRuleBytes, &rule); err != nil {
+		return fmt.Errorf("condition node '%s' has invalid conditionRule format: %w", nodeID, err)
+	}
+
+	// Only validate question existence and type compatibility in draft mode.
+	if rule.Key == "" {
+		return fmt.Errorf("condition node '%s' conditionRule.key cannot be empty", nodeID)
+	}
+
+	questionID, err := uuid.Parse(rule.Key)
+	if err != nil {
+		return fmt.Errorf("condition node '%s' conditionRule.key '%s' is not a valid UUID", nodeID, rule.Key)
+	}
+
+	answerable, err := questionStore.GetByID(ctx, questionID)
+	if err != nil {
+		return fmt.Errorf("condition node '%s' references non-existent question '%s' in conditionRule.key", nodeID, rule.Key)
+	}
+
+	q := answerable.Question()
+
+	// Validate question belongs to the form
+	if q.FormID != formID {
+		return fmt.Errorf("condition node '%s' references question '%s' that belongs to a different form", nodeID, rule.Key)
+	}
+
+	// Validate question type matches condition source (same rules as strict mode).
+	switch rule.Source {
+	case node.ConditionSourceChoice:
+		if string(q.Type) != "single_choice" && string(q.Type) != "multiple_choice" {
+			return fmt.Errorf("condition node '%s' with source 'choice' requires question type 'single_choice' or 'multiple_choice', but question '%s' has type '%s'", nodeID, rule.Key, q.Type)
+		}
+	case node.ConditionSourceNonChoice:
+		if string(q.Type) != "short_text" && string(q.Type) != "long_text" && string(q.Type) != "date" {
+			return fmt.Errorf("condition node '%s' with source 'nonChoice' requires question type 'short_text', 'long_text', or 'date', but question '%s' has type '%s'", nodeID, rule.Key, q.Type)
+		}
+	}
+
 	return nil
 }
