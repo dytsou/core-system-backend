@@ -19,20 +19,29 @@ type QuestionStore interface {
 	ListByFormID(ctx context.Context, formID uuid.UUID) ([]question.Answerable, error)
 }
 
-type validatorFunc func(context.Context, uuid.UUID, []byte, QuestionStore) error
+type workflowValidator struct{}
 
-func (f validatorFunc) Activate(ctx context.Context, formID uuid.UUID, workflow []byte, questionStore QuestionStore) error {
-	return f(ctx, formID, workflow, questionStore)
+func (v workflowValidator) Activate(ctx context.Context, formID uuid.UUID, workflow []byte, questionStore QuestionStore) error {
+	return Activate(ctx, formID, workflow, questionStore)
 }
 
-func (f validatorFunc) Validate(ctx context.Context, formID uuid.UUID, workflow []byte, questionStore QuestionStore) error {
-	// Validate reuses the same logic as Activate
-	return f(ctx, formID, workflow, questionStore)
+// Validate performs a relaxed validation suitable for draft updates.
+//
+// It intentionally allows incomplete graphs (e.g. unreachable nodes, missing next fields,
+// incomplete condition nodes) while still enforcing:
+// - valid JSON array structure
+// - required node fields (id/type/label) and UUID id format
+// - supported node types
+// - duplicate id detection
+// - reference integrity for any explicitly provided next/nextTrue/nextFalse fields
+// - exactly one start and one end node
+func (v workflowValidator) Validate(ctx context.Context, formID uuid.UUID, workflow []byte, questionStore QuestionStore) error {
+	return ValidateDraft(ctx, formID, workflow, questionStore)
 }
 
 // NewValidator creates a new workflow validator using the built-in NodeType set.
 func NewValidator() Validator {
-	return validatorFunc(Activate)
+	return workflowValidator{}
 }
 
 // validateWorkflow validates the workflow JSON structure before activation.
@@ -66,8 +75,8 @@ func Activate(ctx context.Context, formID uuid.UUID, workflow []byte, questionSt
 		return fmt.Errorf("workflow validation failed: unable to parse workflow")
 	}
 
-	// Validate all nodes and build node map
-	nodeMap, startNodeCount, endNodeCount, nodeErrors := validateNodes(ctx, formID, nodes, questionStore)
+	// Validate all nodes and build node map (strict mode)
+	nodeMap, startNodeCount, endNodeCount, nodeErrors := validateNodes(ctx, formID, nodes, questionStore, true)
 	if len(nodeErrors) > 0 {
 		validationErrors = append(validationErrors, nodeErrors...)
 	}
@@ -91,6 +100,56 @@ func Activate(ctx context.Context, formID uuid.UUID, workflow []byte, questionSt
 		return fmt.Errorf("workflow validation failed: %w", errors.Join(validationErrors...))
 	}
 
+	return nil
+}
+
+// ValidateDraft performs relaxed validation for draft workflows (used by Update).
+func ValidateDraft(ctx context.Context, formID uuid.UUID, workflow []byte, questionStore QuestionStore) error {
+	var validationErrors []error
+
+	// Validate workflow length
+	if err := validateWorkflowLength(workflow); err != nil {
+		validationErrors = append(validationErrors, err)
+	}
+
+	// Validate and parse JSON format
+	nodes, err := validateWorkflowJSON(workflow)
+	if err != nil {
+		validationErrors = append(validationErrors, err)
+	}
+
+	// If JSON parsing failed, we can't continue with node validation
+	if nodes == nil {
+		if len(validationErrors) > 0 {
+			return fmt.Errorf("workflow validation failed: %w", errors.Join(validationErrors...))
+		}
+		return fmt.Errorf("workflow validation failed: unable to parse workflow")
+	}
+
+	// Validate nodes and build node map (relaxed mode: skip node-specific validation)
+	nodeMap, startNodeCount, endNodeCount, nodeErrors := validateNodes(ctx, formID, nodes, questionStore, false)
+	if len(nodeErrors) > 0 {
+		validationErrors = append(validationErrors, nodeErrors...)
+	}
+
+	// Require exactly one start and one end node even in drafts
+	nodeTypeErrors := validateRequiredNodeTypes(startNodeCount, endNodeCount)
+	if len(nodeTypeErrors) > 0 {
+		validationErrors = append(validationErrors, nodeTypeErrors...)
+	}
+
+	// In draft mode we allow unreachable nodes, but we still validate that any explicit references
+	// point to nodes that exist.
+	if nodeMap != nil {
+		err := validateGraphReferences(nodes, nodeMap)
+		if err != nil {
+			validationErrors = append(validationErrors, fmt.Errorf("graph validation failed: %w", err))
+		}
+	}
+
+	if len(validationErrors) > 0 {
+		return fmt.Errorf("workflow validation failed: %w", errors.Join(validationErrors...))
+	}
 	return nil
 }
 
@@ -156,7 +215,9 @@ func validateNodeID(node map[string]interface{}, index int) (string, error) {
 // - startNodeCount: number of start nodes found
 // - endNodeCount: number of end nodes found
 // - errors: all validation errors collected
-func validateNodes(ctx context.Context, formID uuid.UUID, nodes []map[string]interface{}, questionStore QuestionStore) (map[string]map[string]interface{}, int, int, []error) {
+// When isActivate is true, this performs full node-specific validation (used by Activate).
+// When false, it performs a relaxed validation suitable for draft Update.
+func validateNodes(ctx context.Context, formID uuid.UUID, nodes []map[string]interface{}, questionStore QuestionStore, isActivate bool) (map[string]map[string]interface{}, int, int, []error) {
 	nodeMap := make(map[string]map[string]interface{})
 	nodeIDs := make(map[string]bool)
 	validatedNodes := make([]node.Validatable, 0, len(nodes))
@@ -192,7 +253,9 @@ func validateNodes(ctx context.Context, formID uuid.UUID, nodes []map[string]int
 			validationErrors = append(validationErrors, fmt.Errorf("node at index %d: %w", i, err))
 			continue // Skip this node but continue validating others
 		}
-		validatedNodes = append(validatedNodes, validatedNode)
+		if isActivate {
+			validatedNodes = append(validatedNodes, validatedNode)
+		}
 
 		// Count start and end nodes
 		if nodeTypeStr == string(NodeTypeStart) {
@@ -206,11 +269,13 @@ func validateNodes(ctx context.Context, formID uuid.UUID, nodes []map[string]int
 	// Validate each node using Validatable interface
 	// This validates node-specific rules (e.g., condition nodes must have conditionRule)
 	// Only validate nodes that were successfully created
-	for i, validatedNode := range validatedNodes {
-		// Pass context, formID, and questionStore for condition rule validation
-		err := validatedNode.Validate(ctx, formID, nodeMap, questionStore)
-		if err != nil {
-			validationErrors = append(validationErrors, fmt.Errorf("node at index %d: %w", i, err))
+	if isActivate {
+		for i, validatedNode := range validatedNodes {
+			// Pass context, formID, and questionStore for condition rule validation
+			err := validatedNode.Validate(ctx, formID, nodeMap, questionStore)
+			if err != nil {
+				validationErrors = append(validationErrors, fmt.Errorf("node at index %d: %w", i, err))
+			}
 		}
 	}
 
@@ -240,9 +305,14 @@ func validateRequiredNodeTypes(startNodeCount, endNodeCount int) []error {
 // - All nodes can be reached from entry points (start nodes or first node)
 // - No orphaned nodes exist
 func validateGraphConnectivity(nodes []map[string]interface{}, nodeMap map[string]map[string]interface{}) error {
-	// Build graph and validate references
+	// First validate references
+	err := validateGraphReferences(nodes, nodeMap)
+	if err != nil {
+		return err
+	}
+
+	// Build graph for reachability validation
 	graph := make(map[string][]string)
-	var referenceErrors []error
 
 	// Build adjacency list and validate references
 	for _, node := range nodes {
@@ -256,44 +326,21 @@ func validateGraphConnectivity(nodes []map[string]interface{}, nodeMap map[strin
 			// Condition nodes have nextTrue and nextFalse
 			nextTrue, ok := node["nextTrue"].(string)
 			if ok && nextTrue != "" {
-				// Validate that nextTrue references an existing node
-				_, exists := nodeMap[nextTrue]
-				if !exists {
-					referenceErrors = append(referenceErrors, fmt.Errorf("condition node '%s' references non-existent node '%s' in nextTrue", nodeID, nextTrue))
-				} else {
-					nextNodes = append(nextNodes, nextTrue)
-				}
+				nextNodes = append(nextNodes, nextTrue)
 			}
 			nextFalse, ok := node["nextFalse"].(string)
 			if ok && nextFalse != "" {
-				// Validate that nextFalse references an existing node
-				_, exists := nodeMap[nextFalse]
-				if !exists {
-					referenceErrors = append(referenceErrors, fmt.Errorf("condition node '%s' references non-existent node '%s' in nextFalse", nodeID, nextFalse))
-				} else {
-					nextNodes = append(nextNodes, nextFalse)
-				}
+				nextNodes = append(nextNodes, nextFalse)
 			}
 		} else {
 			// Other nodes have next field
 			next, ok := node["next"].(string)
 			if ok && next != "" {
-				// Validate that next references an existing node
-				_, exists := nodeMap[next]
-				if !exists {
-					referenceErrors = append(referenceErrors, fmt.Errorf("node '%s' references non-existent node '%s' in next", nodeID, next))
-				} else {
-					nextNodes = append(nextNodes, next)
-				}
+				nextNodes = append(nextNodes, next)
 			}
 		}
 
 		graph[nodeID] = nextNodes
-	}
-
-	// Return early if there are reference errors
-	if len(referenceErrors) > 0 {
-		return fmt.Errorf("invalid node references found: %w", errors.Join(referenceErrors...))
 	}
 
 	// Find the start node (there should be exactly one)
@@ -343,5 +390,43 @@ func validateGraphConnectivity(nodes []map[string]interface{}, nodeMap map[strin
 		return fmt.Errorf("unreachable nodes found: %v. All nodes must be reachable from the start node", unreachableNodes)
 	}
 
+	return nil
+}
+
+// validateGraphReferences validates that any explicit reference fields point to nodes that exist.
+func validateGraphReferences(nodes []map[string]interface{}, nodeMap map[string]map[string]interface{}) error {
+	var referenceErrors []error
+
+	for _, node := range nodes {
+		nodeID, _ := node["id"].(string)
+		nodeType, _ := node["type"].(string)
+
+		if nodeType == string(NodeTypeCondition) {
+			nextTrue, ok := node["nextTrue"].(string)
+			if ok && nextTrue != "" {
+				if _, exists := nodeMap[nextTrue]; !exists {
+					referenceErrors = append(referenceErrors, fmt.Errorf("condition node '%s' references non-existent node '%s' in nextTrue", nodeID, nextTrue))
+				}
+			}
+
+			nextFalse, ok := node["nextFalse"].(string)
+			if ok && nextFalse != "" {
+				if _, exists := nodeMap[nextFalse]; !exists {
+					referenceErrors = append(referenceErrors, fmt.Errorf("condition node '%s' references non-existent node '%s' in nextFalse", nodeID, nextFalse))
+				}
+			}
+		} else {
+			next, ok := node["next"].(string)
+			if ok && next != "" {
+				if _, exists := nodeMap[next]; !exists {
+					referenceErrors = append(referenceErrors, fmt.Errorf("node '%s' references non-existent node '%s' in next", nodeID, next))
+				}
+			}
+		}
+	}
+
+	if len(referenceErrors) > 0 {
+		return fmt.Errorf("invalid node references found: %w", errors.Join(referenceErrors...))
+	}
 	return nil
 }
