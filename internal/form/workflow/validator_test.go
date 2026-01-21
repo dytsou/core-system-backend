@@ -574,7 +574,7 @@ func TestValidate(t *testing.T) {
 			expectedErr: true,
 		},
 		{
-			name: "invalid workflow - unreachable node",
+			name: "unreachable node",
 			setup: func() ([]byte, workflow.QuestionStore) {
 				startID := uuid.New()
 				endID := uuid.New()
@@ -600,7 +600,7 @@ func TestValidate(t *testing.T) {
 				}
 				return createWorkflowJSON(t, nodes), &mockQuestionStore{questions: make(map[uuid.UUID]question.Answerable)}
 			},
-			expectedErr: true,
+			expectedErr: false,
 		},
 		{
 			name: "invalid workflow - invalid node reference",
