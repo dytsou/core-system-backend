@@ -1,1 +1,0 @@
-ALTER TABLE form_responses DROP COLUMN IF EXISTS submitted_at;
