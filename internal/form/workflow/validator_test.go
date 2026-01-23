@@ -2,6 +2,7 @@ package workflow_test
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"NYCU-SDC/core-system-backend/internal"
@@ -511,65 +512,105 @@ func TestValidateUpdateNodeIDs(t *testing.T) {
 
 	type testCase struct {
 		name            string
-		currentWorkflow []byte
-		newWorkflow     []byte
+		setup           func(*testing.T) ([]byte, []byte)
 		expectedErr     bool
 	}
 
 	testCases := []testCase{
 		{
-			name:            "first update - nil current workflow",
-			currentWorkflow: nil,
-			newWorkflow:     createSimpleWorkflowForNodeIDTest(t),
-			expectedErr:     false,
+			name: "first update - nil current workflow",
+			setup: func(t *testing.T) ([]byte, []byte) {
+				return nil, createSimpleWorkflowForNodeIDTest(t)
+			},
+			expectedErr: false,
 		},
 		{
-			name:            "node IDs unchanged - same workflow",
-			currentWorkflow: createSimpleWorkflowForNodeIDTest(t),
-			newWorkflow:     createSimpleWorkflowForNodeIDTest(t),
-			expectedErr:     false,
+			name: "node IDs unchanged - same workflow",
+			setup: func(t *testing.T) ([]byte, []byte) {
+				// Create once and reuse for both to ensure same IDs
+				workflow := createSimpleWorkflowForNodeIDTest(t)
+				return workflow, workflow
+			},
+			expectedErr: false,
 		},
 		{
-			name:            "node IDs unchanged - workflow with same IDs but different properties",
-			currentWorkflow: createWorkflowWithSection(t),
-			newWorkflow:     createWorkflowWithSectionModified(t),
-			expectedErr:     false,
+			name: "node IDs unchanged - workflow with same IDs but different properties",
+			setup: func(t *testing.T) ([]byte, []byte) {
+				// Create workflow with section and extract IDs
+				currentWorkflow := createWorkflowWithSection(t)
+				var currentNodes []map[string]interface{}
+				require.NoError(t, json.Unmarshal(currentWorkflow, &currentNodes))
+				
+				// Extract IDs from current workflow
+				startID := currentNodes[0]["id"].(string)
+				sectionID := currentNodes[1]["id"].(string)
+				endID := currentNodes[2]["id"].(string)
+				
+				// Create modified workflow with same IDs
+				modifiedWorkflow := createWorkflowJSON(t, []map[string]interface{}{
+					{
+						"id":    startID,
+						"type":  "start",
+						"label": "Start Modified",
+						"next":  sectionID,
+					},
+					{
+						"id":    sectionID,
+						"type":  "section",
+						"label": "Section Modified",
+						"next":  endID,
+					},
+					{
+						"id":    endID,
+						"type":  "end",
+						"label": "End Modified",
+					},
+				})
+				return currentWorkflow, modifiedWorkflow
+			},
+			expectedErr: false,
 		},
 		{
-			name:            "error - node ID removed",
-			currentWorkflow: createWorkflowWithSection(t),
-			newWorkflow:     createSimpleWorkflowForNodeIDTest(t),
-			expectedErr:     true,
+			name: "error - node ID removed",
+			setup: func(t *testing.T) ([]byte, []byte) {
+				return createWorkflowWithSection(t), createSimpleWorkflowForNodeIDTest(t)
+			},
+			expectedErr: true,
 		},
 		{
-			name:            "error - node ID added",
-			currentWorkflow: createSimpleWorkflowForNodeIDTest(t),
-			newWorkflow:     createWorkflowWithSection(t),
-			expectedErr:     true,
+			name: "error - node ID added",
+			setup: func(t *testing.T) ([]byte, []byte) {
+				return createSimpleWorkflowForNodeIDTest(t), createWorkflowWithSection(t)
+			},
+			expectedErr: true,
 		},
 		{
-			name:            "error - multiple node IDs removed",
-			currentWorkflow: createWorkflowWithMultipleNodes(t),
-			newWorkflow:     createSimpleWorkflowForNodeIDTest(t),
-			expectedErr:     true,
+			name: "error - multiple node IDs removed",
+			setup: func(t *testing.T) ([]byte, []byte) {
+				return createWorkflowWithMultipleNodes(t), createSimpleWorkflowForNodeIDTest(t)
+			},
+			expectedErr: true,
 		},
 		{
-			name:            "error - multiple node IDs added",
-			currentWorkflow: createSimpleWorkflowForNodeIDTest(t),
-			newWorkflow:     createWorkflowWithMultipleNodes(t),
-			expectedErr:     true,
+			name: "error - multiple node IDs added",
+			setup: func(t *testing.T) ([]byte, []byte) {
+				return createSimpleWorkflowForNodeIDTest(t), createWorkflowWithMultipleNodes(t)
+			},
+			expectedErr: true,
 		},
 		{
-			name:            "error - invalid current workflow JSON",
-			currentWorkflow: []byte(`{invalid json}`),
-			newWorkflow:     createSimpleWorkflowForNodeIDTest(t),
-			expectedErr:     true,
+			name: "error - invalid current workflow JSON",
+			setup: func(t *testing.T) ([]byte, []byte) {
+				return []byte(`{invalid json}`), createSimpleWorkflowForNodeIDTest(t)
+			},
+			expectedErr: true,
 		},
 		{
-			name:            "error - invalid new workflow JSON",
-			currentWorkflow: createSimpleWorkflowForNodeIDTest(t),
-			newWorkflow:     []byte(`{invalid json}`),
-			expectedErr:     true,
+			name: "error - invalid new workflow JSON",
+			setup: func(t *testing.T) ([]byte, []byte) {
+				return createSimpleWorkflowForNodeIDTest(t), []byte(`{invalid json}`)
+			},
+			expectedErr: true,
 		},
 	}
 
@@ -577,7 +618,8 @@ func TestValidateUpdateNodeIDs(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := validator.ValidateUpdateNodeIDs(ctx, tc.currentWorkflow, tc.newWorkflow)
+			currentWorkflow, newWorkflow := tc.setup(t)
+			err := validator.ValidateUpdateNodeIDs(ctx, currentWorkflow, newWorkflow)
 
 			if tc.expectedErr {
 				require.Error(t, err, "expected validation error")
