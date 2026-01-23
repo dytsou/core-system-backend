@@ -238,7 +238,7 @@ func TestWorkflowService_Update(t *testing.T) {
 				require.Error(t, err, "should return error for invalid JSON workflow")
 				require.NotEmpty(t, err.Error(), "error message should not be empty")
 			},
-			expectedErr: false, // queries.Update might accept invalid JSON
+			expectedErr: true, // Database rejects invalid JSON at JSONB level
 		},
 		{
 			name:   "Update with empty workflow JSON returns error",
