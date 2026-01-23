@@ -251,3 +251,467 @@ func (b Builder) GetActiveVersionID(formID uuid.UUID) uuid.UUID {
 	require.NoError(b.t, err)
 	return activeID
 }
+
+// CreateWorkflowMissingStartNode creates a workflow without a start node
+func (b Builder) CreateWorkflowMissingStartNode() []byte {
+	endID := uuid.New()
+	workflowJSON, err := json.Marshal([]map[string]interface{}{
+		{
+			"id":    endID.String(),
+			"type":  "end",
+			"label": "End",
+		},
+	})
+	require.NoError(b.t, err)
+	return workflowJSON
+}
+
+// CreateWorkflowMissingEndNode creates a workflow without an end node
+func (b Builder) CreateWorkflowMissingEndNode() []byte {
+	startID := uuid.New()
+	workflowJSON, err := json.Marshal([]map[string]interface{}{
+		{
+			"id":    startID.String(),
+			"type":  "start",
+			"label": "Start",
+			"next":  uuid.New().String(),
+		},
+	})
+	require.NoError(b.t, err)
+	return workflowJSON
+}
+
+// CreateWorkflowWithMultipleStarts creates a workflow with multiple start nodes
+func (b Builder) CreateWorkflowWithMultipleStarts() []byte {
+	startID1 := uuid.New()
+	startID2 := uuid.New()
+	endID := uuid.New()
+	workflowJSON, err := json.Marshal([]map[string]interface{}{
+		{
+			"id":    startID1.String(),
+			"type":  "start",
+			"label": "Start 1",
+			"next":  endID.String(),
+		},
+		{
+			"id":    startID2.String(),
+			"type":  "start",
+			"label": "Start 2",
+			"next":  endID.String(),
+		},
+		{
+			"id":    endID.String(),
+			"type":  "end",
+			"label": "End",
+		},
+	})
+	require.NoError(b.t, err)
+	return workflowJSON
+}
+
+// CreateWorkflowWithMultipleEnds creates a workflow with multiple end nodes
+func (b Builder) CreateWorkflowWithMultipleEnds() []byte {
+	startID := uuid.New()
+	endID1 := uuid.New()
+	endID2 := uuid.New()
+	workflowJSON, err := json.Marshal([]map[string]interface{}{
+		{
+			"id":    startID.String(),
+			"type":  "start",
+			"label": "Start",
+			"next":  endID1.String(),
+		},
+		{
+			"id":    endID1.String(),
+			"type":  "end",
+			"label": "End 1",
+		},
+		{
+			"id":    endID2.String(),
+			"type":  "end",
+			"label": "End 2",
+		},
+	})
+	require.NoError(b.t, err)
+	return workflowJSON
+}
+
+// CreateWorkflowWithDuplicateIDs creates a workflow with duplicate node IDs
+func (b Builder) CreateWorkflowWithDuplicateIDs() []byte {
+	duplicateID := uuid.New()
+	endID := uuid.New()
+	workflowJSON, err := json.Marshal([]map[string]interface{}{
+		{
+			"id":    duplicateID.String(),
+			"type":  "start",
+			"label": "Start",
+			"next":  endID.String(),
+		},
+		{
+			"id":    duplicateID.String(), // Duplicate ID
+			"type":  "end",
+			"label": "End",
+		},
+	})
+	require.NoError(b.t, err)
+	return workflowJSON
+}
+
+// CreateWorkflowWithInvalidID creates a workflow with invalid UUID format for node ID
+func (b Builder) CreateWorkflowWithInvalidID() []byte {
+	endID := uuid.New()
+	workflowJSON, err := json.Marshal([]map[string]interface{}{
+		{
+			"id":    "not-a-valid-uuid",
+			"type":  "start",
+			"label": "Start",
+			"next":  endID.String(),
+		},
+		{
+			"id":    endID.String(),
+			"type":  "end",
+			"label": "End",
+		},
+	})
+	require.NoError(b.t, err)
+	return workflowJSON
+}
+
+// CreateWorkflowMissingLabel creates a workflow with a node missing the label field
+func (b Builder) CreateWorkflowMissingLabel() []byte {
+	startID := uuid.New()
+	endID := uuid.New()
+	workflowJSON, err := json.Marshal([]map[string]interface{}{
+		{
+			"id":    startID.String(),
+			"type":  "start",
+			// Missing "label" field
+			"next": endID.String(),
+		},
+		{
+			"id":    endID.String(),
+			"type":  "end",
+			"label": "End",
+		},
+	})
+	require.NoError(b.t, err)
+	return workflowJSON
+}
+
+// CreateWorkflowWithUnreachableNode creates a workflow with an unreachable node
+func (b Builder) CreateWorkflowWithUnreachableNode() []byte {
+	startID := uuid.New()
+	endID := uuid.New()
+	orphanID := uuid.New()
+	workflowJSON, err := json.Marshal([]map[string]interface{}{
+		{
+			"id":    startID.String(),
+			"type":  "start",
+			"label": "Start",
+			"next":  endID.String(),
+		},
+		{
+			"id":    endID.String(),
+			"type":  "end",
+			"label": "End",
+		},
+		{
+			"id":    orphanID.String(),
+			"type":  "section",
+			"label": "Orphan",
+			"next":  endID.String(),
+		},
+	})
+	require.NoError(b.t, err)
+	return workflowJSON
+}
+
+// CreateWorkflowWithInvalidReference creates a workflow with a node referencing a non-existent node
+func (b Builder) CreateWorkflowWithInvalidReference() []byte {
+	startID := uuid.New()
+	endID := uuid.New()
+	nonExistentID := uuid.New()
+	workflowJSON, err := json.Marshal([]map[string]interface{}{
+		{
+			"id":    startID.String(),
+			"type":  "start",
+			"label": "Start",
+			"next":  nonExistentID.String(), // References non-existent node
+		},
+		{
+			"id":    endID.String(),
+			"type":  "end",
+			"label": "End",
+		},
+	})
+	require.NoError(b.t, err)
+	return workflowJSON
+}
+
+// CreateWorkflowWithInvalidType creates a workflow with an invalid node type
+func (b Builder) CreateWorkflowWithInvalidType() []byte {
+	startID := uuid.New()
+	endID := uuid.New()
+	workflowJSON, err := json.Marshal([]map[string]interface{}{
+		{
+			"id":    startID.String(),
+			"type":  "invalid_type",
+			"label": "Start",
+			"next":  endID.String(),
+		},
+		{
+			"id":    endID.String(),
+			"type":  "end",
+			"label": "End",
+		},
+	})
+	require.NoError(b.t, err)
+	return workflowJSON
+}
+
+// CreateStartNodeMissingNext creates a workflow with a start node missing the next field
+func (b Builder) CreateStartNodeMissingNext() []byte {
+	startID := uuid.New()
+	endID := uuid.New()
+	workflowJSON, err := json.Marshal([]map[string]interface{}{
+		{
+			"id":    startID.String(),
+			"type":  "start",
+			"label": "Start",
+			// Missing "next" field
+		},
+		{
+			"id":    endID.String(),
+			"type":  "end",
+			"label": "End",
+		},
+	})
+	require.NoError(b.t, err)
+	return workflowJSON
+}
+
+// CreateSectionNodeMissingNext creates a workflow with a section node missing the next field
+func (b Builder) CreateSectionNodeMissingNext() []byte {
+	startID := uuid.New()
+	sectionID := uuid.New()
+	endID := uuid.New()
+	workflowJSON, err := json.Marshal([]map[string]interface{}{
+		{
+			"id":    startID.String(),
+			"type":  "start",
+			"label": "Start",
+			"next":  sectionID.String(),
+		},
+		{
+			"id":    sectionID.String(),
+			"type":  "section",
+			"label": "Section",
+			// Missing "next" field
+		},
+		{
+			"id":    endID.String(),
+			"type":  "end",
+			"label": "End",
+		},
+	})
+	require.NoError(b.t, err)
+	return workflowJSON
+}
+
+// CreateConditionNodeMissingRule creates a workflow with a condition node missing conditionRule
+func (b Builder) CreateConditionNodeMissingRule() []byte {
+	startID := uuid.New()
+	conditionID := uuid.New()
+	endID := uuid.New()
+	workflowJSON, err := json.Marshal([]map[string]interface{}{
+		{
+			"id":    startID.String(),
+			"type":  "start",
+			"label": "Start",
+			"next":  conditionID.String(),
+		},
+		{
+			"id":        conditionID.String(),
+			"type":      "condition",
+			"label":     "Condition",
+			"nextTrue":  endID.String(),
+			"nextFalse": endID.String(),
+			// Missing "conditionRule" field
+		},
+		{
+			"id":    endID.String(),
+			"type":  "end",
+			"label": "End",
+		},
+	})
+	require.NoError(b.t, err)
+	return workflowJSON
+}
+
+// CreateConditionNodeMissingNextTrue creates a workflow with a condition node missing nextTrue
+func (b Builder) CreateConditionNodeMissingNextTrue() []byte {
+	startID := uuid.New()
+	conditionID := uuid.New()
+	endID := uuid.New()
+	sectionID := uuid.New()
+	workflowJSON, err := json.Marshal([]map[string]interface{}{
+		{
+			"id":    startID.String(),
+			"type":  "start",
+			"label": "Start",
+			"next":  conditionID.String(),
+		},
+		{
+			"id":        conditionID.String(),
+			"type":      "condition",
+			"label":     "Condition",
+			// Missing "nextTrue" field
+			"nextFalse": endID.String(),
+			"conditionRule": map[string]interface{}{
+				"source":  "choice",
+				"nodeId":  sectionID.String(),
+				"key":     uuid.New().String(),
+				"pattern": "yes",
+			},
+		},
+		{
+			"id":    sectionID.String(),
+			"type":  "section",
+			"label": "Section",
+			"next":  conditionID.String(),
+		},
+		{
+			"id":    endID.String(),
+			"type":  "end",
+			"label": "End",
+		},
+	})
+	require.NoError(b.t, err)
+	return workflowJSON
+}
+
+// CreateConditionNodeMissingNextFalse creates a workflow with a condition node missing nextFalse
+func (b Builder) CreateConditionNodeMissingNextFalse() []byte {
+	startID := uuid.New()
+	conditionID := uuid.New()
+	endID := uuid.New()
+	sectionID := uuid.New()
+	workflowJSON, err := json.Marshal([]map[string]interface{}{
+		{
+			"id":    startID.String(),
+			"type":  "start",
+			"label": "Start",
+			"next":  conditionID.String(),
+		},
+		{
+			"id":       conditionID.String(),
+			"type":     "condition",
+			"label":    "Condition",
+			"nextTrue": endID.String(),
+			// Missing "nextFalse" field
+			"conditionRule": map[string]interface{}{
+				"source":  "choice",
+				"nodeId":  sectionID.String(),
+				"key":     uuid.New().String(),
+				"pattern": "yes",
+			},
+		},
+		{
+			"id":    sectionID.String(),
+			"type":  "section",
+			"label": "Section",
+			"next":  conditionID.String(),
+		},
+		{
+			"id":    endID.String(),
+			"type":  "end",
+			"label": "End",
+		},
+	})
+	require.NoError(b.t, err)
+	return workflowJSON
+}
+
+// CreateConditionNodeInvalidSource creates a workflow with a condition node having invalid conditionRule.source
+func (b Builder) CreateConditionNodeInvalidSource() []byte {
+	startID := uuid.New()
+	conditionID := uuid.New()
+	endID := uuid.New()
+	sectionID := uuid.New()
+	workflowJSON, err := json.Marshal([]map[string]interface{}{
+		{
+			"id":    startID.String(),
+			"type":  "start",
+			"label": "Start",
+			"next":  conditionID.String(),
+		},
+		{
+			"id":        conditionID.String(),
+			"type":      "condition",
+			"label":     "Condition",
+			"nextTrue":  endID.String(),
+			"nextFalse": endID.String(),
+			"conditionRule": map[string]interface{}{
+				"source":  "invalid_source", // Invalid source
+				"nodeId":  sectionID.String(),
+				"key":     uuid.New().String(),
+				"pattern": "yes",
+			},
+		},
+		{
+			"id":    sectionID.String(),
+			"type":  "section",
+			"label": "Section",
+			"next":  conditionID.String(),
+		},
+		{
+			"id":    endID.String(),
+			"type":  "end",
+			"label": "End",
+		},
+	})
+	require.NoError(b.t, err)
+	return workflowJSON
+}
+
+// CreateConditionNodeInvalidRegex creates a workflow with a condition node having invalid regex pattern
+func (b Builder) CreateConditionNodeInvalidRegex() []byte {
+	startID := uuid.New()
+	conditionID := uuid.New()
+	endID := uuid.New()
+	sectionID := uuid.New()
+	workflowJSON, err := json.Marshal([]map[string]interface{}{
+		{
+			"id":    startID.String(),
+			"type":  "start",
+			"label": "Start",
+			"next":  conditionID.String(),
+		},
+		{
+			"id":        conditionID.String(),
+			"type":      "condition",
+			"label":     "Condition",
+			"nextTrue":  endID.String(),
+			"nextFalse": endID.String(),
+			"conditionRule": map[string]interface{}{
+				"source":  "choice",
+				"nodeId":  sectionID.String(),
+				"key":     uuid.New().String(),
+				"pattern": "[invalid regex", // Invalid regex pattern
+			},
+		},
+		{
+			"id":    sectionID.String(),
+			"type":  "section",
+			"label": "Section",
+			"next":  conditionID.String(),
+		},
+		{
+			"id":    endID.String(),
+			"type":  "end",
+			"label": "End",
+		},
+	})
+	require.NoError(b.t, err)
+	return workflowJSON
+}
