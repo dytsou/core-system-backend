@@ -190,6 +190,15 @@ func TestService_Update(t *testing.T) {
 				Workflow:   workflowJSON,
 			}
 
+			currentWorkflowRow := workflow.GetRow{
+				ID:         uuid.New(),
+				FormID:     formID,
+				LastEditor: userID,
+				IsActive:   false,
+				Workflow:   workflowJSON, // Use same workflow for node ID validation to pass
+			}
+			mockQuerier.On("Get", mock.Anything, formID).Return(currentWorkflowRow, nil).Once()
+
 			mockQuerier.On("Update", mock.Anything, workflow.UpdateParams{
 				FormID:     formID,
 				LastEditor: userID,
