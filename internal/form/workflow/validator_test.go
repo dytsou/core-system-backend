@@ -511,9 +511,9 @@ func TestValidateUpdateNodeIDs(t *testing.T) {
 	ctx := context.Background()
 
 	type testCase struct {
-		name            string
-		setup           func(*testing.T) ([]byte, []byte)
-		expectedErr     bool
+		name        string
+		setup       func(*testing.T) ([]byte, []byte)
+		expectedErr bool
 	}
 
 	testCases := []testCase{
@@ -540,12 +540,12 @@ func TestValidateUpdateNodeIDs(t *testing.T) {
 				currentWorkflow := createWorkflowWithSection(t)
 				var currentNodes []map[string]interface{}
 				require.NoError(t, json.Unmarshal(currentWorkflow, &currentNodes))
-				
+
 				// Extract IDs from current workflow
 				startID := currentNodes[0]["id"].(string)
 				sectionID := currentNodes[1]["id"].(string)
 				endID := currentNodes[2]["id"].(string)
-				
+
 				// Create modified workflow with same IDs
 				modifiedWorkflow := createWorkflowJSON(t, []map[string]interface{}{
 					{
@@ -813,34 +813,6 @@ func createWorkflowWithSection(t *testing.T) []byte {
 			"id":    endID.String(),
 			"type":  "end",
 			"label": "End",
-		},
-	})
-}
-
-func createWorkflowWithSectionModified(t *testing.T) []byte {
-	t.Helper()
-	// Same node IDs but different label
-	startID := uuid.New()
-	sectionID := uuid.New()
-	endID := uuid.New()
-
-	return createWorkflowJSON(t, []map[string]interface{}{
-		{
-			"id":    startID.String(),
-			"type":  "start",
-			"label": "Start Modified",
-			"next":  sectionID.String(),
-		},
-		{
-			"id":    sectionID.String(),
-			"type":  "section",
-			"label": "Section Modified",
-			"next":  endID.String(),
-		},
-		{
-			"id":    endID.String(),
-			"type":  "end",
-			"label": "End Modified",
 		},
 	})
 }
