@@ -524,25 +524,3 @@ func createWorkflowJSON(t *testing.T, nodes []map[string]interface{}) []byte {
 	require.NoError(t, err)
 	return json
 }
-
-func createStartNode(t *testing.T, nextID string) map[string]interface{} {
-	t.Helper()
-	return map[string]interface{}{
-		"id":    uuid.New().String(),
-		"type":  "start",
-		"label": "Start",
-		"next":  nextID,
-	}
-}
-
-func createEndNode(t *testing.T) map[string]interface{} {
-	t.Helper()
-	return map[string]interface{}{
-		"id":    uuid.New().String(),
-		"type":  "end",
-		"label": "End",
-	}
-}
-
-// Unused helper functions removed - they were only used for validation test cases
-// that are now covered in validator_test.go and integration tests
