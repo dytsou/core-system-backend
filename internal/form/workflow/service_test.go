@@ -60,6 +60,16 @@ func (m *mockValidator) Validate(ctx context.Context, formID uuid.UUID, workflow
 	return args.Error(0)
 }
 
+func (m *mockValidator) ValidateNodeIDsUnchanged(ctx context.Context, currentWorkflow, newWorkflow []byte) error {
+	args := m.Called(ctx, currentWorkflow, newWorkflow)
+	return args.Error(0)
+}
+
+func (m *mockValidator) ValidateUpdateNodeIDs(ctx context.Context, currentWorkflow, newWorkflow []byte) error {
+	args := m.Called(ctx, currentWorkflow, newWorkflow)
+	return args.Error(0)
+}
+
 // createTestService creates a workflow.Service with mocked dependencies
 func createTestService(t *testing.T, logger *zap.Logger, tracer trace.Tracer, mockQuerier *mockQuerier, mockValidator *mockValidator, questionStore workflow.QuestionStore) *workflow.Service {
 	t.Helper()

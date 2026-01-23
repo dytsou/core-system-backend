@@ -494,11 +494,98 @@ func createMockAnswerable(t *testing.T, formID uuid.UUID, questionType question.
 	return answerable
 }
 
+// mustParseUUID parses a UUID string and fails the test if parsing fails
 func mustParseUUID(t *testing.T, s string) uuid.UUID {
 	t.Helper()
 	id, err := uuid.Parse(s)
-	require.NoError(t, err)
+	require.NoError(t, err, "failed to parse UUID: %s", s)
 	return id
+}
+
+// TestValidateUpdateNodeIDs tests the ValidateUpdateNodeIDs method
+func TestValidateUpdateNodeIDs(t *testing.T) {
+	t.Parallel()
+
+	validator := workflow.NewValidator()
+	ctx := context.Background()
+
+	type testCase struct {
+		name            string
+		currentWorkflow []byte
+		newWorkflow     []byte
+		expectedErr     bool
+	}
+
+	testCases := []testCase{
+		{
+			name:            "first update - nil current workflow",
+			currentWorkflow: nil,
+			newWorkflow:     createSimpleWorkflowForNodeIDTest(t),
+			expectedErr:     false,
+		},
+		{
+			name:            "node IDs unchanged - same workflow",
+			currentWorkflow: createSimpleWorkflowForNodeIDTest(t),
+			newWorkflow:     createSimpleWorkflowForNodeIDTest(t),
+			expectedErr:     false,
+		},
+		{
+			name:            "node IDs unchanged - workflow with same IDs but different properties",
+			currentWorkflow: createWorkflowWithSection(t),
+			newWorkflow:     createWorkflowWithSectionModified(t),
+			expectedErr:     false,
+		},
+		{
+			name:            "error - node ID removed",
+			currentWorkflow: createWorkflowWithSection(t),
+			newWorkflow:     createSimpleWorkflowForNodeIDTest(t),
+			expectedErr:     true,
+		},
+		{
+			name:            "error - node ID added",
+			currentWorkflow: createSimpleWorkflowForNodeIDTest(t),
+			newWorkflow:     createWorkflowWithSection(t),
+			expectedErr:     true,
+		},
+		{
+			name:            "error - multiple node IDs removed",
+			currentWorkflow: createWorkflowWithMultipleNodes(t),
+			newWorkflow:     createSimpleWorkflowForNodeIDTest(t),
+			expectedErr:     true,
+		},
+		{
+			name:            "error - multiple node IDs added",
+			currentWorkflow: createSimpleWorkflowForNodeIDTest(t),
+			newWorkflow:     createWorkflowWithMultipleNodes(t),
+			expectedErr:     true,
+		},
+		{
+			name:            "error - invalid current workflow JSON",
+			currentWorkflow: []byte(`{invalid json}`),
+			newWorkflow:     createSimpleWorkflowForNodeIDTest(t),
+			expectedErr:     true,
+		},
+		{
+			name:            "error - invalid new workflow JSON",
+			currentWorkflow: createSimpleWorkflowForNodeIDTest(t),
+			newWorkflow:     []byte(`{invalid json}`),
+			expectedErr:     true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := validator.ValidateUpdateNodeIDs(ctx, tc.currentWorkflow, tc.newWorkflow)
+
+			if tc.expectedErr {
+				require.Error(t, err, "expected validation error")
+			} else {
+				require.NoError(t, err, "expected validation to pass but got error: %v", err)
+			}
+		})
+	}
 }
 
 // TestValidate tests the Validate method which should reuse the same validation logic as Activate
@@ -637,4 +724,123 @@ func TestValidate(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Helper functions for ValidateUpdateNodeIDs tests
+
+func createSimpleWorkflowForNodeIDTest(t *testing.T) []byte {
+	t.Helper()
+	startID := uuid.New()
+	endID := uuid.New()
+
+	return createWorkflowJSON(t, []map[string]interface{}{
+		{
+			"id":    startID.String(),
+			"type":  "start",
+			"label": "Start",
+			"next":  endID.String(),
+		},
+		{
+			"id":    endID.String(),
+			"type":  "end",
+			"label": "End",
+		},
+	})
+}
+
+func createWorkflowWithSection(t *testing.T) []byte {
+	t.Helper()
+	startID := uuid.New()
+	sectionID := uuid.New()
+	endID := uuid.New()
+
+	return createWorkflowJSON(t, []map[string]interface{}{
+		{
+			"id":    startID.String(),
+			"type":  "start",
+			"label": "Start",
+			"next":  sectionID.String(),
+		},
+		{
+			"id":    sectionID.String(),
+			"type":  "section",
+			"label": "Section",
+			"next":  endID.String(),
+		},
+		{
+			"id":    endID.String(),
+			"type":  "end",
+			"label": "End",
+		},
+	})
+}
+
+func createWorkflowWithSectionModified(t *testing.T) []byte {
+	t.Helper()
+	// Same node IDs but different label
+	startID := uuid.New()
+	sectionID := uuid.New()
+	endID := uuid.New()
+
+	return createWorkflowJSON(t, []map[string]interface{}{
+		{
+			"id":    startID.String(),
+			"type":  "start",
+			"label": "Start Modified",
+			"next":  sectionID.String(),
+		},
+		{
+			"id":    sectionID.String(),
+			"type":  "section",
+			"label": "Section Modified",
+			"next":  endID.String(),
+		},
+		{
+			"id":    endID.String(),
+			"type":  "end",
+			"label": "End Modified",
+		},
+	})
+}
+
+func createWorkflowWithMultipleNodes(t *testing.T) []byte {
+	t.Helper()
+	startID := uuid.New()
+	sectionID1 := uuid.New()
+	sectionID2 := uuid.New()
+	conditionID := uuid.New()
+	endID := uuid.New()
+
+	return createWorkflowJSON(t, []map[string]interface{}{
+		{
+			"id":    startID.String(),
+			"type":  "start",
+			"label": "Start",
+			"next":  sectionID1.String(),
+		},
+		{
+			"id":    sectionID1.String(),
+			"type":  "section",
+			"label": "Section 1",
+			"next":  conditionID.String(),
+		},
+		{
+			"id":        conditionID.String(),
+			"type":      "condition",
+			"label":     "Condition",
+			"nextTrue":  sectionID2.String(),
+			"nextFalse": endID.String(),
+		},
+		{
+			"id":    sectionID2.String(),
+			"type":  "section",
+			"label": "Section 2",
+			"next":  endID.String(),
+		},
+		{
+			"id":    endID.String(),
+			"type":  "end",
+			"label": "End",
+		},
+	})
 }
