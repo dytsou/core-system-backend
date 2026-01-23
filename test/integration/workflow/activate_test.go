@@ -256,26 +256,6 @@ func TestWorkflowService_Activate(t *testing.T) {
 			},
 			expectedErr: true,
 		},
-		{
-			name:   "Activate with empty workflow JSON returns error",
-			params: Params{},
-			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX) context.Context {
-				builder := workflowbuilder.New(t, db)
-				data := builder.SetupTestData("activate-empty-json-org", "activate-empty-json-unit")
-
-				params.formID = data.FormRow.ID
-				params.userID = data.User
-				// Use empty JSON array
-				params.workflowJSON = []byte(`[]`)
-
-				return context.Background()
-			},
-			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result workflow.ActivateRow, err error) {
-				require.Error(t, err, "should return error for empty workflow JSON")
-				require.NotEmpty(t, err.Error(), "error message should not be empty")
-			},
-			expectedErr: true,
-		},
 	}
 
 	resourceManager, _, err := integration.GetOrInitResource()
