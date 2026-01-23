@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"NYCU-SDC/core-system-backend/internal"
@@ -9,6 +10,7 @@ import (
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -25,6 +27,8 @@ type Querier interface {
 type Validator interface {
 	Activate(ctx context.Context, formID uuid.UUID, workflow []byte, questionStore QuestionStore) error
 	Validate(ctx context.Context, formID uuid.UUID, workflow []byte, questionStore QuestionStore) error
+	ValidateNodeIDsUnchanged(ctx context.Context, currentWorkflow, newWorkflow []byte) error
+	ValidateUpdateNodeIDs(ctx context.Context, currentWorkflow []byte, newWorkflow []byte) error
 }
 
 type Service struct {
@@ -91,6 +95,31 @@ func (s *Service) Update(ctx context.Context, formID uuid.UUID, workflow []byte,
 	err := s.validator.Validate(ctx, formID, workflow, s.questionStore)
 	if err != nil {
 		// Wrap validation error to return 400 instead of 500
+		err = fmt.Errorf("%w: %w", internal.ErrWorkflowValidationFailed, err)
+		span.RecordError(err)
+		return UpdateRow{}, err
+	}
+
+	// Get current workflow to validate node IDs haven't changed
+	currentWorkflow, err := s.queries.Get(ctx, formID)
+	if err != nil {
+		// If workflow doesn't exist (first update), skip node ID validation
+		if !errors.Is(err, pgx.ErrNoRows) {
+			err = databaseutil.WrapDBErrorWithKeyValue(err, "workflow", "formId", formID.String(), logger, "get current workflow")
+			span.RecordError(err)
+			return UpdateRow{}, err
+		}
+		// First update scenario: no existing workflow to compare against
+	}
+
+	// Extract current workflow bytes (nil if workflow doesn't exist)
+	var currentWorkflowBytes []byte
+	if err == nil {
+		currentWorkflowBytes = currentWorkflow.Workflow
+	}
+
+	// Validate that node IDs haven't changed
+	if err := s.validator.ValidateUpdateNodeIDs(ctx, currentWorkflowBytes, workflow); err != nil {
 		err = fmt.Errorf("%w: %w", internal.ErrWorkflowValidationFailed, err)
 		span.RecordError(err)
 		return UpdateRow{}, err

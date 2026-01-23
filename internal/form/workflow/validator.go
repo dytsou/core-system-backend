@@ -39,6 +39,26 @@ func (v workflowValidator) Validate(ctx context.Context, formID uuid.UUID, workf
 	return ValidateDraft(ctx, formID, workflow, questionStore)
 }
 
+// ValidateNodeIDsUnchanged checks that node IDs in the new workflow match the current workflow.
+// It ensures that no node IDs are added or removed during an update.
+func (v workflowValidator) ValidateNodeIDsUnchanged(ctx context.Context, currentWorkflow, newWorkflow []byte) error {
+	return validateNodeIDsUnchanged(currentWorkflow, newWorkflow)
+}
+
+// ValidateUpdateNodeIDs validates that node IDs haven't changed during an update.
+// If currentWorkflow is nil, validation is skipped (first update scenario).
+// Otherwise, it ensures that no node IDs are added or removed.
+func (v workflowValidator) ValidateUpdateNodeIDs(ctx context.Context, currentWorkflow []byte, newWorkflow []byte) error {
+	// If workflow doesn't exist yet (first update), skip node ID validation
+	if currentWorkflow == nil {
+		// First update - no existing workflow to compare against
+		return nil
+	}
+
+	// Validate that node IDs haven't changed
+	return validateNodeIDsUnchanged(currentWorkflow, newWorkflow)
+}
+
 // NewValidator creates a new workflow validator using the built-in NodeType set.
 func NewValidator() Validator {
 	return workflowValidator{}
@@ -502,6 +522,51 @@ func validateDraftConditionQuestion(
 	case node.ConditionSourceNonChoice:
 		if string(q.Type) != "short_text" && string(q.Type) != "long_text" && string(q.Type) != "date" {
 			return fmt.Errorf("condition node '%s' with source 'nonChoice' requires question type 'short_text', 'long_text', or 'date', but question '%s' has type '%s'", nodeID, rule.Key, q.Type)
+		}
+	}
+
+	return nil
+}
+
+// extractNodeIDs extracts all node IDs from a workflow JSON
+func extractNodeIDs(workflowJSON []byte) (map[string]bool, error) {
+	var nodes []map[string]interface{}
+	if err := json.Unmarshal(workflowJSON, &nodes); err != nil {
+		return nil, fmt.Errorf("failed to parse workflow JSON: %w", err)
+	}
+
+	nodeIDs := make(map[string]bool)
+	for _, node := range nodes {
+		if id, ok := node["id"].(string); ok && id != "" {
+			nodeIDs[id] = true
+		}
+	}
+	return nodeIDs, nil
+}
+
+// validateNodeIDsUnchanged checks that node IDs in the new workflow match the current workflow
+func validateNodeIDsUnchanged(currentWorkflow, newWorkflow []byte) error {
+	currentNodeIDs, err := extractNodeIDs(currentWorkflow)
+	if err != nil {
+		return fmt.Errorf("failed to extract node IDs from current workflow: %w", err)
+	}
+
+	newNodeIDs, err := extractNodeIDs(newWorkflow)
+	if err != nil {
+		return fmt.Errorf("failed to extract node IDs from new workflow: %w", err)
+	}
+
+	// Check if all current node IDs exist in new workflow
+	for id := range currentNodeIDs {
+		if !newNodeIDs[id] {
+			return fmt.Errorf("node ID '%s' was removed from workflow", id)
+		}
+	}
+
+	// Check if any new node IDs were added
+	for id := range newNodeIDs {
+		if !currentNodeIDs[id] {
+			return fmt.Errorf("node ID '%s' was added to workflow", id)
 		}
 	}
 
