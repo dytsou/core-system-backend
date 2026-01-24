@@ -240,7 +240,7 @@ func TestWorkflowService_CreateNode(t *testing.T) {
 			expectedErr: true,
 		},
 		{
-			name:   "Create node with invalid node type returns error",
+			name:   "Create node with start node type succeeds at query level",
 			params: Params{},
 			setup: func(t *testing.T, params *Params, db dbbuilder.DBTX) context.Context {
 				builder := workflowbuilder.New(t, db)
@@ -248,22 +248,18 @@ func TestWorkflowService_CreateNode(t *testing.T) {
 
 				params.formID = data.FormRow.ID
 				params.userID = data.User
-				// NodeTypeStart is a valid enum value but not allowed by service logic
-				// Since this test uses sqlc queries directly (no service validation),
-				// the database enum accepts it and the query succeeds
 				params.nodeType = workflow.NodeTypeStart
 
 				return context.Background()
 			},
 			validate: func(t *testing.T, params Params, db dbbuilder.DBTX, result workflow.CreateNodeRow, err error) {
-				// Note: sqlc queries don't validate business rules, only database constraints
-				// NodeTypeStart is a valid enum value, so the query succeeds
-				// To test validation, use the service layer instead
-				if err != nil {
-					require.NotEmpty(t, err.Error(), "error message should not be empty")
-				}
+				// Note: sqlc queries don't validate node types - NodeTypeStart is a valid enum value.
+				// The service layer (Service.CreateNode) validates that only 'section' and 'condition' types are allowed.
+				// This integration test verifies the query layer behavior.
+				require.NoError(t, err, "raw query should succeed with valid enum value")
+				require.Equal(t, workflow.NodeTypeStart, result.NodeType, "node type should match input")
 			},
-			expectedErr: false, // sqlc queries don't validate - NodeTypeStart is valid enum value
+			expectedErr: false,
 		},
 		{
 			name:   "Create node with empty node type returns error",
