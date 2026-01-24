@@ -233,7 +233,7 @@ func (s *Service) Activate(ctx context.Context, formID uuid.UUID, userID uuid.UU
 	return activatedVersion, nil
 }
 
-// ValidateActivation checks if a workflow can be activated and returns detailed validation errors.
+// GetValidationInfo checks if a workflow can be activated and returns detailed validation errors.
 // Returns an empty slice if validation passes, or an array of ValidationInfo with node-specific errors.
 func (s *Service) GetValidationInfo(ctx context.Context, formID uuid.UUID, workflow []byte) ([]ValidationInfo, error) {
 	methodName := "GetValidationInfo"
