@@ -206,6 +206,12 @@ func ValidateDraft(ctx context.Context, formID uuid.UUID, workflow []byte, quest
 			validationErrors = append(validationErrors, fmt.Errorf("graph validation failed: %w", err))
 		}
 
+		// Validate that condition nodes don't reference sections that come after them
+		err = validateConditionSectionOrder(nodes)
+		if err != nil {
+			validationErrors = append(validationErrors, fmt.Errorf("graph validation failed: %w", err))
+		}
+
 		if questionStore != nil {
 			for _, n := range nodes {
 				nodeType, _ := n["type"].(string)
@@ -506,6 +512,143 @@ func validateGraphReferences(nodes []map[string]interface{}, nodeMap map[string]
 	if len(referenceErrors) > 0 {
 		return fmt.Errorf("invalid node references found: %w", errors.Join(referenceErrors...))
 	}
+	return nil
+}
+
+// validateConditionSectionOrder checks that condition nodes reference sections
+// that are visited before the condition in the workflow traversal.
+// If a condition references a section that comes after it in the graph,
+// the condition will always evaluate to false (section not yet visited).
+// Returns error if any condition references a section that comes after it.
+func validateConditionSectionOrder(nodes []map[string]interface{}) error {
+	// Find the start node
+	var startNodeID string
+	for _, n := range nodes {
+		nodeType, _ := n["type"].(string)
+		if nodeType == string(NodeTypeStart) {
+			startNodeID, _ = n["id"].(string)
+			break
+		}
+	}
+
+	if startNodeID == "" {
+		// No start node found, skip this validation (other validations will catch this)
+		return nil
+	}
+
+	// Build adjacency list for graph traversal
+	graph := make(map[string][]string)
+	for _, n := range nodes {
+		nodeID, _ := n["id"].(string)
+		nodeType, _ := n["type"].(string)
+
+		var nextNodes []string
+		switch nodeType {
+		case string(NodeTypeCondition):
+			nextTrue, ok := n["nextTrue"].(string)
+			if !ok || nextTrue == "" {
+				continue
+			}
+			nextNodes = append(nextNodes, nextTrue)
+			nextFalse, ok := n["nextFalse"].(string)
+			if !ok || nextFalse == "" {
+				continue
+			}
+			nextNodes = append(nextNodes, nextFalse)
+		default:
+			next, ok := n["next"].(string)
+			if !ok || next == "" {
+				continue
+			}
+			nextNodes = append(nextNodes, next)
+		}
+		graph[nodeID] = nextNodes
+	}
+
+	// Collect all condition nodes with their conditionRule.nodeId
+	type conditionInfo struct {
+		conditionNodeID  string
+		referencedNodeID string
+	}
+	var conditionsToCheck []conditionInfo
+
+	for _, node := range nodes {
+		nodeType, _ := node["type"].(string)
+		if nodeType != string(NodeTypeCondition) {
+			continue
+		}
+
+		nodeID, _ := node["id"].(string)
+		rawRule, ok := node["conditionRule"]
+		if !ok {
+			continue
+		}
+
+		// Parse conditionRule to get nodeId
+		ruleMap, ok := rawRule.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		referencedNodeID, ok := ruleMap["nodeId"].(string)
+		if !ok || referencedNodeID == "" {
+			continue
+		}
+
+		conditionsToCheck = append(conditionsToCheck, conditionInfo{
+			conditionNodeID:  nodeID,
+			referencedNodeID: referencedNodeID,
+		})
+	}
+
+	if len(conditionsToCheck) == 0 {
+		return nil
+	}
+
+	// BFS traversal to determine visit order
+	// Track when each node is first visited (order number)
+	visitOrder := make(map[string]int)
+	queue := []string{startNodeID}
+	order := 0
+	visitOrder[startNodeID] = order
+
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+
+		for _, nextNodeID := range graph[current] {
+			_, visited := visitOrder[nextNodeID]
+			if !visited {
+				order++
+				visitOrder[nextNodeID] = order
+				queue = append(queue, nextNodeID)
+			}
+		}
+	}
+
+	// Check each condition: referenced section must be visited before the condition
+	var orderErrors []error
+	for _, cond := range conditionsToCheck {
+		condOrder, condVisited := visitOrder[cond.conditionNodeID]
+		refOrder, refVisited := visitOrder[cond.referencedNodeID]
+
+		// If condition is not visited (unreachable), skip - other validation will catch it
+		if !condVisited {
+			continue
+		}
+
+		// If referenced node is not visited or comes after the condition
+		if !refVisited || refOrder >= condOrder {
+			orderErrors = append(orderErrors, fmt.Errorf(
+				"condition node '%s' references section '%s' in conditionRule.nodeId that has not been visited yet; condition will always evaluate to false",
+				cond.conditionNodeID, cond.referencedNodeID))
+		}
+	}
+
+	if len(orderErrors) > 0 {
+		return errors.Join(orderErrors...)
+	}
+
 	return nil
 }
 
