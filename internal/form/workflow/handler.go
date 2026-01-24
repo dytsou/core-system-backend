@@ -26,6 +26,7 @@ type Store interface {
 	CreateNode(ctx context.Context, formID uuid.UUID, nodeType NodeType, userID uuid.UUID) (CreateNodeRow, error)
 	DeleteNode(ctx context.Context, formID uuid.UUID, nodeID uuid.UUID, userID uuid.UUID) ([]byte, error)
 	Activate(ctx context.Context, formID uuid.UUID, userID uuid.UUID, workflow []byte) (ActivateRow, error)
+	GetValidationInfo(ctx context.Context, formID uuid.UUID, workflow []byte) ([]ValidationInfo, error)
 }
 
 type Handler struct {
@@ -63,6 +64,17 @@ type createNodeResponse struct {
 	Label interface{} `json:"label"`
 }
 
+type ValidationInfo struct {
+	Type    ValidationInfoType `json:"type"`
+	NodeID  *string            `json:"nodeId,omitempty"`
+	Message string             `json:"message"`
+}
+
+type GetWorkflowResponse struct {
+	Workflow json.RawMessage  `json:"workflow"`
+	Info     []ValidationInfo `json:"info"`
+}
+
 func (h *Handler) GetWorkflow(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "GetWorkflow")
 	defer span.End()
@@ -81,7 +93,20 @@ func (h *Handler) GetWorkflow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handlerutil.WriteJSONResponse(w, http.StatusOK, json.RawMessage(row.Workflow))
+	// Check validation status
+	validationInfos, err := h.store.GetValidationInfo(traceCtx, formID, []byte(row.Workflow))
+	if err != nil {
+		// Log the error but don't fail the request - return empty info array
+		logger.Warn("failed to validate workflow activation", zap.Error(err), zap.String("formId", formID.String()))
+		validationInfos = []ValidationInfo{}
+	}
+
+	response := GetWorkflowResponse{
+		Workflow: json.RawMessage(row.Workflow),
+		Info:     validationInfos,
+	}
+
+	handlerutil.WriteJSONResponse(w, http.StatusOK, response)
 }
 
 func (h *Handler) UpdateWorkflow(w http.ResponseWriter, r *http.Request) {
