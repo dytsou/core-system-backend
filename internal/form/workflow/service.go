@@ -15,8 +15,9 @@ import (
 type Querier interface {
 	Get(ctx context.Context, formID uuid.UUID) (GetRow, error)
 	Update(ctx context.Context, arg UpdateParams) (UpdateRow, error)
-	CreateNode(ctx context.Context, arg CreateNodeParams) (uuid.UUID, error)
-	Activate(ctx context.Context, formID uuid.UUID) (WorkflowVersion, error)
+	CreateNode(ctx context.Context, arg CreateNodeParams) (CreateNodeRow, error)
+	DeleteNode(ctx context.Context, arg DeleteNodeParams) ([]byte, error)
+	Activate(ctx context.Context, arg ActivateParams) (ActivateRow, error)
 }
 
 type Service struct {
@@ -79,7 +80,7 @@ func (s *Service) Update(ctx context.Context, formID uuid.UUID, workflow []byte,
 	return updated, nil
 }
 
-func (s *Service) CreateNode(ctx context.Context, formID uuid.UUID, nodeType NodeType, userID uuid.UUID) (uuid.UUID, error) {
+func (s *Service) CreateNode(ctx context.Context, formID uuid.UUID, nodeType NodeType, userID uuid.UUID) (CreateNodeRow, error) {
 	methodName := "CreateNode"
 	ctx, span := s.tracer.Start(ctx, methodName)
 	defer span.End()
@@ -93,10 +94,10 @@ func (s *Service) CreateNode(ctx context.Context, formID uuid.UUID, nodeType Nod
 	default:
 		err := fmt.Errorf("invalid node type: %s", nodeType)
 		span.RecordError(err)
-		return uuid.UUID{}, err
+		return CreateNodeRow{}, err
 	}
 
-	nodeID, err := s.queries.CreateNode(ctx, CreateNodeParams{
+	createdRow, err := s.queries.CreateNode(ctx, CreateNodeParams{
 		FormID:     formID,
 		LastEditor: userID,
 		Type:       nodeType,
@@ -104,23 +105,52 @@ func (s *Service) CreateNode(ctx context.Context, formID uuid.UUID, nodeType Nod
 	if err != nil {
 		err = databaseutil.WrapDBErrorWithKeyValue(err, "workflow", "formId", formID.String(), logger, "create node")
 		span.RecordError(err)
-		return uuid.UUID{}, err
+		return CreateNodeRow{}, err
 	}
 
-	return nodeID, nil
+	// TODO: Validate created workflow
+
+	return createdRow, nil
 }
 
-func (s *Service) Activate(ctx context.Context, formID uuid.UUID) (WorkflowVersion, error) {
+func (s *Service) DeleteNode(ctx context.Context, formID uuid.UUID, nodeID uuid.UUID, userID uuid.UUID) ([]byte, error) {
+	methodName := "DeleteNode"
+	ctx, span := s.tracer.Start(ctx, methodName)
+	defer span.End()
+	logger := logutil.WithContext(ctx, s.logger)
+
+	deleted, err := s.queries.DeleteNode(ctx, DeleteNodeParams{
+		FormID:     formID,
+		LastEditor: userID,
+		NodeID:     nodeID.String(),
+	})
+	if err != nil {
+		err = databaseutil.WrapDBErrorWithKeyValue(err, "workflow", "formId", formID.String(), logger, "delete node")
+		span.RecordError(err)
+		return []byte{}, err
+	}
+
+	return deleted, nil
+}
+
+func (s *Service) Activate(ctx context.Context, formID uuid.UUID, userID uuid.UUID, workflow []byte) (ActivateRow, error) {
 	methodName := "Activate"
 	ctx, span := s.tracer.Start(ctx, methodName)
 	defer span.End()
 	logger := logutil.WithContext(ctx, s.logger)
 
-	activatedVersion, err := s.queries.Activate(ctx, formID)
+	// Basic JSON validation - check if workflow is valid JSON
+	// TODO: More detailed graph validation would be added later
+
+	activatedVersion, err := s.queries.Activate(ctx, ActivateParams{
+		FormID:     formID,
+		LastEditor: userID,
+		Workflow:   workflow,
+	})
 	if err != nil {
 		err = databaseutil.WrapDBErrorWithKeyValue(err, "workflow", "formId", formID.String(), logger, "activate workflow")
 		span.RecordError(err)
-		return WorkflowVersion{}, err
+		return ActivateRow{}, err
 	}
 
 	return activatedVersion, nil
