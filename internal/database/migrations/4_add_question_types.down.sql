@@ -7,6 +7,8 @@ ALTER TYPE question_type DROP VALUE IF NOT EXISTS 'oauth_connect';
 ALTER TYPE question_type DROP VALUE IF NOT EXISTS 'ranking';
 
 ALTER TABLE questions
-    DROP COLUMN IF NOT EXISTS section_id UUID REFERENCES questions(id);
+    ADD COLUMN IF NOT EXISTS form_id UUID NOT NULL REFERENCES forms(id) ON DELETE CASCADE;
 ALTER TABLE questions
-    DROP COLUMN IF NOT EXISTS source_id UUID REFERENCES questions(id);
+    DROP COLUMN IF EXISTS section_id;
+ALTER TABLE questions
+    DROP COLUMN IF EXISTS source_id;

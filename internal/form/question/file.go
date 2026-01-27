@@ -81,9 +81,9 @@ const (
 
 // UploadFileOption represents the request from frontend
 type UploadFileOption struct {
-	AllowedFileTypes []string `json:"allowedFileTypes" validate:"required"`
-	MaxFileAmount    int32    `json:"maxFileAmount" validate:"required"`
-	MaxFileSizeLimit string   `json:"maxFileSizeLimit" validate:"required"`
+	AllowedFileTypes []string `json:"allowedFileTypes"`
+	MaxFileAmount    int32    `json:"maxFileAmount"`
+	MaxFileSizeLimit string   `json:"maxFileSizeLimit"`
 }
 
 // UploadFileMetadata represents the metadata stored in DB

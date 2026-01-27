@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	handlerutil "github.com/NYCU-SDC/summer/pkg/handler"
@@ -19,7 +20,7 @@ import (
 
 type Request struct {
 	Required     bool             `json:"required" validate:"required"`
-	Type         string           `json:"type" validate:"required,oneof=short_text long_text single_choice multiple_choice date dropdown detailed_multiple_choice upload_file linear_scale rating ranking oauth_connect"`
+	Type         string           `json:"type" validate:"required,oneof=SHORT_TEXT LONG_TEXT SINGLE_CHOICE MULTIPLE_CHOICE DATE DROPDOWN DETAILED_MULTIPLE_CHOICE UPLOAD_FILE LINEAR_SCALE RATING RANKING OAUTH_CONNECT"`
 	Title        string           `json:"title" validate:"required"`
 	Description  string           `json:"description"`
 	Order        int32            `json:"order" validate:"required"`
@@ -58,7 +59,7 @@ func ToResponse(answerable Answerable) (Response, error) {
 		ID:          q.ID,
 		SectionID:   q.SectionID,
 		Required:    q.Required,
-		Type:        string(q.Type),
+		Type:        strings.ToUpper(string(q.Type)),
 		Title:       q.Title.String,
 		Description: q.Description.String,
 		CreatedAt:   q.CreatedAt.Time,
@@ -66,6 +67,7 @@ func ToResponse(answerable Answerable) (Response, error) {
 	}
 	if q.SourceID.Valid {
 		response.SourceID = q.SourceID.Bytes
+		return response, nil
 	}
 
 	switch q.Type {
@@ -180,7 +182,7 @@ func (h *Handler) AddHandler(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
-	sectionIDStr := r.PathValue("sectionId")
+	sectionIDStr := r.PathValue("id")
 	sectionID, err := handlerutil.ParseUUID(sectionIDStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
@@ -192,13 +194,7 @@ func (h *Handler) AddHandler(w http.ResponseWriter, r *http.Request) {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
-
-	// Generate and validate metadata for responsible question type
-	metadata, err := getGenerateMetadata(req)
-	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, err, logger)
-		return
-	}
+	req.Type = strings.ToLower(req.Type)
 
 	request := CreateParams{
 		SectionID:   sectionID,
@@ -207,11 +203,19 @@ func (h *Handler) AddHandler(w http.ResponseWriter, r *http.Request) {
 		Title:       pgtype.Text{String: req.Title, Valid: true},
 		Description: pgtype.Text{String: req.Description, Valid: true},
 		Order:       req.Order,
-		Metadata:    metadata,
 	}
 
+	// If source_id is provided, reference source instead.
 	if req.SourceID != uuid.Nil {
 		request.SourceID = pgtype.UUID{Bytes: req.SourceID, Valid: true}
+	} else {
+		// Generate and validate metadata for responsible question type
+		metadata, err := getGenerateMetadata(req)
+		if err != nil {
+			h.problemWriter.WriteError(traceCtx, w, err, logger)
+			return
+		}
+		request.Metadata = metadata
 	}
 
 	createdQuestion, err := h.store.Create(r.Context(), request)
@@ -253,6 +257,7 @@ func (h *Handler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
+	req.Type = strings.ToLower(req.Type)
 
 	// Generate and validate metadata for choice-based questions
 	metadata, err := getGenerateMetadata(req)

@@ -48,6 +48,11 @@ func (s SingleChoice) Validate(value string) error {
 
 func NewSingleChoice(q Question) (SingleChoice, error) {
 	metadata := q.Metadata
+
+	if q.SourceID.Valid && metadata == nil {
+		return SingleChoice{question: q, Choices: []Choice{}}, nil
+	}
+
 	if metadata == nil {
 		return SingleChoice{}, errors.New("metadata is nil")
 	}
@@ -135,6 +140,11 @@ func (m MultiChoice) Validate(value string) error {
 
 func NewMultiChoice(q Question) (MultiChoice, error) {
 	metadata := q.Metadata
+
+	if q.SourceID.Valid && metadata == nil {
+		return MultiChoice{question: q, Choices: []Choice{}}, nil
+	}
+
 	if metadata == nil {
 		return MultiChoice{}, errors.New("metadata is nil")
 	}
@@ -318,6 +328,11 @@ func (r Ranking) Validate(value string) error {
 
 func NewRanking(q Question) (Ranking, error) {
 	metadata := q.Metadata
+
+	if q.SourceID.Valid && metadata == nil {
+		return Ranking{question: q, Rank: []Choice{}}, nil
+	}
+
 	if metadata == nil {
 		return Ranking{}, errors.New("metadata is nil")
 	}
