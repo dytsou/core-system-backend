@@ -1,0 +1,233 @@
+package question
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strconv"
+)
+
+type ScaleOption struct {
+	Icon          string `json:"icon,omitempty"`
+	MinVal        int    `json:"minVal"`
+	MaxVal        int    `json:"maxVal"`
+	MinValueLabel string `json:"minValueLabel,omitempty"`
+	MaxValueLabel string `json:"maxValueLabel,omitempty"`
+}
+type LinearScaleMetadata struct {
+	MinVal        int    `json:"minVal" validate:"required"`
+	MaxVal        int    `json:"maxVal" validate:"required"`
+	MinValueLabel string `json:"minValueLabel"`
+	MaxValueLabel string `json:"maxValueLabel"`
+}
+type RatingMetadata struct {
+	Icon          string `json:"icon" validate:"required"`
+	MinVal        int    `json:"minVal" validate:"required"`
+	MaxVal        int    `json:"maxVal" validate:"required"`
+	MinValueLabel string `json:"minValueLabel"`
+	MaxValueLabel string `json:"maxValueLabel"`
+}
+type LinearScale struct {
+	question      Question
+	MinVal        int
+	MaxVal        int
+	MinValueLabel string
+	MaxValueLabel string
+}
+
+func (s LinearScale) Question() Question { return s.question }
+
+func (s LinearScale) Validate(value string) error {
+	num, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return err
+	}
+
+	intValue := int(num)
+	if intValue < s.MinVal || intValue > s.MaxVal {
+		return ErrInvalidScaleValue{
+			QuestionID: s.question.ID.String(),
+			RawValue:   intValue,
+			Message:    "out of range",
+		}
+	}
+
+	return nil
+}
+
+func NewLinearScale(q Question) (LinearScale, error) {
+	metadata := q.Metadata
+	if metadata == nil {
+		return LinearScale{}, errors.New("metadata is nil")
+	}
+
+	linearScale, err := ExtractLinearScale(metadata)
+	if err != nil {
+		return LinearScale{}, ErrMetadataBroken{QuestionID: q.ID.String(), RawData: metadata, Message: "could not extract linear scale options from metadata"}
+	}
+
+	if linearScale.MinVal >= linearScale.MaxVal {
+		return LinearScale{}, ErrMetadataBroken{QuestionID: q.ID.String(), RawData: metadata, Message: "minVal must be less than maxVal"}
+	}
+
+	return LinearScale{
+		question:      q,
+		MinVal:        linearScale.MinVal,
+		MaxVal:        linearScale.MaxVal,
+		MinValueLabel: linearScale.MinValueLabel,
+		MaxValueLabel: linearScale.MaxValueLabel,
+	}, nil
+}
+
+type Rating struct {
+	question      Question
+	Icon          string
+	MinVal        int
+	MaxVal        int
+	MinValueLabel string
+	MaxValueLabel string
+}
+
+func (s Rating) Question() Question { return s.question }
+
+func (s Rating) Validate(value string) error {
+	num, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return err
+	}
+
+	intValue := int(num)
+	if intValue < s.MinVal || intValue > s.MaxVal {
+		return ErrInvalidScaleValue{
+			QuestionID: s.question.ID.String(),
+			RawValue:   intValue,
+			Message:    "out of range",
+		}
+	}
+
+	// TODO: check if the icon is in the whitelist
+	return nil
+}
+
+func NewRating(q Question) (Rating, error) {
+	metadata := q.Metadata
+	if metadata == nil {
+		return Rating{}, errors.New("metadata is nil")
+	}
+
+	rating, err := ExtractRating(metadata)
+	if err != nil {
+		return Rating{}, ErrMetadataBroken{QuestionID: q.ID.String(), RawData: metadata, Message: "could not extract rating options from metadata"}
+	}
+
+	if rating.MinVal >= rating.MaxVal {
+		return Rating{}, ErrMetadataBroken{QuestionID: q.ID.String(), RawData: metadata, Message: "minVal must be less than maxVal"}
+	}
+
+	return Rating{
+		question:      q,
+		Icon:          rating.Icon,
+		MinVal:        rating.MinVal,
+		MaxVal:        rating.MaxVal,
+		MinValueLabel: rating.MinValueLabel,
+		MaxValueLabel: rating.MaxValueLabel,
+	}, nil
+}
+
+func GenerateLinearScaleMetadata(option ScaleOption) ([]byte, error) {
+	if option.MinVal >= option.MaxVal {
+		return nil, fmt.Errorf("minVal (%d) must be less than maxVal (%d)", option.MinVal, option.MaxVal)
+	}
+
+	if option.MinVal < 1 || option.MinVal > 7 {
+		return nil, fmt.Errorf("minVal must be between 1 and 7, got %d", option.MinVal)
+	}
+
+	if option.MaxVal < 1 || option.MaxVal > 7 {
+		return nil, fmt.Errorf("maxVal must be between 1 and 7, got %d", option.MaxVal)
+	}
+
+	metadata := map[string]any{
+		"scale": LinearScaleMetadata{
+			MinVal:        option.MinVal,
+			MaxVal:        option.MaxVal,
+			MinValueLabel: option.MinValueLabel,
+			MaxValueLabel: option.MaxValueLabel,
+		},
+	}
+
+	return json.Marshal(metadata)
+}
+
+func GenerateRatingMetadata(option ScaleOption) ([]byte, error) {
+	if option.Icon == "" {
+		return nil, errors.New("icon is required for rating questions")
+	}
+
+	if option.MinVal >= option.MaxVal {
+		return nil, fmt.Errorf("minVal (%d) must be less than maxVal (%d)", option.MinVal, option.MaxVal)
+	}
+
+	if option.MinVal < 1 {
+		return nil, fmt.Errorf("minVal must be at least 1 for rating, got %d", option.MinVal)
+	}
+
+	if option.MaxVal > 10 {
+		return nil, fmt.Errorf("maxVal must be at most 10 for rating, got %d", option.MaxVal)
+	}
+
+	// TODO: Validate icon
+	validIcons := []string{"star"}
+	isValid := false
+	for _, validIcon := range validIcons {
+		if option.Icon == validIcon {
+			isValid = true
+			break
+		}
+	}
+	if !isValid {
+		return nil, fmt.Errorf("invalid icon: %s, must be one of: %v", option.Icon, validIcons)
+	}
+
+	metadata := map[string]any{
+		"scale": RatingMetadata{
+			Icon:          option.Icon,
+			MinVal:        option.MinVal,
+			MaxVal:        option.MaxVal,
+			MinValueLabel: option.MinValueLabel,
+			MaxValueLabel: option.MaxValueLabel,
+		},
+	}
+
+	return json.Marshal(metadata)
+}
+
+func ExtractLinearScale(data []byte) (LinearScaleMetadata, error) {
+	var partial map[string]json.RawMessage
+	if err := json.Unmarshal(data, &partial); err != nil {
+		return LinearScaleMetadata{}, fmt.Errorf("could not parse partial json: %w", err)
+	}
+
+	var metadata LinearScaleMetadata
+	if raw, ok := partial["scale"]; ok {
+		if err := json.Unmarshal(raw, &metadata); err != nil {
+			return LinearScaleMetadata{}, fmt.Errorf("could not parse linear scale: %w", err)
+		}
+	}
+	return metadata, nil
+}
+
+func ExtractRating(data []byte) (RatingMetadata, error) {
+	var partial map[string]json.RawMessage
+	if err := json.Unmarshal(data, &partial); err != nil {
+		return RatingMetadata{}, fmt.Errorf("could not parse partial json: %w", err)
+	}
+
+	var metadata RatingMetadata
+	if raw, ok := partial["scale"]; ok {
+		if err := json.Unmarshal(raw, &metadata); err != nil {
+			return RatingMetadata{}, fmt.Errorf("could not parse rating scale: %w", err)
+		}
+	}
+	return metadata, nil
+}

@@ -2,6 +2,24 @@ package question
 
 import "fmt"
 
+type ErrInvalidScaleValue struct {
+	QuestionID string
+	RawValue   int
+	Message    string
+}
+
+func (e ErrInvalidScaleValue) Error() string {
+	return fmt.Sprintf("invalid value for question %s: %s, raw value: %d", e.QuestionID, e.Message, e.RawValue)
+}
+
+type ErrInvalidIcon struct {
+	Given string `json:"given"`
+}
+
+func (e ErrInvalidIcon) Error() string {
+	return fmt.Sprintf("invalid icon %s", e.Given)
+}
+
 type ErrInvalidAnswerLength struct {
 	Expected int
 	Given    int
@@ -59,12 +77,12 @@ func (e ErrUnsupportedQuestionType) Error() string {
 	return fmt.Sprintf("unsupported question type: %s", e.QuestionType)
 }
 
-type ErrInvalidChoices struct {
+type ErrInvalidMetadata struct {
 	QuestionID string
 	RawData    []byte
 	Message    string
 }
 
-func (e ErrInvalidChoices) Error() string {
-	return fmt.Sprintf("invalid choices for question %s: %s, raw data: %s", e.QuestionID, e.Message, e.RawData)
+func (e ErrInvalidMetadata) Error() string {
+	return fmt.Sprintf("invalid metadata for question %s: %s, raw data: %s", e.QuestionID, e.Message, e.RawData)
 }

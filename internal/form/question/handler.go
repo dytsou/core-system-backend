@@ -2,6 +2,7 @@ package question
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -17,25 +18,37 @@ import (
 )
 
 type Request struct {
-	Required    bool           `json:"required" validate:"required"`
-	Type        string         `json:"type" validate:"required,oneof=short_text long_text single_choice multiple_choice date"`
-	Title       string         `json:"title" validate:"required"`
-	Description string         `json:"description"`
-	Order       int32          `json:"order" validate:"required"`
-	Choices     []ChoiceOption `json:"choices,omitempty" validate:"omitempty,dive"`
+	Required     bool             `json:"required" validate:"required"`
+	Type         string           `json:"type" validate:"required,oneof=short_text long_text single_choice multiple_choice date dropdown detailed_multiple_choice upload_file linear_scale rating ranking oauth_connect"`
+	Title        string           `json:"title" validate:"required"`
+	Description  string           `json:"description"`
+	Order        int32            `json:"order" validate:"required"`
+	Choices      []ChoiceOption   `json:"choices,omitempty" validate:"omitempty,dive"`
+	Scale        ScaleOption      `json:"scale,omitempty"`
+	UploadFiles  UploadFileOption `json:"uploadFiles,omitempty"`
+	OauthConnect string           `json:"oauthConnect,omitempty"`
+	SourceID     uuid.UUID        `json:"sourceId,omitempty"`
 }
 
 type Response struct {
-	ID          uuid.UUID `json:"id"`
-	FormID      uuid.UUID `json:"formId"`
-	Required    bool      `json:"required"`
-	Type        string    `json:"type"`
-	Title       string    `json:"title"`
-	Description string    `json:"description"`
-	Order       int32     `json:"order"`
-	Choices     []Choice  `json:"choices,omitempty"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
+	ID           uuid.UUID        `json:"id"`
+	SectionID    uuid.UUID        `json:"sectionId"`
+	Required     bool             `json:"required"`
+	Type         string           `json:"type"`
+	Title        string           `json:"title"`
+	Description  string           `json:"description"`
+	Choices      []Choice         `json:"choices,omitempty"`
+	Scale        ScaleOption      `json:"scale,omitempty"`
+	UploadFiles  UploadFileOption `json:"uploadFiles,omitempty"`
+	OauthConnect string           `json:"oauthConnect,omitempty"`
+	SourceID     uuid.UUID        `json:"sourceId,omitempty"`
+	CreatedAt    time.Time        `json:"createdAt"`
+	UpdatedAt    time.Time        `json:"updatedAt"`
+}
+
+type SectionResponse struct {
+	Section   Section
+	Questions []Response
 }
 
 func ToResponse(answerable Answerable) (Response, error) {
@@ -43,27 +56,88 @@ func ToResponse(answerable Answerable) (Response, error) {
 
 	response := Response{
 		ID:          q.ID,
-		FormID:      q.FormID,
+		SectionID:   q.SectionID,
 		Required:    q.Required,
 		Type:        string(q.Type),
 		Title:       q.Title.String,
 		Description: q.Description.String,
-		Order:       q.Order,
 		CreatedAt:   q.CreatedAt.Time,
 		UpdatedAt:   q.UpdatedAt.Time,
 	}
+	if q.SourceID.Valid {
+		response.SourceID = q.SourceID.Bytes
+	}
 
-	// Add choices for choice-based questions
-	if q.Type == QuestionTypeSingleChoice || q.Type == QuestionTypeMultipleChoice {
+	switch q.Type {
+	case QuestionTypeSingleChoice, QuestionTypeMultipleChoice, QuestionTypeDetailedMultipleChoice, QuestionTypeRanking, QuestionTypeDropdown:
 		choices, err := ExtractChoices(q.Metadata)
 		if err != nil {
-			return response, ErrInvalidChoices{
+			return response, ErrInvalidMetadata{
 				QuestionID: q.ID.String(),
 				RawData:    q.Metadata,
 				Message:    err.Error(),
 			}
 		}
 		response.Choices = choices
+	case QuestionTypeLinearScale:
+		scale, err := ExtractLinearScale(q.Metadata)
+		if err != nil {
+			return response, ErrInvalidMetadata{
+				QuestionID: q.ID.String(),
+				RawData:    q.Metadata,
+				Message:    err.Error(),
+			}
+		}
+		response.Scale = ScaleOption{
+			MinVal:        scale.MinVal,
+			MaxVal:        scale.MaxVal,
+			MinValueLabel: scale.MinValueLabel,
+			MaxValueLabel: scale.MaxValueLabel,
+		}
+	case QuestionTypeRating:
+		rating, err := ExtractRating(q.Metadata)
+		if err != nil {
+			return response, ErrInvalidMetadata{
+				QuestionID: q.ID.String(),
+				RawData:    q.Metadata,
+				Message:    err.Error(),
+			}
+		}
+		response.Scale = ScaleOption{
+			Icon:          rating.Icon,
+			MinVal:        rating.MinVal,
+			MaxVal:        rating.MaxVal,
+			MinValueLabel: rating.MinValueLabel,
+			MaxValueLabel: rating.MaxValueLabel,
+		}
+	case QuestionTypeUploadFile:
+		uploadFile, err := ExtractUploadFile(q.Metadata)
+		if err != nil {
+			return response, ErrInvalidMetadata{
+				QuestionID: q.ID.String(),
+				RawData:    q.Metadata,
+				Message:    err.Error(),
+			}
+		}
+		fileTypes := make([]string, len(uploadFile.AllowedFileTypes))
+		for i, ft := range uploadFile.AllowedFileTypes {
+			fileTypes[i] = string(ft)
+		}
+		response.UploadFiles = UploadFileOption{
+			AllowedFileTypes: fileTypes,
+			MaxFileAmount:    uploadFile.MaxFileAmount,
+			MaxFileSizeLimit: string(uploadFile.MaxFileSizeLimit),
+		}
+	case QuestionTypeOauthConnect:
+		provider, err := ExtractOauthConnect(q.Metadata)
+		if err != nil {
+			return response, ErrInvalidMetadata{
+				QuestionID: q.ID.String(),
+				RawData:    q.Metadata,
+				Message:    err.Error(),
+			}
+		}
+		response.OauthConnect = string(provider)
 	}
 
 	return response, nil
@@ -72,8 +146,8 @@ func ToResponse(answerable Answerable) (Response, error) {
 type Store interface {
 	Create(ctx context.Context, input CreateParams) (Answerable, error)
 	Update(ctx context.Context, input UpdateParams) (Answerable, error)
-	Delete(ctx context.Context, formID uuid.UUID, id uuid.UUID) error
-	ListByFormID(ctx context.Context, formID uuid.UUID) ([]Answerable, error)
+	Delete(ctx context.Context, sectionID uuid.UUID, id uuid.UUID) error
+	ListByFormID(ctx context.Context, formID uuid.UUID) ([]SectionWithQuestions, error)
 }
 
 type Handler struct {
@@ -106,8 +180,8 @@ func (h *Handler) AddHandler(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
-	formIDStr := r.PathValue("formId")
-	formID, err := handlerutil.ParseUUID(formIDStr)
+	sectionIDStr := r.PathValue("sectionId")
+	sectionID, err := handlerutil.ParseUUID(sectionIDStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
@@ -119,21 +193,25 @@ func (h *Handler) AddHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate and validate metadata for choice-based questions
-	metadata, err := GenerateMetadata(req.Type, req.Choices)
+	// Generate and validate metadata for responsible question type
+	metadata, err := getGenerateMetadata(req)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
 
 	request := CreateParams{
-		FormID:      formID,
+		SectionID:   sectionID,
 		Required:    req.Required,
 		Type:        QuestionType(req.Type),
 		Title:       pgtype.Text{String: req.Title, Valid: true},
 		Description: pgtype.Text{String: req.Description, Valid: true},
 		Order:       req.Order,
 		Metadata:    metadata,
+	}
+
+	if req.SourceID != uuid.Nil {
+		request.SourceID = pgtype.UUID{Bytes: req.SourceID, Valid: true}
 	}
 
 	createdQuestion, err := h.store.Create(r.Context(), request)
@@ -163,8 +241,8 @@ func (h *Handler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	formIDStr := r.PathValue("formId")
-	formID, err := handlerutil.ParseUUID(formIDStr)
+	sectionIDStr := r.PathValue("sectionId")
+	sectionID, err := handlerutil.ParseUUID(sectionIDStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
@@ -177,7 +255,7 @@ func (h *Handler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate and validate metadata for choice-based questions
-	metadata, err := GenerateMetadata(req.Type, req.Choices)
+	metadata, err := getGenerateMetadata(req)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
@@ -185,7 +263,7 @@ func (h *Handler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 
 	request := UpdateParams{
 		ID:          id,
-		FormID:      formID,
+		SectionID:   sectionID,
 		Required:    req.Required,
 		Type:        QuestionType(req.Type),
 		Title:       pgtype.Text{String: req.Title, Valid: true},
@@ -214,8 +292,8 @@ func (h *Handler) DeleteHandler(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
-	formIDStr := r.PathValue("formId")
-	formID, err := handlerutil.ParseUUID(formIDStr)
+	sectionIDStr := r.PathValue("sectionId")
+	sectionID, err := handlerutil.ParseUUID(sectionIDStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
@@ -228,7 +306,7 @@ func (h *Handler) DeleteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.store.Delete(traceCtx, formID, id)
+	err = h.store.Delete(traceCtx, sectionID, id)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
@@ -242,28 +320,48 @@ func (h *Handler) ListHandler(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
-	formIDStr := r.PathValue("formId")
+	formIDStr := r.PathValue("id")
 	formID, err := handlerutil.ParseUUID(formIDStr)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
 
-	questions, err := h.store.ListByFormID(traceCtx, formID)
+	sectionWithQuestions, err := h.store.ListByFormID(traceCtx, formID)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
 
-	responses := make([]Response, len(questions))
-	for i, q := range questions {
-		response, err := ToResponse(q)
-		if err != nil {
-			h.problemWriter.WriteError(traceCtx, w, err, logger)
-			return
+	responses := make([]SectionResponse, len(sectionWithQuestions))
+	for i, s := range sectionWithQuestions {
+		responses[i].Section = sectionWithQuestions[i].Section
+		for _, q := range s.Questions {
+			response, err := ToResponse(q)
+			if err != nil {
+				h.problemWriter.WriteError(traceCtx, w, err, logger)
+				return
+			}
+			responses[i].Questions = append(responses[i].Questions, response)
 		}
-		responses[i] = response
 	}
 
 	handlerutil.WriteJSONResponse(w, http.StatusOK, responses)
+}
+
+func getGenerateMetadata(req Request) ([]byte, error) {
+	switch req.Type {
+	case "short_text", "long_text", "single_choice", "multiple_choice", "detailed_multiple_choice", "dropdown", "date", "ranking":
+		return GenerateMetadata(req.Type, req.Choices)
+	case "linear_scale":
+		return GenerateLinearScaleMetadata(req.Scale)
+	case "rating":
+		return GenerateRatingMetadata(req.Scale)
+	case "oauth_connect":
+		return GenerateOauthConnectMetadata(req.OauthConnect)
+	case "upload_file":
+		return GenerateUploadFileMetadata(req.UploadFiles)
+	default:
+		return nil, fmt.Errorf("unknown question type: %s", req.Type)
+	}
 }

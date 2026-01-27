@@ -12,6 +12,20 @@ func NewAnswerable(q Question) (Answerable, error) {
 		return NewMultiChoice(q)
 	case QuestionTypeDate:
 		return NewDate(q)
+	case QuestionTypeDropdown:
+		return NewSingleChoice(q)
+	case QuestionTypeDetailedMultipleChoice:
+		return NewDetailedMultiChoice(q)
+	case QuestionTypeLinearScale:
+		return NewLinearScale(q)
+	case QuestionTypeRating:
+		return NewRating(q)
+	case QuestionTypeRanking:
+		return NewRanking(q)
+	case QuestionTypeOauthConnect:
+		return NewOAuthConnect(q)
+	case QuestionTypeUploadFile:
+		return NewUploadFile(q)
 	}
 
 	return nil, ErrUnsupportedQuestionType{

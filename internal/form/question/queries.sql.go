@@ -13,41 +13,44 @@ import (
 )
 
 const create = `-- name: Create :one
-INSERT INTO questions (form_id, required, type, title, description, metadata, "order")
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-    RETURNING id, form_id, required, type, title, description, metadata, "order", created_at, updated_at
+INSERT INTO questions (section_id, required, type, title, description, metadata, "order", source_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    RETURNING id, section_id, required, type, title, description, metadata, "order", source_id, created_at, updated_at
 `
 
 type CreateParams struct {
-	FormID      uuid.UUID
+	SectionID   uuid.UUID
 	Required    bool
 	Type        QuestionType
 	Title       pgtype.Text
 	Description pgtype.Text
 	Metadata    []byte
 	Order       int32
+	SourceID    pgtype.UUID
 }
 
 func (q *Queries) Create(ctx context.Context, arg CreateParams) (Question, error) {
 	row := q.db.QueryRow(ctx, create,
-		arg.FormID,
+		arg.SectionID,
 		arg.Required,
 		arg.Type,
 		arg.Title,
 		arg.Description,
 		arg.Metadata,
 		arg.Order,
+		arg.SourceID,
 	)
 	var i Question
 	err := row.Scan(
 		&i.ID,
-		&i.FormID,
+		&i.SectionID,
 		&i.Required,
 		&i.Type,
 		&i.Title,
 		&i.Description,
 		&i.Metadata,
 		&i.Order,
+		&i.SourceID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -55,21 +58,21 @@ func (q *Queries) Create(ctx context.Context, arg CreateParams) (Question, error
 }
 
 const delete = `-- name: Delete :exec
-DELETE FROM questions WHERE form_id = $1 AND id = $2
+DELETE FROM questions WHERE section_id = $1 AND id = $2
 `
 
 type DeleteParams struct {
-	FormID uuid.UUID
-	ID     uuid.UUID
+	SectionID uuid.UUID
+	ID        uuid.UUID
 }
 
 func (q *Queries) Delete(ctx context.Context, arg DeleteParams) error {
-	_, err := q.db.Exec(ctx, delete, arg.FormID, arg.ID)
+	_, err := q.db.Exec(ctx, delete, arg.SectionID, arg.ID)
 	return err
 }
 
 const getByID = `-- name: GetByID :one
-SELECT id, form_id, required, type, title, description, metadata, "order", created_at, updated_at FROM questions WHERE id = $1
+SELECT id, section_id, required, type, title, description, metadata, "order", source_id, created_at, updated_at FROM questions WHERE id = $1
 `
 
 func (q *Queries) GetByID(ctx context.Context, id uuid.UUID) (Question, error) {
@@ -77,13 +80,14 @@ func (q *Queries) GetByID(ctx context.Context, id uuid.UUID) (Question, error) {
 	var i Question
 	err := row.Scan(
 		&i.ID,
-		&i.FormID,
+		&i.SectionID,
 		&i.Required,
 		&i.Type,
 		&i.Title,
 		&i.Description,
 		&i.Metadata,
 		&i.Order,
+		&i.SourceID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -91,29 +95,69 @@ func (q *Queries) GetByID(ctx context.Context, id uuid.UUID) (Question, error) {
 }
 
 const listByFormID = `-- name: ListByFormID :many
-SELECT id, form_id, required, type, title, description, metadata, "order", created_at, updated_at FROM questions WHERE form_id = $1 ORDER BY "order"
+SELECT
+    s.form_id,
+    s.title,
+    s.progress,
+    s.description,
+    s.created_at,
+    s.updated_at,
+    q.id, q.section_id, q.required, q.type, q.title, q.description, q.metadata, q."order", q.source_id, q.created_at, q.updated_at
+FROM sections s
+JOIN questions q ON s.id = q.section_id
+WHERE s.form_id = $1
+ORDER BY
+    s.id ASC,
+    q."order" ASC
 `
 
-func (q *Queries) ListByFormID(ctx context.Context, formID uuid.UUID) ([]Question, error) {
+type ListByFormIDRow struct {
+	FormID        uuid.UUID
+	Title         pgtype.Text
+	Progress      SectionProgress
+	Description   pgtype.Text
+	CreatedAt     pgtype.Timestamptz
+	UpdatedAt     pgtype.Timestamptz
+	ID            uuid.UUID
+	SectionID     uuid.UUID
+	Required      bool
+	Type          QuestionType
+	Title_2       pgtype.Text
+	Description_2 pgtype.Text
+	Metadata      []byte
+	Order         int32
+	SourceID      pgtype.UUID
+	CreatedAt_2   pgtype.Timestamptz
+	UpdatedAt_2   pgtype.Timestamptz
+}
+
+func (q *Queries) ListByFormID(ctx context.Context, formID uuid.UUID) ([]ListByFormIDRow, error) {
 	rows, err := q.db.Query(ctx, listByFormID, formID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Question
+	var items []ListByFormIDRow
 	for rows.Next() {
-		var i Question
+		var i ListByFormIDRow
 		if err := rows.Scan(
-			&i.ID,
 			&i.FormID,
-			&i.Required,
-			&i.Type,
 			&i.Title,
+			&i.Progress,
 			&i.Description,
-			&i.Metadata,
-			&i.Order,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ID,
+			&i.SectionID,
+			&i.Required,
+			&i.Type,
+			&i.Title_2,
+			&i.Description_2,
+			&i.Metadata,
+			&i.Order,
+			&i.SourceID,
+			&i.CreatedAt_2,
+			&i.UpdatedAt_2,
 		); err != nil {
 			return nil, err
 		}
@@ -127,13 +171,13 @@ func (q *Queries) ListByFormID(ctx context.Context, formID uuid.UUID) ([]Questio
 
 const update = `-- name: Update :one
 UPDATE questions
-SET required = $3, type = $4, title = $5, description = $6, metadata = $7, "order" = $8, updated_at = now()
-WHERE form_id = $1 AND id = $2
-    RETURNING id, form_id, required, type, title, description, metadata, "order", created_at, updated_at
+SET required = $3, type = $4, title = $5, description = $6, metadata = $7, "order" = $8, source_id = $8, updated_at = now()
+WHERE section_id = $1 AND id = $2
+    RETURNING id, section_id, required, type, title, description, metadata, "order", source_id, created_at, updated_at
 `
 
 type UpdateParams struct {
-	FormID      uuid.UUID
+	SectionID   uuid.UUID
 	ID          uuid.UUID
 	Required    bool
 	Type        QuestionType
@@ -145,7 +189,7 @@ type UpdateParams struct {
 
 func (q *Queries) Update(ctx context.Context, arg UpdateParams) (Question, error) {
 	row := q.db.QueryRow(ctx, update,
-		arg.FormID,
+		arg.SectionID,
 		arg.ID,
 		arg.Required,
 		arg.Type,
@@ -157,13 +201,14 @@ func (q *Queries) Update(ctx context.Context, arg UpdateParams) (Question, error
 	var i Question
 	err := row.Scan(
 		&i.ID,
-		&i.FormID,
+		&i.SectionID,
 		&i.Required,
 		&i.Type,
 		&i.Title,
 		&i.Description,
 		&i.Metadata,
 		&i.Order,
+		&i.SourceID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

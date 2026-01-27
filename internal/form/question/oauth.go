@@ -1,0 +1,99 @@
+package question
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+)
+
+type OauthProvider string
+
+const (
+	GoogleOauthProvider  OauthProvider = "google"
+	DiscordOauthProvider OauthProvider = "discord"
+)
+
+var validOauthProviders = map[OauthProvider]bool{
+	GoogleOauthProvider:  true,
+	DiscordOauthProvider: true,
+}
+
+type OAuthConnect struct {
+	question Question
+	Provider OauthProvider
+}
+
+func (o OAuthConnect) Question() Question {
+	return o.question
+}
+
+func (o OAuthConnect) Validate(value string) error {
+	// TODO
+	return errors.New("not implemented")
+}
+
+func NewOAuthConnect(q Question) (OAuthConnect, error) {
+	if q.Metadata == nil {
+		return OAuthConnect{}, errors.New("metadata is nil")
+	}
+
+	var partial map[string]json.RawMessage
+	if err := json.Unmarshal(q.Metadata, &partial); err != nil {
+		return OAuthConnect{}, fmt.Errorf("could not parse partial json: %w", err)
+	}
+
+	provider, err := ExtractOauthConnect(q.Metadata)
+	if err != nil {
+		return OAuthConnect{}, ErrMetadataBroken{QuestionID: q.ID.String(), RawData: q.Metadata, Message: "oauthConnect field missing"}
+	}
+
+	if provider == "" {
+		return OAuthConnect{}, ErrMetadataBroken{QuestionID: q.ID.String(), RawData: q.Metadata, Message: "oauthConnect provider is empty"}
+	}
+
+	if provider != GoogleOauthProvider && provider != DiscordOauthProvider {
+		return OAuthConnect{}, ErrMetadataBroken{QuestionID: q.ID.String(), RawData: q.Metadata, Message: "invalid oauthConnect provider"}
+	}
+
+	return OAuthConnect{
+		question: q,
+		Provider: provider,
+	}, nil
+}
+
+func GenerateOauthConnectMetadata(provider string) ([]byte, error) {
+	if provider == "" {
+		return nil, ErrMetadataValidate{
+			QuestionID: "oauth_connect",
+			RawData:    []byte(fmt.Sprintf("%v", provider)),
+			Message:    "no provider provided for oauth_connect question",
+		}
+	}
+
+	oauthProvider := OauthProvider(provider)
+	if !validOauthProviders[oauthProvider] {
+		return nil, fmt.Errorf("invalid OAuth provider: %s", provider)
+	}
+
+	metadata := map[string]any{
+		"oauthConnect": provider,
+	}
+
+	return json.Marshal(metadata)
+}
+
+func ExtractOauthConnect(data []byte) (OauthProvider, error) {
+	var partial map[string]json.RawMessage
+	if err := json.Unmarshal(data, &partial); err != nil {
+		return "", fmt.Errorf("could not parse partial json: %w", err)
+	}
+
+	var provider OauthProvider
+	if raw, ok := partial["oauthConnect"]; ok {
+		if err := json.Unmarshal(raw, &provider); err != nil {
+			return "", fmt.Errorf("could not parse oauth provider: %w", err)
+		}
+	}
+
+	return provider, nil
+}

@@ -15,13 +15,18 @@ type Querier interface {
 	Create(ctx context.Context, params CreateParams) (Question, error)
 	Update(ctx context.Context, params UpdateParams) (Question, error)
 	Delete(ctx context.Context, params DeleteParams) error
-	ListByFormID(ctx context.Context, formID uuid.UUID) ([]Question, error)
+	ListByFormID(ctx context.Context, formID uuid.UUID) ([]ListByFormIDRow, error)
 	GetByID(ctx context.Context, id uuid.UUID) (Question, error)
 }
 
 type Answerable interface {
 	Question() Question
 	Validate(value string) error
+}
+
+type SectionWithQuestions struct {
+	Section   Section
+	Questions []Answerable
 }
 
 type Service struct {
@@ -68,14 +73,14 @@ func (s *Service) Update(ctx context.Context, input UpdateParams) (Answerable, e
 	return NewAnswerable(q)
 }
 
-func (s *Service) Delete(ctx context.Context, formID uuid.UUID, id uuid.UUID) error {
+func (s *Service) Delete(ctx context.Context, sectionID uuid.UUID, id uuid.UUID) error {
 	ctx, span := s.tracer.Start(ctx, "Delete")
 	defer span.End()
 	logger := logutil.WithContext(ctx, s.logger)
 
 	err := s.queries.Delete(ctx, DeleteParams{
-		FormID: formID,
-		ID:     id,
+		SectionID: sectionID,
+		ID:        id,
 	})
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "delete question")
@@ -86,8 +91,8 @@ func (s *Service) Delete(ctx context.Context, formID uuid.UUID, id uuid.UUID) er
 	return nil
 }
 
-func (s *Service) ListByFormID(ctx context.Context, formID uuid.UUID) ([]Answerable, error) {
-	ctx, span := s.tracer.Start(ctx, "ListByFormID")
+func (s *Service) ListByFormID(ctx context.Context, formID uuid.UUID) ([]SectionWithQuestions, error) {
+	ctx, span := s.tracer.Start(ctx, "ListBySectionID")
 	defer span.End()
 	logger := logutil.WithContext(ctx, s.logger)
 
@@ -98,18 +103,50 @@ func (s *Service) ListByFormID(ctx context.Context, formID uuid.UUID) ([]Answera
 		return nil, err
 	}
 
-	answerableList := make([]Answerable, len(list))
-	for i, q := range list {
+	var sectionMap map[uuid.UUID]*SectionWithQuestions
+	for _, row := range list {
+		_, exist := sectionMap[row.SectionID]
+		if !exist {
+			sectionMap[row.SectionID] = &SectionWithQuestions{
+				Section: Section{
+					ID:          row.SectionID,
+					FormID:      row.FormID,
+					Title:       row.Title,
+					Description: row.Description,
+					CreatedAt:   row.CreatedAt,
+					UpdatedAt:   row.UpdatedAt,
+				},
+			}
+		}
+
+		q := Question{
+			ID:          row.ID,
+			SectionID:   row.SectionID,
+			Required:    row.Required,
+			Type:        row.Type,
+			Title:       row.Title_2,
+			Description: row.Description_2,
+			Metadata:    row.Metadata,
+			Order:       row.Order,
+			SourceID:    row.SourceID,
+			CreatedAt:   row.CreatedAt_2,
+			UpdatedAt:   row.UpdatedAt_2,
+		}
 		answerable, err := NewAnswerable(q)
 		if err != nil {
 			err = databaseutil.WrapDBError(err, logger, "create answerable from question")
 			span.RecordError(err)
 			return nil, err
 		}
-		answerableList[i] = answerable
+
+		sectionMap[row.SectionID].Questions = append(sectionMap[row.SectionID].Questions, answerable)
 	}
 
-	return answerableList, nil
+	result := make([]SectionWithQuestions, 0, len(sectionMap))
+	for _, q := range sectionMap {
+		result = append(result, *q)
+	}
+	return result, nil
 }
 
 func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (Answerable, error) {
