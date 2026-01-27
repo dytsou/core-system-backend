@@ -92,7 +92,7 @@ func (s *Service) Delete(ctx context.Context, sectionID uuid.UUID, id uuid.UUID)
 }
 
 func (s *Service) ListByFormID(ctx context.Context, formID uuid.UUID) ([]SectionWithQuestions, error) {
-	ctx, span := s.tracer.Start(ctx, "ListBySectionID")
+	ctx, span := s.tracer.Start(ctx, "ListByFormID")
 	defer span.End()
 	logger := logutil.WithContext(ctx, s.logger)
 
@@ -103,43 +103,49 @@ func (s *Service) ListByFormID(ctx context.Context, formID uuid.UUID) ([]Section
 		return nil, err
 	}
 
-	var sectionMap map[uuid.UUID]*SectionWithQuestions
+	sectionMap := make(map[uuid.UUID]*SectionWithQuestions)
 	for _, row := range list {
-		_, exist := sectionMap[row.SectionID]
+		sectionID := row.SectionID
+
+		_, exist := sectionMap[sectionID]
 		if !exist {
-			sectionMap[row.SectionID] = &SectionWithQuestions{
+			sectionMap[sectionID] = &SectionWithQuestions{
 				Section: Section{
-					ID:          row.SectionID,
+					ID:          sectionID,
 					FormID:      row.FormID,
 					Title:       row.Title,
 					Description: row.Description,
 					CreatedAt:   row.CreatedAt,
 					UpdatedAt:   row.UpdatedAt,
 				},
+				Questions: []Answerable{},
 			}
 		}
 
-		q := Question{
-			ID:          row.ID,
-			SectionID:   row.SectionID,
-			Required:    row.Required,
-			Type:        row.Type,
-			Title:       row.Title_2,
-			Description: row.Description_2,
-			Metadata:    row.Metadata,
-			Order:       row.Order,
-			SourceID:    row.SourceID,
-			CreatedAt:   row.CreatedAt_2,
-			UpdatedAt:   row.UpdatedAt_2,
-		}
-		answerable, err := NewAnswerable(q)
-		if err != nil {
-			err = databaseutil.WrapDBError(err, logger, "create answerable from question")
-			span.RecordError(err)
-			return nil, err
-		}
+		// Check if question exists
+		if row.ID.Valid {
+			q := Question{
+				ID:          row.ID.Bytes,
+				SectionID:   sectionID,
+				Required:    row.Required.Bool,
+				Type:        row.Type.QuestionType,
+				Title:       row.QuestionTitle,
+				Description: row.QuestionDescription,
+				Metadata:    row.Metadata,
+				Order:       row.Order.Int32,
+				SourceID:    row.SourceID,
+				CreatedAt:   row.QuestionCreatedAt,
+				UpdatedAt:   row.QuestionUpdatedAt,
+			}
+			answerable, err := NewAnswerable(q)
+			if err != nil {
+				err = databaseutil.WrapDBError(err, logger, "create answerable from question")
+				span.RecordError(err)
+				return nil, err
+			}
 
-		sectionMap[row.SectionID].Questions = append(sectionMap[row.SectionID].Questions, answerable)
+			sectionMap[sectionID].Questions = append(sectionMap[sectionID].Questions, answerable)
+		}
 	}
 
 	result := make([]SectionWithQuestions, 0, len(sectionMap))

@@ -14,15 +14,25 @@ DELETE FROM questions WHERE section_id = $1 AND id = $2;
 
 -- name: ListByFormID :many
 SELECT
+    s.id as section_id,
     s.form_id,
     s.title,
     s.progress,
     s.description,
     s.created_at,
     s.updated_at,
-    q.*
+    q.id,
+    q.required,
+    q.type,
+    q.title as question_title,
+    q.description as question_description,
+    q.metadata,
+    q."order",
+    q.source_id,
+    q.created_at as question_created_at,
+    q.updated_at as question_updated_at
 FROM sections s
-JOIN questions q ON s.id = q.section_id
+LEFT JOIN questions q ON s.id = q.section_id
 WHERE s.form_id = $1
 ORDER BY
     s.id ASC,

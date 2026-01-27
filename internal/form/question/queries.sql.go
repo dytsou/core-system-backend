@@ -96,15 +96,25 @@ func (q *Queries) GetByID(ctx context.Context, id uuid.UUID) (Question, error) {
 
 const listByFormID = `-- name: ListByFormID :many
 SELECT
+    s.id as section_id,
     s.form_id,
     s.title,
     s.progress,
     s.description,
     s.created_at,
     s.updated_at,
-    q.id, q.section_id, q.required, q.type, q.title, q.description, q.metadata, q."order", q.source_id, q.created_at, q.updated_at
+    q.id,
+    q.required,
+    q.type,
+    q.title as question_title,
+    q.description as question_description,
+    q.metadata,
+    q."order",
+    q.source_id,
+    q.created_at as question_created_at,
+    q.updated_at as question_updated_at
 FROM sections s
-JOIN questions q ON s.id = q.section_id
+LEFT JOIN questions q ON s.id = q.section_id
 WHERE s.form_id = $1
 ORDER BY
     s.id ASC,
@@ -112,23 +122,23 @@ ORDER BY
 `
 
 type ListByFormIDRow struct {
-	FormID        uuid.UUID
-	Title         pgtype.Text
-	Progress      SectionProgress
-	Description   pgtype.Text
-	CreatedAt     pgtype.Timestamptz
-	UpdatedAt     pgtype.Timestamptz
-	ID            uuid.UUID
-	SectionID     uuid.UUID
-	Required      bool
-	Type          QuestionType
-	Title_2       pgtype.Text
-	Description_2 pgtype.Text
-	Metadata      []byte
-	Order         int32
-	SourceID      pgtype.UUID
-	CreatedAt_2   pgtype.Timestamptz
-	UpdatedAt_2   pgtype.Timestamptz
+	SectionID           uuid.UUID
+	FormID              uuid.UUID
+	Title               pgtype.Text
+	Progress            SectionProgress
+	Description         pgtype.Text
+	CreatedAt           pgtype.Timestamptz
+	UpdatedAt           pgtype.Timestamptz
+	ID                  pgtype.UUID
+	Required            pgtype.Bool
+	Type                NullQuestionType
+	QuestionTitle       pgtype.Text
+	QuestionDescription pgtype.Text
+	Metadata            []byte
+	Order               pgtype.Int4
+	SourceID            pgtype.UUID
+	QuestionCreatedAt   pgtype.Timestamptz
+	QuestionUpdatedAt   pgtype.Timestamptz
 }
 
 func (q *Queries) ListByFormID(ctx context.Context, formID uuid.UUID) ([]ListByFormIDRow, error) {
@@ -141,6 +151,7 @@ func (q *Queries) ListByFormID(ctx context.Context, formID uuid.UUID) ([]ListByF
 	for rows.Next() {
 		var i ListByFormIDRow
 		if err := rows.Scan(
+			&i.SectionID,
 			&i.FormID,
 			&i.Title,
 			&i.Progress,
@@ -148,16 +159,15 @@ func (q *Queries) ListByFormID(ctx context.Context, formID uuid.UUID) ([]ListByF
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.ID,
-			&i.SectionID,
 			&i.Required,
 			&i.Type,
-			&i.Title_2,
-			&i.Description_2,
+			&i.QuestionTitle,
+			&i.QuestionDescription,
 			&i.Metadata,
 			&i.Order,
 			&i.SourceID,
-			&i.CreatedAt_2,
-			&i.UpdatedAt_2,
+			&i.QuestionCreatedAt,
+			&i.QuestionUpdatedAt,
 		); err != nil {
 			return nil, err
 		}
