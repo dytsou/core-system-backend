@@ -1,11 +1,15 @@
 package question
 
 import (
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
 )
+
+//go:embed icons.json
+var iconsJSON []byte
 
 type ScaleOption struct {
 	Icon          string `json:"icon,omitempty"`
@@ -33,6 +37,22 @@ type LinearScale struct {
 	MaxVal        int
 	MinValueLabel string
 	MaxValueLabel string
+}
+
+var validIcons map[string]bool
+
+func init() {
+	var icons []string
+	if err := json.Unmarshal(iconsJSON, &icons); err != nil {
+		validIcons = map[string]bool{"star": true}
+		return
+	}
+
+	// Convert to map for O(1) lookup
+	validIcons = make(map[string]bool, len(icons))
+	for _, icon := range icons {
+		validIcons[icon] = true
+	}
 }
 
 func (s LinearScale) Question() Question { return s.question }
@@ -176,17 +196,8 @@ func GenerateRatingMetadata(option ScaleOption) ([]byte, error) {
 		return nil, fmt.Errorf("maxVal must be at most 10 for rating, got %d", option.MaxVal)
 	}
 
-	// TODO: Validate icon
-	validIcons := []string{"star"}
-	isValid := false
-	for _, validIcon := range validIcons {
-		if option.Icon == validIcon {
-			isValid = true
-			break
-		}
-	}
-	if !isValid {
-		return nil, fmt.Errorf("invalid icon: %s, must be one of: %v", option.Icon, validIcons)
+	if !validIcons[option.Icon] {
+		return nil, fmt.Errorf("invalid icon: %s", option.Icon)
 	}
 
 	metadata := map[string]any{
