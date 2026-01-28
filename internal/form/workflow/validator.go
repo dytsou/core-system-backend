@@ -404,21 +404,24 @@ func validateGraphReferences(nodes []map[string]interface{}, nodeMap map[string]
 		if nodeType == string(NodeTypeCondition) {
 			nextTrue, ok := node["nextTrue"].(string)
 			if ok && nextTrue != "" {
-				if _, exists := nodeMap[nextTrue]; !exists {
+				_, exists := nodeMap[nextTrue]
+				if !exists {
 					referenceErrors = append(referenceErrors, fmt.Errorf("condition node '%s' references non-existent node '%s' in nextTrue", nodeID, nextTrue))
 				}
 			}
 
 			nextFalse, ok := node["nextFalse"].(string)
 			if ok && nextFalse != "" {
-				if _, exists := nodeMap[nextFalse]; !exists {
+				_, exists := nodeMap[nextFalse]
+				if !exists {
 					referenceErrors = append(referenceErrors, fmt.Errorf("condition node '%s' references non-existent node '%s' in nextFalse", nodeID, nextFalse))
 				}
 			}
 		} else {
 			next, ok := node["next"].(string)
 			if ok && next != "" {
-				if _, exists := nodeMap[next]; !exists {
+				_, exists := nodeMap[next]
+				if !exists {
 					referenceErrors = append(referenceErrors, fmt.Errorf("node '%s' references non-existent node '%s' in next", nodeID, next))
 				}
 			}
@@ -449,7 +452,8 @@ func validateDraftConditionQuestion(
 	}
 
 	var rule node.ConditionRule
-	if err := json.Unmarshal(conditionRuleBytes, &rule); err != nil {
+	err = json.Unmarshal(conditionRuleBytes, &rule)
+	if err != nil {
 		return fmt.Errorf("condition node '%s' has invalid conditionRule format: %w", nodeID, err)
 	}
 
@@ -478,15 +482,14 @@ func validateDraftConditionQuestion(
 	// Validate question type matches condition source (same rules as strict mode).
 	switch rule.Source {
 	case node.ConditionSourceChoice:
-		if string(q.Type) != "single_choice" && string(q.Type) != "multiple_choice" {
+		if q.Type != question.QuestionTypeSingleChoice && q.Type != question.QuestionTypeMultipleChoice {
 			return fmt.Errorf("condition node '%s' with source 'choice' requires question type 'single_choice' or 'multiple_choice', but question '%s' has type '%s'", nodeID, rule.Key, q.Type)
 		}
 	case node.ConditionSourceNonChoice:
-		if string(q.Type) != "short_text" && string(q.Type) != "long_text" && string(q.Type) != "date" {
+		if q.Type != question.QuestionTypeShortText && q.Type != question.QuestionTypeLongText && q.Type != question.QuestionTypeDate {
 			return fmt.Errorf("condition node '%s' with source 'nonChoice' requires question type 'short_text', 'long_text', or 'date', but question '%s' has type '%s'", nodeID, rule.Key, q.Type)
 		}
 	}
-
 	return nil
 }
 
