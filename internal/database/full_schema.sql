@@ -2,29 +2,6 @@
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
-CREATE TABLE IF NOT EXISTS refresh_tokens (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    is_active BOOLEAN DEFAULT TRUE,
-    expiration_date TIMESTAMPTZ NOT NULL
-);CREATE TYPE db_strategy AS ENUM ('shared', 'isolated');
-
-CREATE TABLE IF NOT EXISTS tenants
-(
-    id UUID PRIMARY KEY REFERENCES units(id) ON DELETE CASCADE,
-    db_strategy db_strategy NOT NULL,
-    owner_id UUID REFERENCES users(id) ON DELETE SET NULL
-);
-
-CREATE TABLE IF NOT EXISTS slug_history
-(
-    id SERIAL PRIMARY KEY,
-    slug TEXT NOT NULL,
-    org_id UUID REFERENCES units(id) ON DELETE CASCADE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    ended_at TIMESTAMPTZ DEFAULT null
-);CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
 CREATE TYPE unit_type AS ENUM ('organization', 'unit');
 
 CREATE TABLE IF NOT EXISTS units (
@@ -46,22 +23,13 @@ CREATE TABLE IF NOT EXISTS unit_members (
     member_id UUID,
     PRIMARY KEY (unit_id, member_id)
 );
-CREATE TABLE IF NOT EXISTS form_responses (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    form_id UUID NOT NULL REFERENCES forms(id) ON DELETE CASCADE,
-    submitted_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
-CREATE TABLE IF NOT EXISTS answers (
+CREATE TABLE IF NOT EXISTS refresh_tokens (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    response_id UUID NOT NULL REFERENCES form_responses(id) ON DELETE CASCADE,
-    question_id UUID NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
-    type question_type NOT NULL,
-    value TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    is_active BOOLEAN DEFAULT TRUE,
+    expiration_date TIMESTAMPTZ NOT NULL
 );CREATE TYPE status AS ENUM(
     'draft',
     'published'
@@ -80,7 +48,23 @@ CREATE TABLE IF NOT EXISTS forms (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TYPE question_type AS ENUM(
+CREATE TABLE IF NOT EXISTS form_responses (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    form_id UUID NOT NULL REFERENCES forms(id) ON DELETE CASCADE,
+    submitted_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS answers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    response_id UUID NOT NULL REFERENCES form_responses(id) ON DELETE CASCADE,
+    question_id UUID NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+    type question_type NOT NULL,
+    value TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);CREATE TYPE question_type AS ENUM(
     'short_text',
     'long_text',
     'single_choice',
@@ -99,36 +83,15 @@ CREATE TABLE IF NOT EXISTS questions(
     "order" INTEGER NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);CREATE TYPE content_type AS ENUM(
-    'text',
-    'form'
-);
-
-CREATE TABLE IF NOT EXISTS inbox_message(
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    posted_by UUID NOT NULL references units(id),
-    type content_type NOT NULL,
-    content_id UUID NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT now(),
-    updated_at TIMESTAMP NOT NULL DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS user_inbox_messages (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL references users(id) ON DELETE CASCADE,
-    message_id UUID NOT NULL references inbox_message(id) ON DELETE CASCADE,
-    is_read boolean NOT NULL DEFAULT false,
-    is_starred boolean NOT NULL DEFAULT false,
-    is_archived boolean NOT NULL DEFAULT false
-);
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+);CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(255),
-    username VARCHAR(255),
+    username VARCHAR(255) UNIQUE,
     avatar_url VARCHAR(512),
     role VARCHAR(255)[] NOT NULL DEFAULT '{"user"}',
+    is_onboarded BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -158,9 +121,48 @@ SELECT
     u.username,
     u.avatar_url,
     u.role,
+    u.is_onboarded,
     u.created_at,
     u.updated_at,
     COALESCE(array_agg(e.value) FILTER (WHERE e.value IS NOT NULL), ARRAY[]::text[]) as emails
 FROM users u
 LEFT JOIN user_emails e ON u.id = e.user_id
-GROUP BY u.id, u.name, u.username, u.avatar_url, u.role, u.created_at, u.updated_at;
+GROUP BY u.id, u.name, u.username, u.avatar_url, u.role, u.is_onboarded, u.created_at, u.updated_at;CREATE TYPE content_type AS ENUM(
+    'text',
+    'form'
+);
+
+CREATE TABLE IF NOT EXISTS inbox_message(
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    posted_by UUID NOT NULL references units(id),
+    type content_type NOT NULL,
+    content_id UUID NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    updated_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS user_inbox_messages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL references users(id) ON DELETE CASCADE,
+    message_id UUID NOT NULL references inbox_message(id) ON DELETE CASCADE,
+    is_read boolean NOT NULL DEFAULT false,
+    is_starred boolean NOT NULL DEFAULT false,
+    is_archived boolean NOT NULL DEFAULT false
+);
+CREATE TYPE db_strategy AS ENUM ('shared', 'isolated');
+
+CREATE TABLE IF NOT EXISTS tenants
+(
+    id UUID PRIMARY KEY REFERENCES units(id) ON DELETE CASCADE,
+    db_strategy db_strategy NOT NULL,
+    owner_id UUID REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS slug_history
+(
+    id SERIAL PRIMARY KEY,
+    slug TEXT NOT NULL,
+    org_id UUID REFERENCES units(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    ended_at TIMESTAMPTZ DEFAULT null
+);

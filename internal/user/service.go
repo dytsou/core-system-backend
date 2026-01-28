@@ -2,7 +2,9 @@ package user
 
 import (
 	"context"
+	"errors"
 	"net/url"
+	"fmt"
 
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
@@ -203,4 +205,45 @@ func (s *Service) GetEmailsByID(ctx context.Context, userID uuid.UUID) ([]string
 	}
 
 	return emails, nil
+}
+
+func (s *Service) Onboarding(ctx context.Context, id uuid.UUID, name, username string) (User, error) {
+	traceCtx, span := s.tracer.Start(ctx, "Onboarding")
+	defer span.End()
+	logger := logutil.WithContext(traceCtx, s.logger)
+
+	userInfo, err := s.queries.GetByID(traceCtx, id)
+	if err != nil{
+		err = databaseutil.WrapDBError(err, logger, "get user by id")
+		span.RecordError(err)
+		return User{}, err
+	}
+	
+	if userInfo.IsOnboarded{
+		err := errors.New("user already onboarded")
+		logger.Warn(fmt.Sprintf("%s: user_id=%s", err.Error(), id.String()))
+		return User{}, err
+	}
+	user, err := s.queries.Update(traceCtx, UpdateParams{
+	ID: id,
+	Name:      pgtype.Text{
+		String: name,
+		Valid: name != "",
+	},
+	Username:  pgtype.Text{
+		String: username,
+		Valid: username != "",
+	},
+	AvatarUrl: userInfo.AvatarUrl,
+	IsOnboarded: true,
+	})
+	if err != nil{
+		err = databaseutil.WrapDBError(err, logger, "update user information")
+		if errors.Is(err, databaseutil.ErrUniqueViolation){
+			return User{}, errors.New("user name already taken")
+		}
+		span.RecordError(err)
+		return User{}, err
+	}
+	return user, nil
 }
