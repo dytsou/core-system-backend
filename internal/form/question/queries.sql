@@ -5,7 +5,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 
 -- name: Update :one
 UPDATE questions
-SET required = $3, type = $4, title = $5, description = $6, metadata = $7, "order" = $8, source_id = $8, updated_at = now()
+SET required = $3, type = $4, title = $5, description = $6, metadata = $7, "order" = $8, source_id = $9, updated_at = now()
 WHERE section_id = $1 AND id = $2
     RETURNING *;
 

@@ -19,32 +19,32 @@ import (
 )
 
 type Request struct {
-	Required     bool             `json:"required" validate:"required"`
+	Required     *bool            `json:"required" validate:"required"`
 	Type         string           `json:"type" validate:"required,oneof=SHORT_TEXT LONG_TEXT SINGLE_CHOICE MULTIPLE_CHOICE DATE DROPDOWN DETAILED_MULTIPLE_CHOICE UPLOAD_FILE LINEAR_SCALE RATING RANKING OAUTH_CONNECT"`
 	Title        string           `json:"title" validate:"required"`
 	Description  string           `json:"description"`
 	Order        int32            `json:"order" validate:"required"`
-	Choices      []ChoiceOption   `json:"choices,omitempty" validate:"omitempty,dive"`
-	Scale        ScaleOption      `json:"scale,omitempty"`
-	UploadFiles  UploadFileOption `json:"uploadFiles,omitempty"`
-	OauthConnect string           `json:"oauthConnect,omitempty"`
+	Choices      []ChoiceOption   `json:"choices,omitempty" validate:"omitempty,required_if=Type SINGLE_CHOICE,required_if=Type MULTIPLE_CHOICE,required_if=Type DETAILED_MULTIPLE_CHOICE,required_if=Type DROPDOWN,required_if=Type RANKING,dive"`
+	Scale        ScaleOption      `json:"scale,omitempty" validate:"omitempty,required_if=Type LINEAR_SCALE,required_if=Type RATING"`
+	UploadFile   UploadFileOption `json:"uploadFile,omitempty" validate:"omitempty,required_if=Type UPLOAD_FILE"`
+	OauthConnect string           `json:"oauthConnect,omitempty" validate:"required_if=Type OAUTH_CONNECT"`
 	SourceID     uuid.UUID        `json:"sourceId,omitempty"`
 }
 
 type Response struct {
-	ID           uuid.UUID        `json:"id"`
-	SectionID    uuid.UUID        `json:"sectionId"`
-	Required     bool             `json:"required"`
-	Type         string           `json:"type"`
-	Title        string           `json:"title"`
-	Description  string           `json:"description"`
-	Choices      []Choice         `json:"choices,omitempty"`
-	Scale        ScaleOption      `json:"scale,omitempty"`
-	UploadFiles  UploadFileOption `json:"uploadFiles,omitempty"`
-	OauthConnect string           `json:"oauthConnect,omitempty"`
-	SourceID     uuid.UUID        `json:"sourceId,omitempty"`
-	CreatedAt    time.Time        `json:"createdAt"`
-	UpdatedAt    time.Time        `json:"updatedAt"`
+	ID           uuid.UUID         `json:"id"`
+	SectionID    uuid.UUID         `json:"sectionId"`
+	Required     bool              `json:"required"`
+	Type         string            `json:"type"`
+	Title        string            `json:"title"`
+	Description  string            `json:"description"`
+	Choices      []Choice          `json:"choices,omitempty"`
+	Scale        *ScaleOption      `json:"scale,omitempty"`
+	UploadFile   *UploadFileOption `json:"uploadFile,omitempty"`
+	OauthConnect string            `json:"oauthConnect,omitempty"`
+	SourceID     uuid.UUID         `json:"sourceId,omitempty"`
+	CreatedAt    time.Time         `json:"createdAt"`
+	UpdatedAt    time.Time         `json:"updatedAt"`
 }
 
 type SectionResponse struct {
@@ -90,7 +90,7 @@ func ToResponse(answerable Answerable) (Response, error) {
 				Message:    err.Error(),
 			}
 		}
-		response.Scale = ScaleOption{
+		response.Scale = &ScaleOption{
 			MinVal:        scale.MinVal,
 			MaxVal:        scale.MaxVal,
 			MinValueLabel: scale.MinValueLabel,
@@ -105,7 +105,7 @@ func ToResponse(answerable Answerable) (Response, error) {
 				Message:    err.Error(),
 			}
 		}
-		response.Scale = ScaleOption{
+		response.Scale = &ScaleOption{
 			Icon:          rating.Icon,
 			MinVal:        rating.MinVal,
 			MaxVal:        rating.MaxVal,
@@ -125,7 +125,7 @@ func ToResponse(answerable Answerable) (Response, error) {
 		for i, ft := range uploadFile.AllowedFileTypes {
 			fileTypes[i] = string(ft)
 		}
-		response.UploadFiles = UploadFileOption{
+		response.UploadFile = &UploadFileOption{
 			AllowedFileTypes: fileTypes,
 			MaxFileAmount:    uploadFile.MaxFileAmount,
 			MaxFileSizeLimit: string(uploadFile.MaxFileSizeLimit),
@@ -196,26 +196,22 @@ func (h *Handler) AddHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	req.Type = strings.ToLower(req.Type)
 
+	// Generate and validate metadata (returns nil if source_id provided)
+	metadata, err := getGenerateMetadata(req)
+	if err != nil {
+		h.problemWriter.WriteError(traceCtx, w, err, logger)
+		return
+	}
+
 	request := CreateParams{
 		SectionID:   sectionID,
-		Required:    req.Required,
+		Required:    *req.Required,
 		Type:        QuestionType(req.Type),
 		Title:       pgtype.Text{String: req.Title, Valid: true},
 		Description: pgtype.Text{String: req.Description, Valid: true},
 		Order:       req.Order,
-	}
-
-	// If source_id is provided, reference source instead.
-	if req.SourceID != uuid.Nil {
-		request.SourceID = pgtype.UUID{Bytes: req.SourceID, Valid: true}
-	} else {
-		// Generate and validate metadata for responsible question type
-		metadata, err := getGenerateMetadata(req)
-		if err != nil {
-			h.problemWriter.WriteError(traceCtx, w, err, logger)
-			return
-		}
-		request.Metadata = metadata
+		Metadata:    metadata,
+		SourceID:    pgtype.UUID{Bytes: req.SourceID, Valid: req.SourceID != uuid.Nil},
 	}
 
 	createdQuestion, err := h.store.Create(r.Context(), request)
@@ -259,7 +255,7 @@ func (h *Handler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	req.Type = strings.ToLower(req.Type)
 
-	// Generate and validate metadata for choice-based questions
+	// Generate and validate metadata
 	metadata, err := getGenerateMetadata(req)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
@@ -269,12 +265,13 @@ func (h *Handler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 	request := UpdateParams{
 		ID:          id,
 		SectionID:   sectionID,
-		Required:    req.Required,
+		Required:    *req.Required,
 		Type:        QuestionType(req.Type),
 		Title:       pgtype.Text{String: req.Title, Valid: true},
 		Description: pgtype.Text{String: req.Description, Valid: true},
 		Order:       req.Order,
 		Metadata:    metadata,
+		SourceID:    pgtype.UUID{Bytes: req.SourceID, Valid: req.SourceID != uuid.Nil},
 	}
 
 	updatedQuestion, err := h.store.Update(traceCtx, request)
@@ -355,8 +352,15 @@ func (h *Handler) ListHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func getGenerateMetadata(req Request) ([]byte, error) {
+	// If source_id is provided, don't generate metadata
+	if req.SourceID != uuid.Nil {
+		return nil, nil
+	}
+
 	switch req.Type {
-	case "short_text", "long_text", "single_choice", "multiple_choice", "detailed_multiple_choice", "dropdown", "date", "ranking":
+	case "short_text", "long_text", "date":
+		return nil, nil
+	case "single_choice", "multiple_choice", "detailed_multiple_choice", "dropdown", "ranking":
 		return GenerateMetadata(req.Type, req.Choices)
 	case "linear_scale":
 		return GenerateLinearScaleMetadata(req.Scale)
@@ -365,7 +369,7 @@ func getGenerateMetadata(req Request) ([]byte, error) {
 	case "oauth_connect":
 		return GenerateOauthConnectMetadata(req.OauthConnect)
 	case "upload_file":
-		return GenerateUploadFileMetadata(req.UploadFiles)
+		return GenerateUploadFileMetadata(req.UploadFile)
 	default:
 		return nil, fmt.Errorf("unknown question type: %s", req.Type)
 	}

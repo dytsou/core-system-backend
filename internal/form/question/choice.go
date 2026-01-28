@@ -374,14 +374,6 @@ func NewRanking(q Question) (Ranking, error) {
 
 // Creates and validates metadata JSON for choice-based questions
 func GenerateMetadata(questionType string, choiceOptions []ChoiceOption) ([]byte, error) {
-	// For non-choice questions, return empty metadata
-	if questionType != "single_choice" && questionType != "multiple_choice" && questionType != "ranking" && questionType != "dropdown" && questionType != "detailed_multiple_choice" {
-		if len(choiceOptions) > 0 {
-			return nil, ErrUnsupportedQuestionType{QuestionType: questionType}
-		}
-		return json.Marshal(map[string]any{})
-	}
-
 	// For choice questions, require at least one choice
 	if len(choiceOptions) == 0 {
 		return nil, ErrMetadataValidate{

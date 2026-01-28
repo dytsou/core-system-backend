@@ -13,8 +13,8 @@ var iconsJSON []byte
 
 type ScaleOption struct {
 	Icon          string `json:"icon,omitempty"`
-	MinVal        int    `json:"minVal"`
-	MaxVal        int    `json:"maxVal"`
+	MinVal        int    `json:"minVal" validate:"required"`
+	MaxVal        int    `json:"maxVal" validate:"required"`
 	MinValueLabel string `json:"minValueLabel,omitempty"`
 	MaxValueLabel string `json:"maxValueLabel,omitempty"`
 }

@@ -181,7 +181,7 @@ func (q *Queries) ListByFormID(ctx context.Context, formID uuid.UUID) ([]ListByF
 
 const update = `-- name: Update :one
 UPDATE questions
-SET required = $3, type = $4, title = $5, description = $6, metadata = $7, "order" = $8, source_id = $8, updated_at = now()
+SET required = $3, type = $4, title = $5, description = $6, metadata = $7, "order" = $8, source_id = $9, updated_at = now()
 WHERE section_id = $1 AND id = $2
     RETURNING id, section_id, required, type, title, description, metadata, "order", source_id, created_at, updated_at
 `
@@ -195,6 +195,7 @@ type UpdateParams struct {
 	Description pgtype.Text
 	Metadata    []byte
 	Order       int32
+	SourceID    pgtype.UUID
 }
 
 func (q *Queries) Update(ctx context.Context, arg UpdateParams) (Question, error) {
@@ -207,6 +208,7 @@ func (q *Queries) Update(ctx context.Context, arg UpdateParams) (Question, error
 		arg.Description,
 		arg.Metadata,
 		arg.Order,
+		arg.SourceID,
 	)
 	var i Question
 	err := row.Scan(
