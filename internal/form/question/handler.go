@@ -42,7 +42,7 @@ type Response struct {
 	Scale        *ScaleOption      `json:"scale,omitempty"`
 	UploadFile   *UploadFileOption `json:"uploadFile,omitempty"`
 	OauthConnect string            `json:"oauthConnect,omitempty"`
-	SourceID     uuid.UUID         `json:"sourceId,omitempty"`
+	SourceID     string            `json:"sourceId,omitempty"`
 	CreatedAt    time.Time         `json:"createdAt"`
 	UpdatedAt    time.Time         `json:"updatedAt"`
 }
@@ -66,7 +66,7 @@ func ToResponse(answerable Answerable) (Response, error) {
 		UpdatedAt:   q.UpdatedAt.Time,
 	}
 	if q.SourceID.Valid {
-		response.SourceID = q.SourceID.Bytes
+		response.SourceID = q.SourceID.String()
 		return response, nil
 	}
 
