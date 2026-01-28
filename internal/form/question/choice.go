@@ -253,7 +253,6 @@ func NewDetailedMultiChoice(q Question) (DetailedMultiChoice, error) {
 		}
 	}
 
-	hasDescription := false
 	for _, choice := range choices {
 		if choice.ID == uuid.Nil {
 			return DetailedMultiChoice{}, ErrMetadataBroken{
@@ -269,18 +268,6 @@ func NewDetailedMultiChoice(q Question) (DetailedMultiChoice, error) {
 				RawData:    metadata,
 				Message:    "choice name cannot be empty",
 			}
-		}
-
-		if strings.TrimSpace(choice.Description) != "" {
-			hasDescription = true
-		}
-	}
-
-	if !hasDescription {
-		return DetailedMultiChoice{}, ErrMetadataBroken{
-			QuestionID: q.ID.String(),
-			RawData:    metadata,
-			Message:    "detailed multiple choice requires at least one choice with description",
 		}
 	}
 
@@ -398,6 +385,23 @@ func GenerateMetadata(questionType string, choiceOptions []ChoiceOption) ([]byte
 			ID:          uuid.New(),
 			Name:        name,
 			Description: strings.TrimSpace(option.Description),
+		}
+	}
+
+	if questionType == "detailed_multiple_choice" {
+		hasDescription := false
+		for _, choice := range choices {
+			if strings.TrimSpace(choice.Description) != "" {
+				hasDescription = true
+				break
+			}
+		}
+		if !hasDescription {
+			return nil, ErrMetadataValidate{
+				QuestionID: questionType,
+				RawData:    []byte(fmt.Sprintf("%v", choiceOptions)),
+				Message:    "detailed multiple choice requires at least one choice with description",
+			}
 		}
 	}
 

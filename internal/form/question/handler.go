@@ -23,7 +23,7 @@ type Request struct {
 	Type         string           `json:"type" validate:"required,oneof=SHORT_TEXT LONG_TEXT SINGLE_CHOICE MULTIPLE_CHOICE DATE DROPDOWN DETAILED_MULTIPLE_CHOICE UPLOAD_FILE LINEAR_SCALE RATING RANKING OAUTH_CONNECT"`
 	Title        string           `json:"title" validate:"required"`
 	Description  string           `json:"description"`
-	Order        int32            `json:"order" validate:"required"`
+	Order        int32            `json:"order" validate:"required,min=1"`
 	Choices      []ChoiceOption   `json:"choices,omitempty" validate:"omitempty,required_if=Type SINGLE_CHOICE,required_if=Type MULTIPLE_CHOICE,required_if=Type DETAILED_MULTIPLE_CHOICE,required_if=Type DROPDOWN,required_if=Type RANKING,dive"`
 	Scale        ScaleOption      `json:"scale,omitempty" validate:"omitempty,required_if=Type LINEAR_SCALE,required_if=Type RATING"`
 	UploadFile   UploadFileOption `json:"uploadFile,omitempty" validate:"omitempty,required_if=Type UPLOAD_FILE"`
