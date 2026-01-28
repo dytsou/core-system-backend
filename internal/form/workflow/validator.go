@@ -60,6 +60,10 @@ func (v workflowValidator) Activate(ctx context.Context, formID uuid.UUID, workf
 	if err != nil {
 		return err
 	}
+	err = formatWorkflowValidationErrors(validationErrors)
+	if err != nil {
+		return err
+	}
 
 	if nodeMap != nil {
 		err := validateGraphConnectivity(nodes, nodeMap)
@@ -77,6 +81,10 @@ func (v workflowValidator) Activate(ctx context.Context, formID uuid.UUID, workf
 // Validate performs validation for workflows (used by Update).
 func (v workflowValidator) Validate(ctx context.Context, formID uuid.UUID, workflow []byte, questionStore QuestionStore) error {
 	nodes, nodeMap, validationErrors, err := runCommonWorkflowValidation(ctx, formID, workflow, questionStore, false)
+	if err != nil {
+		return err
+	}
+	err = formatWorkflowValidationErrors(validationErrors)
 	if err != nil {
 		return err
 	}
@@ -106,10 +114,19 @@ func (v workflowValidator) Validate(ctx context.Context, formID uuid.UUID, workf
 		}
 	}
 
-	if len(validationErrors) > 0 {
-		return fmt.Errorf("workflow validation failed: %w", errors.Join(validationErrors...))
+	err = formatWorkflowValidationErrors(validationErrors)
+	if err != nil {
+		return err
 	}
 	return nil
+}
+
+// formatWorkflowValidationErrors joins and wraps workflow validation errors in a consistent way.
+func formatWorkflowValidationErrors(validationErrors []error) error {
+	if len(validationErrors) == 0 {
+		return nil
+	}
+	return fmt.Errorf("workflow validation failed: %w", errors.Join(validationErrors...))
 }
 
 // validateWorkflowLength validates that the workflow has a minimum length
