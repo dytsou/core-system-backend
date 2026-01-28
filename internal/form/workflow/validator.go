@@ -56,44 +56,13 @@ func NewValidator() Validator {
 // - Condition rule question IDs exist and types match
 // Returns all validation errors if validation fails
 func (v workflowValidator) Activate(ctx context.Context, formID uuid.UUID, workflow []byte, questionStore QuestionStore) error {
-	var validationErrors []error
-
-	// Validate workflow length
-	err := validateWorkflowLength(workflow)
+	nodes, nodeMap, validationErrors, err := runCommonWorkflowValidation(ctx, formID, workflow, questionStore, true)
 	if err != nil {
-		validationErrors = append(validationErrors, err)
+		return err
 	}
 
-	// Validate and parse JSON format
-	nodes, err := validateWorkflowJSON(workflow)
-	if err != nil {
-		validationErrors = append(validationErrors, err)
-	}
-
-	// If JSON parsing failed, we can't continue with node validation
-	if nodes == nil {
-		if len(validationErrors) > 0 {
-			return fmt.Errorf("workflow validation failed: %w", errors.Join(validationErrors...))
-		}
-		return fmt.Errorf("workflow validation failed: unable to parse workflow")
-	}
-
-	// Validate all nodes and build node map (strict mode)
-	nodeMap, startNodeCount, endNodeCount, nodeErrors := validateNodes(ctx, formID, nodes, questionStore, true)
-	if len(nodeErrors) > 0 {
-		validationErrors = append(validationErrors, nodeErrors...)
-	}
-
-	// Validate required node types (exactly one start and one end node)
-	nodeTypeErrors := validateRequiredNodeTypes(startNodeCount, endNodeCount)
-	if len(nodeTypeErrors) > 0 {
-		validationErrors = append(validationErrors, nodeTypeErrors...)
-	}
-
-	// Validate graph connectivity: ensure all nodes are reachable
-	// Only validate if we have a valid nodeMap (from successful node validation)
 	if nodeMap != nil {
-		err = validateGraphConnectivity(nodes, nodeMap)
+		err := validateGraphConnectivity(nodes, nodeMap)
 		if err != nil {
 			validationErrors = append(validationErrors, fmt.Errorf("graph validation failed: %w", err))
 		}
@@ -102,48 +71,16 @@ func (v workflowValidator) Activate(ctx context.Context, formID uuid.UUID, workf
 	if len(validationErrors) > 0 {
 		return fmt.Errorf("workflow validation failed: %w", errors.Join(validationErrors...))
 	}
-
 	return nil
 }
 
 // Validate performs validation for workflows (used by Update).
 func (v workflowValidator) Validate(ctx context.Context, formID uuid.UUID, workflow []byte, questionStore QuestionStore) error {
-	var validationErrors []error
-
-	// Validate workflow length
-	err := validateWorkflowLength(workflow)
+	nodes, nodeMap, validationErrors, err := runCommonWorkflowValidation(ctx, formID, workflow, questionStore, false)
 	if err != nil {
-		validationErrors = append(validationErrors, err)
+		return err
 	}
 
-	// Validate and parse JSON format
-	nodes, err := validateWorkflowJSON(workflow)
-	if err != nil {
-		validationErrors = append(validationErrors, err)
-	}
-
-	// If JSON parsing failed, we can't continue with node validation
-	if nodes == nil {
-		if len(validationErrors) > 0 {
-			return fmt.Errorf("workflow validation failed: %w", errors.Join(validationErrors...))
-		}
-		return fmt.Errorf("workflow validation failed: unable to parse workflow")
-	}
-
-	// Validate nodes and build node map (relaxed mode: skip node-specific validation)
-	nodeMap, startNodeCount, endNodeCount, nodeErrors := validateNodes(ctx, formID, nodes, questionStore, false)
-	if len(nodeErrors) > 0 {
-		validationErrors = append(validationErrors, nodeErrors...)
-	}
-
-	// Require exactly one start and one end node even in drafts
-	nodeTypeErrors := validateRequiredNodeTypes(startNodeCount, endNodeCount)
-	if len(nodeTypeErrors) > 0 {
-		validationErrors = append(validationErrors, nodeTypeErrors...)
-	}
-
-	// In draft mode we allow unreachable nodes, but we still validate that any explicit references
-	// point to nodes that exist.
 	if nodeMap != nil {
 		err := validateGraphReferences(nodes, nodeMap)
 		if err != nil {
@@ -158,11 +95,11 @@ func (v workflowValidator) Validate(ctx context.Context, formID uuid.UUID, workf
 				}
 				rawRule, ok := n["conditionRule"]
 				if !ok {
-					// Missing conditionRule is allowed in draft
 					continue
 				}
 				nodeID, _ := n["id"].(string)
-				if err := validateDraftConditionQuestion(ctx, formID, nodeID, rawRule, questionStore); err != nil {
+				err := validateDraftConditionQuestion(ctx, formID, nodeID, rawRule, questionStore)
+				if err != nil {
 					validationErrors = append(validationErrors, err)
 				}
 			}
@@ -191,6 +128,47 @@ func validateWorkflowJSON(workflow []byte) ([]map[string]interface{}, error) {
 		return nil, fmt.Errorf("invalid JSON format: %w", err)
 	}
 	return nodes, nil
+}
+
+// runCommonWorkflowValidation performs shared validation: workflow length, JSON parse, node validation, and required node types. Returns (nodes, nodeMap, validationErrors, err).
+func runCommonWorkflowValidation(
+	ctx context.Context,
+	formID uuid.UUID,
+	workflow []byte,
+	questionStore QuestionStore,
+	isActivate bool,
+) (nodes []map[string]interface{}, nodeMap map[string]map[string]interface{}, validationErrors []error, err error) {
+	var errs []error
+
+	err = validateWorkflowLength(workflow)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	parsed, err := validateWorkflowJSON(workflow)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	if parsed == nil {
+		if len(errs) > 0 {
+			return nil, nil, errs, fmt.Errorf("workflow validation failed: %w", errors.Join(errs...))
+		}
+		return nil, nil, errs, fmt.Errorf("workflow validation failed: unable to parse workflow: %w", err)
+	}
+
+	nodes = parsed
+	nodeMap, startCount, endCount, nodeErrs := validateNodes(ctx, formID, nodes, questionStore, isActivate)
+	if len(nodeErrs) > 0 {
+		errs = append(errs, nodeErrs...)
+	}
+
+	nodeTypeErrs := validateRequiredNodeTypes(startCount, endCount)
+	if len(nodeTypeErrs) > 0 {
+		errs = append(errs, nodeTypeErrs...)
+	}
+
+	return nodes, nodeMap, errs, nil
 }
 
 // validateRequiredFields validates that a node has all required fields: id, type, label
@@ -515,13 +493,15 @@ func validateDraftConditionQuestion(
 // extractNodeIDs extracts all node IDs from a workflow JSON
 func extractNodeIDs(workflowJSON []byte) (map[string]bool, error) {
 	var nodes []map[string]interface{}
-	if err := json.Unmarshal(workflowJSON, &nodes); err != nil {
+	err := json.Unmarshal(workflowJSON, &nodes)
+	if err != nil {
 		return nil, fmt.Errorf("failed to parse workflow JSON: %w", err)
 	}
 
 	nodeIDs := make(map[string]bool)
 	for _, node := range nodes {
-		if id, ok := node["id"].(string); ok && id != "" {
+		id, ok := node["id"].(string)
+		if ok && id != "" {
 			nodeIDs[id] = true
 		}
 	}
