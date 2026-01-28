@@ -9,13 +9,13 @@ import (
 type OauthProvider string
 
 const (
-	GoogleOauthProvider  OauthProvider = "google"
-	DiscordOauthProvider OauthProvider = "discord"
+	GoogleOauthProvider OauthProvider = "google"
+	GitHubOauthProvider OauthProvider = "github"
 )
 
 var validOauthProviders = map[OauthProvider]bool{
-	GoogleOauthProvider:  true,
-	DiscordOauthProvider: true,
+	GoogleOauthProvider: true,
+	GitHubOauthProvider: true,
 }
 
 type OAuthConnect struct {
@@ -51,7 +51,7 @@ func NewOAuthConnect(q Question) (OAuthConnect, error) {
 		return OAuthConnect{}, ErrMetadataBroken{QuestionID: q.ID.String(), RawData: q.Metadata, Message: "oauthConnect provider is empty"}
 	}
 
-	if provider != GoogleOauthProvider && provider != DiscordOauthProvider {
+	if provider != GoogleOauthProvider && provider != GitHubOauthProvider {
 		return OAuthConnect{}, ErrMetadataBroken{QuestionID: q.ID.String(), RawData: q.Metadata, Message: "invalid oauthConnect provider"}
 	}
 
