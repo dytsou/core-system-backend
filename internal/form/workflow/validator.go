@@ -21,24 +21,6 @@ type QuestionStore interface {
 
 type workflowValidator struct{}
 
-func (v workflowValidator) Activate(ctx context.Context, formID uuid.UUID, workflow []byte, questionStore QuestionStore) error {
-	return Activate(ctx, formID, workflow, questionStore)
-}
-
-// Validate performs a relaxed validation suitable for draft updates.
-//
-// It intentionally allows incomplete graphs (e.g. unreachable nodes, missing next fields,
-// incomplete condition nodes) while still enforcing:
-// - valid JSON array structure
-// - required node fields (id/type/label) and UUID id format
-// - supported node types
-// - duplicate id detection
-// - reference integrity for any explicitly provided next/nextTrue/nextFalse fields
-// - exactly one start and one end node
-func (v workflowValidator) Validate(ctx context.Context, formID uuid.UUID, workflow []byte, questionStore QuestionStore) error {
-	return ValidateDraft(ctx, formID, workflow, questionStore)
-}
-
 // ValidateNodeIDsUnchanged checks that node IDs in the new workflow match the current workflow.
 // It ensures that no node IDs are added or removed during an update.
 func (v workflowValidator) ValidateNodeIDsUnchanged(ctx context.Context, currentWorkflow, newWorkflow []byte) error {
@@ -64,7 +46,7 @@ func NewValidator() Validator {
 	return workflowValidator{}
 }
 
-// validateWorkflow validates the workflow JSON structure before activation.
+// Activate validates the workflow JSON structure before activation.
 // It checks:
 // - Valid JSON format
 // - Array structure
@@ -73,11 +55,12 @@ func NewValidator() Validator {
 // - Graph connectivity (all nodes are reachable)
 // - Condition rule question IDs exist and types match
 // Returns all validation errors if validation fails
-func Activate(ctx context.Context, formID uuid.UUID, workflow []byte, questionStore QuestionStore) error {
+func (v workflowValidator) Activate(ctx context.Context, formID uuid.UUID, workflow []byte, questionStore QuestionStore) error {
 	var validationErrors []error
 
 	// Validate workflow length
-	if err := validateWorkflowLength(workflow); err != nil {
+	err := validateWorkflowLength(workflow)
+	if err != nil {
 		validationErrors = append(validationErrors, err)
 	}
 
@@ -123,12 +106,13 @@ func Activate(ctx context.Context, formID uuid.UUID, workflow []byte, questionSt
 	return nil
 }
 
-// ValidateDraft performs relaxed validation for draft workflows (used by Update).
-func ValidateDraft(ctx context.Context, formID uuid.UUID, workflow []byte, questionStore QuestionStore) error {
+// Validate performs validation for workflows (used by Update).
+func (v workflowValidator) Validate(ctx context.Context, formID uuid.UUID, workflow []byte, questionStore QuestionStore) error {
 	var validationErrors []error
 
 	// Validate workflow length
-	if err := validateWorkflowLength(workflow); err != nil {
+	err := validateWorkflowLength(workflow)
+	if err != nil {
 		validationErrors = append(validationErrors, err)
 	}
 
