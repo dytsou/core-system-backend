@@ -41,6 +41,7 @@ type LinearScale struct {
 
 var validIcons map[string]bool
 
+// Import valid icon list at init
 func init() {
 	var icons []string
 	if err := json.Unmarshal(iconsJSON, &icons); err != nil {
@@ -48,7 +49,6 @@ func init() {
 		return
 	}
 
-	// Convert to map for O(1) lookup
 	validIcons = make(map[string]bool, len(icons))
 	for _, icon := range icons {
 		validIcons[icon] = true
@@ -125,7 +125,6 @@ func (s Rating) Validate(value string) error {
 		}
 	}
 
-	// TODO: check if the icon is in the whitelist
 	return nil
 }
 
@@ -142,6 +141,10 @@ func NewRating(q Question) (Rating, error) {
 
 	if rating.MinVal >= rating.MaxVal {
 		return Rating{}, ErrMetadataBroken{QuestionID: q.ID.String(), RawData: metadata, Message: "minVal must be less than maxVal"}
+	}
+
+	if !validIcons[rating.Icon] {
+		return Rating{}, ErrMetadataBroken{QuestionID: q.ID.String(), RawData: metadata, Message: "invalid icon"}
 	}
 
 	return Rating{
