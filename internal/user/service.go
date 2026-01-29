@@ -1,11 +1,11 @@
 package user
 
 import (
+	"NYCU-SDC/core-system-backend/internal"
 	"context"
 	"errors"
-	"net/url"
 	"fmt"
-
+	"net/url"
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/google/uuid"
@@ -213,34 +213,34 @@ func (s *Service) Onboarding(ctx context.Context, id uuid.UUID, name, username s
 	logger := logutil.WithContext(traceCtx, s.logger)
 
 	userInfo, err := s.queries.GetByID(traceCtx, id)
-	if err != nil{
+	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "get user by id")
 		span.RecordError(err)
 		return User{}, err
 	}
-	
-	if userInfo.IsOnboarded{
-		err := errors.New("user already onboarded")
+
+	if userInfo.IsOnboarded {
+		err := internal.ErrUserOnboarded
 		logger.Warn(fmt.Sprintf("%s: user_id=%s", err.Error(), id.String()))
 		return User{}, err
 	}
 	user, err := s.queries.Update(traceCtx, UpdateParams{
-	ID: id,
-	Name:      pgtype.Text{
-		String: name,
-		Valid: name != "",
-	},
-	Username:  pgtype.Text{
-		String: username,
-		Valid: username != "",
-	},
-	AvatarUrl: userInfo.AvatarUrl,
-	IsOnboarded: true,
+		ID: id,
+		Name: pgtype.Text{
+			String: name,
+			Valid:  name != "",
+		},
+		Username: pgtype.Text{
+			String: username,
+			Valid:  username != "",
+		},
+		AvatarUrl:   userInfo.AvatarUrl,
+		IsOnboarded: true,
 	})
-	if err != nil{
+	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "update user information")
-		if errors.Is(err, databaseutil.ErrUniqueViolation){
-			return User{}, errors.New("user name already taken")
+		if errors.Is(err, databaseutil.ErrUniqueViolation) {
+			return User{}, internal.ErrUsernameConflict
 		}
 		span.RecordError(err)
 		return User{}, err

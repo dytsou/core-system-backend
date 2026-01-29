@@ -1,6 +1,7 @@
 package user
 
 import (
+	"NYCU-SDC/core-system-backend/internal"
 	"NYCU-SDC/core-system-backend/internal/user"
 	"NYCU-SDC/core-system-backend/test/integration"
 	"NYCU-SDC/core-system-backend/test/testdata/dbbuilder"
@@ -13,37 +14,37 @@ import (
 )
 
 func TestUserService_Onboarding(t *testing.T) {
-	type params struct{
-		id	uuid.UUID
-		name string
+	type params struct {
+		id       uuid.UUID
+		name     string
 		username string
 	}
 	testCases := []struct {
-		name string
-		params params
-		setup func(t *testing.T, params *params, db dbbuilder.DBTX) context.Context
-		validate func(t *testing.T, params params, db dbbuilder.DBTX, result user.User, err error)
+		name        string
+		params      params
+		setup       func(t *testing.T, params *params, db dbbuilder.DBTX) context.Context
+		validate    func(t *testing.T, params params, db dbbuilder.DBTX, result user.User, err error)
 		expectedErr bool
 	}{
 		{
 			name: "Onboarding successfully",
 			params: params{
-				name: "test_name",
+				name:     "test_name",
 				username: "test_username",
 			},
-			setup: func(t *testing.T, params *params, db dbbuilder.DBTX) context.Context{
+			setup: func(t *testing.T, params *params, db dbbuilder.DBTX) context.Context {
 				userBuilder := userbuilder.New(t, db)
 				user := userBuilder.Create()
 				params.id = user.ID
 				return context.Background()
 			},
-			validate: func(t *testing.T, params params, db dbbuilder.DBTX, result user.User, err error){
+			validate: func(t *testing.T, params params, db dbbuilder.DBTX, result user.User, err error) {
 				require.NoError(t, err)
 
 				require.Equal(t, params.name, result.Name.String)
 				require.Equal(t, params.username, result.Username.String)
 				require.True(t, result.IsOnboarded)
-				
+
 				dbUser, err := user.New(db).GetByID(context.Background(), params.id)
 				require.NoError(t, err)
 				require.Equal(t, params.name, dbUser.Name.String)
@@ -55,35 +56,35 @@ func TestUserService_Onboarding(t *testing.T) {
 		{
 			name: "User already onboarded",
 			params: params{
-				name: "test_name",
+				name:     "test_name",
 				username: "test_username",
 			},
-			setup: func(t *testing.T, params *params, db dbbuilder.DBTX) context.Context{
+			setup: func(t *testing.T, params *params, db dbbuilder.DBTX) context.Context {
 				userBuilder := userbuilder.New(t, db)
 				user := userBuilder.Create(userbuilder.WithIsOnboarded(true))
 				params.id = user.ID
 				return context.Background()
 			},
-			validate: func(t *testing.T, params params, db dbbuilder.DBTX, result user.User, err error){
-				require.Error(t, err)
+			validate: func(t *testing.T, params params, db dbbuilder.DBTX, result user.User, err error) {
+				require.ErrorIs(t, err, internal.ErrUserOnboarded)
 			},
 			expectedErr: true,
 		},
 		{
 			name: "Username conflict",
 			params: params{
-				name: "test_name",
+				name:     "test_name",
 				username: "test_username",
 			},
-			setup: func(t *testing.T, params *params, db dbbuilder.DBTX) context.Context{
+			setup: func(t *testing.T, params *params, db dbbuilder.DBTX) context.Context {
 				userBuilder := userbuilder.New(t, db)
 				userBuilder.Create(userbuilder.WithUsername("test_username"))
 				user := userBuilder.Create()
 				params.id = user.ID
 				return context.Background()
 			},
-			validate: func(t *testing.T, params params, db dbbuilder.DBTX, result user.User, err error){
-				require.Error(t, err)
+			validate: func(t *testing.T, params params, db dbbuilder.DBTX, result user.User, err error) {
+				require.ErrorIs(t, err, internal.ErrUsernameConflict)
 			},
 			expectedErr: true,
 		},
@@ -93,7 +94,7 @@ func TestUserService_Onboarding(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get resource manager: %v", err)
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			db, rollback, err := resourceManager.SetupPostgres()

@@ -3,7 +3,6 @@ package user
 import (
 	"NYCU-SDC/core-system-backend/internal"
 	"context"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -54,7 +53,7 @@ type MeResponse struct {
 }
 
 // OnboardingRequest represents the request format for /user/onboarding endpoint
-type OnboardingRequest struct{
+type OnboardingRequest struct {
 	Username string `json:"username" validate:"required,min=4,max=15, username_rule"`
 	Name     string `json:"name" validate:"required"`
 }
@@ -121,36 +120,27 @@ func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
 }
 
 // Onboarding handles PUT /users/onboarding - update the user's name and username
-func (h *Handler) Onboarding(w http.ResponseWriter, r *http.Request){
+func (h *Handler) Onboarding(w http.ResponseWriter, r *http.Request) {
 	traceCtx, span := h.tracer.Start(r.Context(), "Onboarding")
 	defer span.End()
 	logger := logutil.WithContext(traceCtx, h.logger)
 
 	var req OnboardingRequest
 	if err := handlerutil.ParseAndValidateRequestBody(traceCtx, h.validator, r, &req); err != nil {
-		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("invalid request body: %w", err), logger)
+		h.problemWriter.WriteError(traceCtx, w, internal.ErrValidationFailed, logger)
 		return
 	}
 
 	// Get authenticated userfrom context
 	currentUser, ok := GetFromContext(traceCtx)
-	if !ok{
+	if !ok {
 		h.problemWriter.WriteError(traceCtx, w, internal.ErrNoUserInContext, logger)
 		return
 	}
 
 	// Onboarding
 	newUser, err := h.service.Onboarding(traceCtx, currentUser.ID, req.Name, req.Username)
-	if err != nil{
-		if err.Error() == "username already taken"{
-			h.problemWriter.WriteError(traceCtx, w, err, logger)
-			return
-		}
-		if err.Error() == "user already onboarded"{
-			h.problemWriter.WriteError(traceCtx, w, err, logger)
-			return
-		}
-		logger.Error("Failed to onboarding", zap.Error(err), zap.String("user_id", currentUser.ID.String()))
+	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
 	}
