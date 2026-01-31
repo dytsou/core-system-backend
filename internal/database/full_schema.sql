@@ -110,7 +110,8 @@ CREATE TYPE question_type AS ENUM(
     'linear_scale',
     'rating',
     'ranking',
-    'oauth_connect'
+    'oauth_connect',
+    'hyperlink'
 );
 
 CREATE TABLE IF NOT EXISTS questions(

@@ -26,6 +26,8 @@ func NewAnswerable(q Question) (Answerable, error) {
 		return NewOAuthConnect(q)
 	case QuestionTypeUploadFile:
 		return NewUploadFile(q)
+	case QuestionTypeHyperlink:
+		return NewHyperlink(q), nil
 	}
 
 	return nil, ErrUnsupportedQuestionType{

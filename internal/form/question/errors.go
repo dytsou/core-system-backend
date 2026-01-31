@@ -2,6 +2,15 @@ package question
 
 import "fmt"
 
+type ErrInvalidHyperlinkFormat struct {
+	Value   string
+	Message string
+}
+
+func (e ErrInvalidHyperlinkFormat) Error() string {
+	return fmt.Sprintf("invalid hyperlink format: %s, value: %s", e.Message, e.Value)
+}
+
 type ErrInvalidScaleValue struct {
 	QuestionID string
 	RawValue   int

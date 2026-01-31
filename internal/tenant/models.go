@@ -155,6 +155,7 @@ const (
 	QuestionTypeRating                 QuestionType = "rating"
 	QuestionTypeRanking                QuestionType = "ranking"
 	QuestionTypeOauthConnect           QuestionType = "oauth_connect"
+	QuestionTypeHyperlink              QuestionType = "hyperlink"
 )
 
 func (e *QuestionType) Scan(src interface{}) error {

@@ -5,6 +5,7 @@ ALTER TYPE question_type ADD VALUE IF NOT EXISTS 'rating';
 ALTER TYPE question_type ADD VALUE IF NOT EXISTS 'upload_file';
 ALTER TYPE question_type ADD VALUE IF NOT EXISTS 'oauth_connect';
 ALTER TYPE question_type ADD VALUE IF NOT EXISTS 'ranking';
+ALTER TYPE question_type ADD VALUE IF NOT EXISTS 'hyperlink';
 
 -- Drop old form_id column and add section_id column
 ALTER TABLE questions

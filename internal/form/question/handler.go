@@ -21,7 +21,7 @@ import (
 
 type Request struct {
 	Required     *bool            `json:"required" validate:"required"`
-	Type         string           `json:"type" validate:"required,oneof=SHORT_TEXT LONG_TEXT SINGLE_CHOICE MULTIPLE_CHOICE DATE DROPDOWN DETAILED_MULTIPLE_CHOICE UPLOAD_FILE LINEAR_SCALE RATING RANKING OAUTH_CONNECT"`
+	Type         string           `json:"type" validate:"required,oneof=SHORT_TEXT LONG_TEXT SINGLE_CHOICE MULTIPLE_CHOICE DATE DROPDOWN DETAILED_MULTIPLE_CHOICE UPLOAD_FILE LINEAR_SCALE RATING RANKING OAUTH_CONNECT HYPERLINK"`
 	Title        string           `json:"title" validate:"required"`
 	Description  string           `json:"description"`
 	Order        int32            `json:"order" validate:"required,min=1"`
@@ -381,7 +381,7 @@ func getGenerateMetadata(req Request) ([]byte, error) {
 	}
 
 	switch req.Type {
-	case "short_text", "long_text", "date":
+	case "short_text", "long_text", "date", "hyperlink":
 		return nil, nil
 	case "single_choice", "multiple_choice", "detailed_multiple_choice", "dropdown", "ranking":
 		return GenerateChoiceMetadata(req.Type, req.Choices)

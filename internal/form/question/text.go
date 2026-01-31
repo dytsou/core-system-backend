@@ -1,5 +1,10 @@
 package question
 
+import (
+	"net/url"
+	"strings"
+)
+
 type ShortText struct {
 	question Question
 }
@@ -48,4 +53,72 @@ func NewLongText(q Question) LongText {
 	return LongText{
 		question: q,
 	}
+}
+
+type Hyperlink struct {
+	question Question
+}
+
+func (h Hyperlink) Question() Question {
+	return h.question
+}
+
+func (h Hyperlink) Validate(value string) error {
+	if len(value) > 100 {
+		return ErrInvalidAnswerLength{
+			Expected: 100,
+			Given:    len(value),
+		}
+	}
+
+	if err := validateURL(value); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func NewHyperlink(q Question) Hyperlink {
+	return Hyperlink{
+		question: q,
+	}
+}
+
+// validateURL checks if the value is a valid URL
+func validateURL(value string) error {
+	if value == "" {
+		return nil
+	}
+
+	parsedURL, err := url.Parse(value)
+	if err != nil {
+		return ErrInvalidHyperlinkFormat{
+			Value:   value,
+			Message: "invalid URL format",
+		}
+	}
+
+	if parsedURL.Scheme == "" {
+		return ErrInvalidHyperlinkFormat{
+			Value:   value,
+			Message: "URL must include a scheme (http:// or https://)",
+		}
+	}
+
+	scheme := strings.ToLower(parsedURL.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return ErrInvalidHyperlinkFormat{
+			Value:   value,
+			Message: "URL scheme must be http or https",
+		}
+	}
+
+	if parsedURL.Host == "" {
+		return ErrInvalidHyperlinkFormat{
+			Value:   value,
+			Message: "URL must include a host",
+		}
+	}
+
+	return nil
 }
