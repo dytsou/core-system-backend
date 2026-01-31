@@ -12,14 +12,6 @@ func (e ErrInvalidScaleValue) Error() string {
 	return fmt.Sprintf("invalid value for question %s: %s, raw value: %d", e.QuestionID, e.Message, e.RawValue)
 }
 
-type ErrInvalidIcon struct {
-	Given string `json:"given"`
-}
-
-func (e ErrInvalidIcon) Error() string {
-	return fmt.Sprintf("invalid icon %s", e.Given)
-}
-
 type ErrInvalidAnswerLength struct {
 	Expected int
 	Given    int

@@ -1,6 +1,7 @@
 package question
 
 import (
+	"NYCU-SDC/core-system-backend/internal"
 	"context"
 	"fmt"
 	"net/http"
@@ -199,7 +200,7 @@ func (h *Handler) AddHandler(w http.ResponseWriter, r *http.Request) {
 	// Generate and validate metadata (returns nil if source_id provided)
 	metadata, err := getGenerateMetadata(req)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, err, logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to generate metadata: %w", err), logger)
 		return
 	}
 
@@ -258,7 +259,7 @@ func (h *Handler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 	// Generate and validate metadata
 	metadata, err := getGenerateMetadata(req)
 	if err != nil {
-		h.problemWriter.WriteError(traceCtx, w, err, logger)
+		h.problemWriter.WriteError(traceCtx, w, fmt.Errorf("failed to update metadata: %w", err), logger)
 		return
 	}
 
@@ -354,10 +355,14 @@ func (h *Handler) ListHandler(w http.ResponseWriter, r *http.Request) {
 func getGenerateMetadata(req Request) ([]byte, error) {
 	// If source_id is provided, don't generate metadata
 	if req.SourceID != uuid.Nil {
-		if req.Type == "single_choice" || req.Type == "multiple_choice" || req.Type == "dropdown" || req.Type == "ranking" {
+		switch req.Type {
+		case "single_choice", "multiple_choice", "dropdown", "ranking":
+			if req.Choices != nil && len(req.Choices) > 0 {
+				return nil, internal.ErrInvalidSourceIDWithChoices
+			}
 			return nil, nil
-		} else {
-			return nil, fmt.Errorf("invalid source_id for the question type: %s", req.Type)
+		default:
+			return nil, internal.ErrInvalidSourceIDForType
 		}
 	}
 
@@ -375,6 +380,8 @@ func getGenerateMetadata(req Request) ([]byte, error) {
 	case "upload_file":
 		return GenerateUploadFileMetadata(req.UploadFile)
 	default:
-		return nil, fmt.Errorf("unknown question type: %s", req.Type)
+		return nil, ErrUnsupportedQuestionType{
+			QuestionType: req.Type,
+		}
 	}
 }
