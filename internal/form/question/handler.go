@@ -354,14 +354,18 @@ func (h *Handler) ListHandler(w http.ResponseWriter, r *http.Request) {
 func getGenerateMetadata(req Request) ([]byte, error) {
 	// If source_id is provided, don't generate metadata
 	if req.SourceID != uuid.Nil {
-		return nil, nil
+		if req.Type == "single_choice" || req.Type == "multiple_choice" || req.Type == "dropdown" || req.Type == "ranking" {
+			return nil, nil
+		} else {
+			return nil, fmt.Errorf("invalid source_id for the question type: %s", req.Type)
+		}
 	}
 
 	switch req.Type {
 	case "short_text", "long_text", "date":
 		return nil, nil
 	case "single_choice", "multiple_choice", "detailed_multiple_choice", "dropdown", "ranking":
-		return GenerateMetadata(req.Type, req.Choices)
+		return GenerateChoiceMetadata(req.Type, req.Choices)
 	case "linear_scale":
 		return GenerateLinearScaleMetadata(req.Scale)
 	case "rating":

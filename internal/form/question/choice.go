@@ -360,7 +360,7 @@ func NewRanking(q Question) (Ranking, error) {
 }
 
 // Creates and validates metadata JSON for choice-based questions
-func GenerateMetadata(questionType string, choiceOptions []ChoiceOption) ([]byte, error) {
+func GenerateChoiceMetadata(questionType string, choiceOptions []ChoiceOption) ([]byte, error) {
 	// For choice questions, require at least one choice
 	if len(choiceOptions) == 0 {
 		return nil, ErrMetadataValidate{
