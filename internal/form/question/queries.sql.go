@@ -181,7 +181,7 @@ func (q *Queries) ListByFormID(ctx context.Context, formID uuid.UUID) ([]ListByF
 
 const update = `-- name: Update :one
 UPDATE questions
-SET required = $3, type = $4, title = $5, description = $6, metadata = $7, "order" = $8, source_id = $9, updated_at = now()
+SET required = $3, type = $4, title = $5, description = $6, metadata = $7, source_id = $8, updated_at = now()
 WHERE section_id = $1 AND id = $2
     RETURNING id, section_id, required, type, title, description, metadata, "order", source_id, created_at, updated_at
 `
@@ -194,7 +194,6 @@ type UpdateParams struct {
 	Title       pgtype.Text
 	Description pgtype.Text
 	Metadata    []byte
-	Order       int32
 	SourceID    pgtype.UUID
 }
 
@@ -207,9 +206,62 @@ func (q *Queries) Update(ctx context.Context, arg UpdateParams) (Question, error
 		arg.Title,
 		arg.Description,
 		arg.Metadata,
-		arg.Order,
 		arg.SourceID,
 	)
+	var i Question
+	err := row.Scan(
+		&i.ID,
+		&i.SectionID,
+		&i.Required,
+		&i.Type,
+		&i.Title,
+		&i.Description,
+		&i.Metadata,
+		&i.Order,
+		&i.SourceID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateOrder = `-- name: UpdateOrder :one
+WITH old_order AS (
+    SELECT "order" as old_pos FROM questions WHERE id = $2 AND section_id = $1
+),
+shifted AS (
+    UPDATE questions
+    SET "order" = CASE
+        -- Moving down: shift questions between old and new position up
+        WHEN $3 > (SELECT old_pos FROM old_order) 
+             AND "order" > (SELECT old_pos FROM old_order) 
+             AND "order" <= $3
+        THEN "order" - 1
+        -- Moving up: shift questions between new and old position down
+        WHEN $3 < (SELECT old_pos FROM old_order)
+             AND "order" >= $3
+             AND "order" < (SELECT old_pos FROM old_order)
+        THEN "order" + 1
+        ELSE "order"
+    END,
+    updated_at = now()
+    WHERE section_id = $1 AND id != $2
+    RETURNING id
+)
+UPDATE questions
+SET "order" = $3, updated_at = now()
+WHERE questions.id = $2 AND questions.section_id = $1
+RETURNING id, section_id, required, type, title, description, metadata, "order", source_id, created_at, updated_at
+`
+
+type UpdateOrderParams struct {
+	SectionID uuid.UUID
+	ID        uuid.UUID
+	Order     int32
+}
+
+func (q *Queries) UpdateOrder(ctx context.Context, arg UpdateOrderParams) (Question, error) {
+	row := q.db.QueryRow(ctx, updateOrder, arg.SectionID, arg.ID, arg.Order)
 	var i Question
 	err := row.Scan(
 		&i.ID,

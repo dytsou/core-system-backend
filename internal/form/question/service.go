@@ -14,6 +14,7 @@ import (
 type Querier interface {
 	Create(ctx context.Context, params CreateParams) (Question, error)
 	Update(ctx context.Context, params UpdateParams) (Question, error)
+	UpdateOrder(ctx context.Context, params UpdateOrderParams) (Question, error)
 	Delete(ctx context.Context, params DeleteParams) error
 	ListByFormID(ctx context.Context, formID uuid.UUID) ([]ListByFormIDRow, error)
 	GetByID(ctx context.Context, id uuid.UUID) (Question, error)
@@ -66,6 +67,21 @@ func (s *Service) Update(ctx context.Context, input UpdateParams) (Answerable, e
 	q, err := s.queries.Update(ctx, input)
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "update question")
+		span.RecordError(err)
+		return nil, err
+	}
+
+	return NewAnswerable(q)
+}
+
+func (s *Service) UpdateOrder(ctx context.Context, input UpdateOrderParams) (Answerable, error) {
+	ctx, span := s.tracer.Start(ctx, "Update")
+	defer span.End()
+	logger := logutil.WithContext(ctx, s.logger)
+
+	q, err := s.queries.UpdateOrder(ctx, input)
+	if err != nil {
+		err = databaseutil.WrapDBError(err, logger, "update order for the question")
 		span.RecordError(err)
 		return nil, err
 	}

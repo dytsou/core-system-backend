@@ -5,9 +5,37 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 
 -- name: Update :one
 UPDATE questions
-SET required = $3, type = $4, title = $5, description = $6, metadata = $7, "order" = $8, source_id = $9, updated_at = now()
+SET required = $3, type = $4, title = $5, description = $6, metadata = $7, source_id = $8, updated_at = now()
 WHERE section_id = $1 AND id = $2
     RETURNING *;
+
+-- name: UpdateOrder :one
+WITH old_order AS (
+    SELECT "order" as old_pos FROM questions WHERE id = $2 AND section_id = $1
+),
+shifted AS (
+    UPDATE questions
+    SET "order" = CASE
+        -- Moving down: shift questions between old and new position up
+        WHEN $3 > (SELECT old_pos FROM old_order) 
+             AND "order" > (SELECT old_pos FROM old_order) 
+             AND "order" <= $3
+        THEN "order" - 1
+        -- Moving up: shift questions between new and old position down
+        WHEN $3 < (SELECT old_pos FROM old_order)
+             AND "order" >= $3
+             AND "order" < (SELECT old_pos FROM old_order)
+        THEN "order" + 1
+        ELSE "order"
+    END,
+    updated_at = now()
+    WHERE section_id = $1 AND id != $2
+    RETURNING id
+)
+UPDATE questions
+SET "order" = $3, updated_at = now()
+WHERE questions.id = $2 AND questions.section_id = $1
+RETURNING *;
 
 -- name: Delete :exec
 DELETE FROM questions WHERE section_id = $1 AND id = $2;
