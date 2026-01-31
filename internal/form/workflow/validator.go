@@ -1,0 +1,558 @@
+package workflow
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+
+	"NYCU-SDC/core-system-backend/internal/form/question"
+	"NYCU-SDC/core-system-backend/internal/form/workflow/node"
+
+	"github.com/google/uuid"
+)
+
+// QuestionStore defines the interface for querying form questions
+// This allows the validator to check if condition rule question IDs exist and match expected types
+type QuestionStore interface {
+	GetByID(ctx context.Context, id uuid.UUID) (question.Answerable, error)
+	ListByFormID(ctx context.Context, formID uuid.UUID) ([]question.Answerable, error)
+}
+
+type workflowValidator struct{}
+
+// ValidateNodeIDsUnchanged checks that node IDs in the new workflow match the current workflow.
+// It ensures that no node IDs are added or removed during an update.
+func (v workflowValidator) ValidateNodeIDsUnchanged(ctx context.Context, currentWorkflow, newWorkflow []byte) error {
+	return validateNodeIDsUnchanged(currentWorkflow, newWorkflow)
+}
+
+// ValidateUpdateNodeIDs validates that node IDs haven't changed during an update.
+// If currentWorkflow is nil, validation is skipped (first update scenario).
+// Otherwise, it ensures that no node IDs are added or removed.
+func (v workflowValidator) ValidateUpdateNodeIDs(ctx context.Context, currentWorkflow []byte, newWorkflow []byte) error {
+	// If workflow doesn't exist yet (first update), skip node ID validation
+	if currentWorkflow == nil {
+		// First update - no existing workflow to compare against
+		return nil
+	}
+
+	// Validate that node IDs haven't changed
+	return validateNodeIDsUnchanged(currentWorkflow, newWorkflow)
+}
+
+// NewValidator creates a new workflow validator using the built-in NodeType set.
+func NewValidator() Validator {
+	return workflowValidator{}
+}
+
+// Activate validates the workflow JSON structure before activation.
+// It checks:
+// - Valid JSON format
+// - Array structure
+// - Node structure and required fields
+// - Valid node types
+// - Graph connectivity (all nodes are reachable)
+// - Condition rule question IDs exist and types match
+// Returns all validation errors if validation fails
+func (v workflowValidator) Activate(ctx context.Context, formID uuid.UUID, workflow []byte, questionStore QuestionStore) error {
+	nodes, nodeMap, validationErrors, err := runCommonWorkflowValidation(ctx, formID, workflow, questionStore, true)
+	if err != nil {
+		return err
+	}
+	err = formatWorkflowValidationErrors(validationErrors)
+	if err != nil {
+		return err
+	}
+
+	if nodeMap != nil {
+		err := validateGraphConnectivity(nodes, nodeMap)
+		if err != nil {
+			validationErrors = append(validationErrors, fmt.Errorf("graph validation failed: %w", err))
+		}
+	}
+
+	if len(validationErrors) > 0 {
+		return fmt.Errorf("workflow validation failed: %w", errors.Join(validationErrors...))
+	}
+	return nil
+}
+
+// Validate performs validation for workflows (used by Update).
+func (v workflowValidator) Validate(ctx context.Context, formID uuid.UUID, workflow []byte, questionStore QuestionStore) error {
+	nodes, nodeMap, validationErrors, err := runCommonWorkflowValidation(ctx, formID, workflow, questionStore, false)
+	if err != nil {
+		return err
+	}
+	err = formatWorkflowValidationErrors(validationErrors)
+	if err != nil {
+		return err
+	}
+
+	if nodeMap != nil {
+		err := validateGraphReferences(nodes, nodeMap)
+		if err != nil {
+			validationErrors = append(validationErrors, fmt.Errorf("graph validation failed: %w", err))
+		}
+
+		if questionStore != nil {
+			for _, n := range nodes {
+				nodeType, _ := n["type"].(string)
+				if nodeType != string(NodeTypeCondition) {
+					continue
+				}
+				rawRule, ok := n["conditionRule"]
+				if !ok {
+					continue
+				}
+				nodeID, _ := n["id"].(string)
+				err := validateDraftConditionQuestion(ctx, formID, nodeID, rawRule, questionStore)
+				if err != nil {
+					validationErrors = append(validationErrors, err)
+				}
+			}
+		}
+	}
+
+	err = formatWorkflowValidationErrors(validationErrors)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// formatWorkflowValidationErrors joins and wraps workflow validation errors in a consistent way.
+func formatWorkflowValidationErrors(validationErrors []error) error {
+	if len(validationErrors) == 0 {
+		return nil
+	}
+	return fmt.Errorf("workflow validation failed: %w", errors.Join(validationErrors...))
+}
+
+// validateWorkflowLength validates that the workflow has a minimum length
+func validateWorkflowLength(workflow []byte) error {
+	if len(workflow) < 2 {
+		return fmt.Errorf("workflow must contain at least 2 nodes, one start node and one end node")
+	}
+	return nil
+}
+
+// validateWorkflowJSON validates and parses the workflow JSON format
+func validateWorkflowJSON(workflow []byte) ([]map[string]interface{}, error) {
+	var nodes []map[string]interface{}
+	err := json.Unmarshal(workflow, &nodes)
+	if err != nil {
+		return nil, fmt.Errorf("invalid JSON format: %w", err)
+	}
+	return nodes, nil
+}
+
+// runCommonWorkflowValidation performs shared validation: workflow length, JSON parse, node validation, and required node types. Returns (nodes, nodeMap, validationErrors, err).
+func runCommonWorkflowValidation(
+	ctx context.Context,
+	formID uuid.UUID,
+	workflow []byte,
+	questionStore QuestionStore,
+	isActivate bool,
+) (nodes []map[string]interface{}, nodeMap map[string]map[string]interface{}, validationErrors []error, err error) {
+	var errs []error
+
+	err = validateWorkflowLength(workflow)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	parsed, err := validateWorkflowJSON(workflow)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	if parsed == nil {
+		if len(errs) > 0 {
+			return nil, nil, errs, fmt.Errorf("workflow validation failed: %w", errors.Join(errs...))
+		}
+		return nil, nil, errs, fmt.Errorf("workflow validation failed: unable to parse workflow: %w", err)
+	}
+
+	nodes = parsed
+	nodeMap, startCount, endCount, nodeErrs := validateNodes(ctx, formID, nodes, questionStore, isActivate)
+	if len(nodeErrs) > 0 {
+		errs = append(errs, nodeErrs...)
+	}
+
+	nodeTypeErrs := validateRequiredNodeTypes(startCount, endCount)
+	if len(nodeTypeErrs) > 0 {
+		errs = append(errs, nodeTypeErrs...)
+	}
+
+	return nodes, nodeMap, errs, nil
+}
+
+// validateRequiredFields validates that a node has all required fields: id, type, label
+func validateRequiredFields(node map[string]interface{}, index int) error {
+	// Check for 'id' field
+	_, ok := node["id"]
+	if !ok || node["id"] == "" {
+		return fmt.Errorf("node at index %d missing required field 'id'", index)
+	}
+
+	// Check for 'type' field
+	_, ok = node["type"]
+	if !ok || node["type"] == "" {
+		return fmt.Errorf("node at index %d missing required field 'type'", index)
+	}
+
+	// Check for 'label' field
+	_, ok = node["label"]
+	if !ok || node["label"] == "" {
+		return fmt.Errorf("node at index %d missing required field 'label'", index)
+	}
+
+	return nil
+}
+
+// validateNodeID validates that a node has a valid ID field
+func validateNodeID(node map[string]interface{}, index int) (string, error) {
+	id, ok := node["id"].(string)
+	if !ok || id == "" {
+		return "", fmt.Errorf("node at index %d missing required field 'id'", index)
+	}
+
+	// Validate UUID format
+	_, err := uuid.Parse(id)
+	if err != nil || id == "" {
+		return "", fmt.Errorf("node at index %d has invalid UUID format for id '%s': %w", index, id, err)
+	}
+
+	return id, nil
+}
+
+// validateNodes validates all nodes in the workflow and returns:
+// - nodeMap: map of node ID to node
+// - startNodeCount: number of start nodes found
+// - endNodeCount: number of end nodes found
+// - errors: all validation errors collected
+// When isActivate is true, this performs full node-specific validation (used by Activate).
+// When false, it performs a relaxed validation suitable for draft Update.
+func validateNodes(ctx context.Context, formID uuid.UUID, nodes []map[string]interface{}, questionStore QuestionStore, isActivate bool) (map[string]map[string]interface{}, int, int, []error) {
+	nodeMap := make(map[string]map[string]interface{})
+	nodeIDs := make(map[string]bool)
+	validatedNodes := make([]node.Validatable, 0, len(nodes))
+	startNodeCount := 0
+	endNodeCount := 0
+	var validationErrors []error
+
+	for i, nodeData := range nodes {
+		// Validate required fields (id, type, label)
+		if err := validateRequiredFields(nodeData, i); err != nil {
+			validationErrors = append(validationErrors, err)
+			continue // Skip this node but continue validating others
+		}
+
+		// Validate node ID
+		id, err := validateNodeID(nodeData, i)
+		if err != nil {
+			validationErrors = append(validationErrors, err)
+			continue // Skip this node but continue validating others
+		}
+
+		// Check for duplicate node IDs
+		if nodeIDs[id] {
+			validationErrors = append(validationErrors, fmt.Errorf("duplicate node id '%s' at index %d", id, i))
+			continue // Skip this node but continue validating others
+		}
+		nodeIDs[id] = true
+		nodeMap[id] = nodeData
+
+		// Validate node type and build Validatable instance
+		validatedNode, nodeTypeStr, err := node.New(nodeData)
+		if err != nil {
+			validationErrors = append(validationErrors, fmt.Errorf("node at index %d: %w", i, err))
+			continue // Skip this node but continue validating others
+		}
+		if isActivate {
+			validatedNodes = append(validatedNodes, validatedNode)
+		}
+
+		// Count start and end nodes
+		if nodeTypeStr == string(NodeTypeStart) {
+			startNodeCount++
+		}
+		if nodeTypeStr == string(NodeTypeEnd) {
+			endNodeCount++
+		}
+	}
+
+	// Validate each node using Validatable interface
+	// This validates node-specific rules (e.g., condition nodes must have conditionRule)
+	// Only validate nodes that were successfully created
+	if isActivate {
+		for i, validatedNode := range validatedNodes {
+			// Pass context, formID, and questionStore for condition rule validation
+			err := validatedNode.Validate(ctx, formID, nodeMap, questionStore)
+			if err != nil {
+				validationErrors = append(validationErrors, fmt.Errorf("node at index %d: %w", i, err))
+			}
+		}
+	}
+
+	return nodeMap, startNodeCount, endNodeCount, validationErrors
+}
+
+// validateRequiredNodeTypes validates that the workflow contains exactly one start node and exactly one end node
+// Returns all validation errors found
+func validateRequiredNodeTypes(startNodeCount, endNodeCount int) []error {
+	var validationErrors []error
+	if startNodeCount == 0 {
+		validationErrors = append(validationErrors, fmt.Errorf("workflow must contain exactly one start node, found %d", startNodeCount))
+	} else if startNodeCount > 1 {
+		validationErrors = append(validationErrors, fmt.Errorf("workflow must contain exactly one start node, found %d", startNodeCount))
+	}
+	if endNodeCount == 0 {
+		validationErrors = append(validationErrors, fmt.Errorf("workflow must contain exactly one end node, found %d", endNodeCount))
+	} else if endNodeCount > 1 {
+		validationErrors = append(validationErrors, fmt.Errorf("workflow must contain exactly one end node, found %d", endNodeCount))
+	}
+	return validationErrors
+}
+
+// validateGraphConnectivity checks if all nodes in the workflow are reachable
+// It ensures:
+// - All node references (next, nextTrue, nextFalse) point to valid nodes
+// - All nodes can be reached from entry points (start nodes or first node)
+// - No orphaned nodes exist
+func validateGraphConnectivity(nodes []map[string]interface{}, nodeMap map[string]map[string]interface{}) error {
+	// First validate references
+	err := validateGraphReferences(nodes, nodeMap)
+	if err != nil {
+		return err
+	}
+
+	// Build graph for reachability validation
+	graph := make(map[string][]string)
+
+	// Build adjacency list and validate references
+	for _, node := range nodes {
+		nodeID, _ := node["id"].(string)
+		nodeType, _ := node["type"].(string)
+
+		var nextNodes []string
+
+		// Handle different node types and their connection fields
+		if nodeType == string(NodeTypeCondition) {
+			// Condition nodes have nextTrue and nextFalse
+			nextTrue, ok := node["nextTrue"].(string)
+			if ok && nextTrue != "" {
+				nextNodes = append(nextNodes, nextTrue)
+			}
+			nextFalse, ok := node["nextFalse"].(string)
+			if ok && nextFalse != "" {
+				nextNodes = append(nextNodes, nextFalse)
+			}
+		} else {
+			// Other nodes have next field
+			next, ok := node["next"].(string)
+			if ok && next != "" {
+				nextNodes = append(nextNodes, next)
+			}
+		}
+
+		graph[nodeID] = nextNodes
+	}
+
+	// Find the start node (there should be exactly one)
+	startNodeID := ""
+	for _, node := range nodes {
+		nodeID, _ := node["id"].(string)
+		nodeType, _ := node["type"].(string)
+
+		// The start node is the only entry point
+		if nodeType == string(NodeTypeStart) {
+			startNodeID = nodeID
+			break
+		}
+	}
+
+	// BFS traversal from the start node to ensure all nodes are reachable
+	visited := make(map[string]bool)
+	queue := make([]string, 0)
+
+	// Start from the start node
+	queue = append(queue, startNodeID)
+	visited[startNodeID] = true
+
+	// Traverse the graph
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+
+		// Visit all connected nodes
+		for _, nextNodeID := range graph[current] {
+			if !visited[nextNodeID] {
+				visited[nextNodeID] = true
+				queue = append(queue, nextNodeID)
+			}
+		}
+	}
+
+	// Check if all nodes are reachable
+	unreachableNodes := []string{}
+	for nodeID := range nodeMap {
+		if !visited[nodeID] {
+			unreachableNodes = append(unreachableNodes, nodeID)
+		}
+	}
+
+	if len(unreachableNodes) > 0 {
+		return fmt.Errorf("unreachable nodes found: %v. All nodes must be reachable from the start node", unreachableNodes)
+	}
+
+	return nil
+}
+
+// validateGraphReferences validates that any explicit reference fields point to nodes that exist.
+func validateGraphReferences(nodes []map[string]interface{}, nodeMap map[string]map[string]interface{}) error {
+	var referenceErrors []error
+
+	for _, node := range nodes {
+		nodeID, _ := node["id"].(string)
+		nodeType, _ := node["type"].(string)
+
+		if nodeType == string(NodeTypeCondition) {
+			nextTrue, ok := node["nextTrue"].(string)
+			if ok && nextTrue != "" {
+				_, exists := nodeMap[nextTrue]
+				if !exists {
+					referenceErrors = append(referenceErrors, fmt.Errorf("condition node '%s' references non-existent node '%s' in nextTrue", nodeID, nextTrue))
+				}
+			}
+
+			nextFalse, ok := node["nextFalse"].(string)
+			if ok && nextFalse != "" {
+				_, exists := nodeMap[nextFalse]
+				if !exists {
+					referenceErrors = append(referenceErrors, fmt.Errorf("condition node '%s' references non-existent node '%s' in nextFalse", nodeID, nextFalse))
+				}
+			}
+		} else {
+			next, ok := node["next"].(string)
+			if ok && next != "" {
+				_, exists := nodeMap[next]
+				if !exists {
+					referenceErrors = append(referenceErrors, fmt.Errorf("node '%s' references non-existent node '%s' in next", nodeID, next))
+				}
+			}
+		}
+	}
+
+	if len(referenceErrors) > 0 {
+		return fmt.Errorf("invalid node references found: %w", errors.Join(referenceErrors...))
+	}
+	return nil
+}
+
+// validateDraftConditionQuestion performs the subset of conditionRule validation that must hold
+// even for draft workflows: that the referenced question exists, belongs to the form, and its
+// type is compatible with the condition source. It deliberately skips regex validation and
+// other strict checks used during activation.
+func validateDraftConditionQuestion(
+	ctx context.Context,
+	formID uuid.UUID,
+	nodeID string,
+	rawRule interface{},
+	questionStore QuestionStore,
+) error {
+	// Marshal-then-unmarshal into ConditionRule to reuse the shared struct definition.
+	conditionRuleBytes, err := json.Marshal(rawRule)
+	if err != nil {
+		return fmt.Errorf("condition node '%s' has invalid conditionRule format: %w", nodeID, err)
+	}
+
+	var rule node.ConditionRule
+	err = json.Unmarshal(conditionRuleBytes, &rule)
+	if err != nil {
+		return fmt.Errorf("condition node '%s' has invalid conditionRule format: %w", nodeID, err)
+	}
+
+	// Only validate question existence and type compatibility in draft mode.
+	if rule.Key == "" {
+		return fmt.Errorf("condition node '%s' conditionRule.key cannot be empty", nodeID)
+	}
+
+	questionID, err := uuid.Parse(rule.Key)
+	if err != nil {
+		return fmt.Errorf("condition node '%s' conditionRule.key '%s' is not a valid UUID", nodeID, rule.Key)
+	}
+
+	answerable, err := questionStore.GetByID(ctx, questionID)
+	if err != nil {
+		return fmt.Errorf("condition node '%s' references non-existent question '%s' in conditionRule.key", nodeID, rule.Key)
+	}
+
+	q := answerable.Question()
+
+	// Validate question belongs to the form
+	if q.FormID != formID {
+		return fmt.Errorf("condition node '%s' references question '%s' that belongs to a different form", nodeID, rule.Key)
+	}
+
+	// Validate question type matches condition source (same rules as strict mode).
+	switch rule.Source {
+	case node.ConditionSourceChoice:
+		if q.Type != question.QuestionTypeSingleChoice && q.Type != question.QuestionTypeMultipleChoice {
+			return fmt.Errorf("condition node '%s' with source 'choice' requires question type 'single_choice' or 'multiple_choice', but question '%s' has type '%s'", nodeID, rule.Key, q.Type)
+		}
+	case node.ConditionSourceNonChoice:
+		if q.Type != question.QuestionTypeShortText && q.Type != question.QuestionTypeLongText && q.Type != question.QuestionTypeDate {
+			return fmt.Errorf("condition node '%s' with source 'nonChoice' requires question type 'short_text', 'long_text', or 'date', but question '%s' has type '%s'", nodeID, rule.Key, q.Type)
+		}
+	}
+	return nil
+}
+
+// extractNodeIDs extracts all node IDs from a workflow JSON
+func extractNodeIDs(workflowJSON []byte) (map[string]bool, error) {
+	var nodes []map[string]interface{}
+	err := json.Unmarshal(workflowJSON, &nodes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse workflow JSON: %w", err)
+	}
+
+	nodeIDs := make(map[string]bool)
+	for _, node := range nodes {
+		id, ok := node["id"].(string)
+		if ok && id != "" {
+			nodeIDs[id] = true
+		}
+	}
+	return nodeIDs, nil
+}
+
+// validateNodeIDsUnchanged checks that node IDs in the new workflow match the current workflow
+func validateNodeIDsUnchanged(currentWorkflow, newWorkflow []byte) error {
+	currentNodeIDs, err := extractNodeIDs(currentWorkflow)
+	if err != nil {
+		return fmt.Errorf("failed to extract node IDs from current workflow: %w", err)
+	}
+
+	newNodeIDs, err := extractNodeIDs(newWorkflow)
+	if err != nil {
+		return fmt.Errorf("failed to extract node IDs from new workflow: %w", err)
+	}
+
+	// Check if all current node IDs exist in new workflow
+	for id := range currentNodeIDs {
+		if !newNodeIDs[id] {
+			return fmt.Errorf("node ID '%s' was removed from workflow", id)
+		}
+	}
+
+	// Check if any new node IDs were added
+	for id := range newNodeIDs {
+		if !currentNodeIDs[id] {
+			return fmt.Errorf("node ID '%s' was added to workflow", id)
+		}
+	}
+
+	return nil
+}
