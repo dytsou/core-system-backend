@@ -3,6 +3,8 @@ package workflow_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"testing"
 
 	"NYCU-SDC/core-system-backend/internal/form/workflow"
@@ -462,6 +464,103 @@ func TestService_DeleteNode(t *testing.T) {
 				require.Equal(t, workflowJSON, result)
 				mockQuerier.AssertExpectations(t)
 			}
+		})
+	}
+}
+
+// TestService_GetWorkflow_ValidationErrors tests the parseValidationErrors function
+// using mocked errors to verify edge cases in error parsing logic.
+func TestService_GetWorkflow_ValidationErrors(t *testing.T) {
+	t.Parallel()
+
+	type testCase struct {
+		name            string
+		formID          uuid.UUID
+		workflowJSON    []byte
+		setupMock       func(*mockValidator, uuid.UUID, []byte)
+		expectedInfoLen int
+		expectedErr     bool
+	}
+
+	testCases := []testCase{
+		{
+			name:         "validation passes - returns empty info array",
+			formID:       uuid.New(),
+			workflowJSON: createSimpleValidWorkflow(t),
+			setupMock: func(mv *mockValidator, formID uuid.UUID, workflow []byte) {
+				mv.On("Activate", mock.Anything, formID, workflow, mock.Anything).Return(nil).Once()
+			},
+			expectedInfoLen: 0,
+			expectedErr:     false,
+		},
+		{
+			name:         "parsing - nested joined errors",
+			formID:       uuid.New(),
+			workflowJSON: createSimpleValidWorkflow(t),
+			setupMock: func(mv *mockValidator, formID uuid.UUID, workflow []byte) {
+				startID := uuid.New()
+				err1 := fmt.Errorf("start node '%s' must have a 'next' field", startID.String())
+				err2 := fmt.Errorf("workflow must contain exactly one start node, found 0")
+				err3 := fmt.Errorf("workflow must contain exactly one end node, found 0")
+				innerErr := errors.Join(err2, err3)
+				outerErr := fmt.Errorf("workflow validation failed: %w", errors.Join(err1, innerErr))
+				mv.On("Activate", mock.Anything, formID, workflow, mock.Anything).Return(outerErr).Once()
+			},
+			expectedInfoLen: 3, // 3 lines: 1 with node ID, 2 without
+			expectedErr:     false,
+		},
+		{
+			name:         "parsing - multiple unreachable nodes with individual node IDs",
+			formID:       uuid.New(),
+			workflowJSON: createSimpleValidWorkflow(t),
+			setupMock: func(mv *mockValidator, formID uuid.UUID, workflow []byte) {
+				unreachableID1 := uuid.New()
+				unreachableID2 := uuid.New()
+				err1 := fmt.Errorf("node '%s' is unreachable from the start node", unreachableID1.String())
+				err2 := fmt.Errorf("node '%s' is unreachable from the start node", unreachableID2.String())
+				graphErr := fmt.Errorf("graph validation failed: %w", errors.Join(err1, err2))
+				outerErr := fmt.Errorf("workflow validation failed: %w", graphErr)
+				mv.On("Activate", mock.Anything, formID, workflow, mock.Anything).Return(outerErr).Once()
+			},
+			expectedInfoLen: 2, // 2 unique node IDs, each gets its own ValidationInfo with the same full message
+			expectedErr:     false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			logger := zap.NewNop()
+			tracer := noop.NewTracerProvider().Tracer("test")
+			mockQuerier := new(mockQuerier)
+			mockValidator := new(mockValidator)
+			service := createTestService(t, logger, tracer, mockQuerier, mockValidator, nil)
+
+			tc.setupMock(mockValidator, tc.formID, tc.workflowJSON)
+
+			validationInfos, err := service.GetValidationInfo(ctx, tc.formID, tc.workflowJSON)
+
+			if tc.expectedErr {
+				require.Error(t, err)
+				require.Nil(t, validationInfos)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, validationInfos)
+				require.Len(t, validationInfos, tc.expectedInfoLen)
+
+				// Verify that node IDs are extracted correctly when present
+				for _, info := range validationInfos {
+					if info.NodeID != nil {
+						_, parseErr := uuid.Parse(*info.NodeID)
+						require.NoError(t, parseErr, "extracted node ID should be a valid UUID")
+					}
+					require.NotEmpty(t, info.Message)
+				}
+			}
+
+			mockValidator.AssertExpectations(t)
 		})
 	}
 }

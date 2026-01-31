@@ -858,3 +858,308 @@ func createWorkflowWithMultipleNodes(t *testing.T) []byte {
 		},
 	})
 }
+
+// TestValidateDraft_ConditionSectionOrder tests that ValidateDraft detects when a condition
+// references a section that comes after it in the graph traversal.
+func TestValidateDraft_ConditionSectionOrder(t *testing.T) {
+	t.Parallel()
+
+	formID := uuid.New()
+
+	type testCase struct {
+		name        string
+		setup       func() ([]byte, workflow.QuestionStore)
+		expectedErr bool
+	}
+
+	testCases := []testCase{
+		{
+			name: "error - condition references section that comes after it",
+			setup: func() ([]byte, workflow.QuestionStore) {
+				// Flow: start -> condition -> section -> end
+				// Condition references section which hasn't been visited yet
+				startID := uuid.New()
+				conditionID := uuid.New()
+				sectionID := uuid.New()
+				endID := uuid.New()
+				questionID := uuid.New()
+
+				nodes := []map[string]interface{}{
+					{
+						"id":    startID.String(),
+						"type":  "start",
+						"label": "Start",
+						"next":  conditionID.String(),
+					},
+					{
+						"id":        conditionID.String(),
+						"type":      "condition",
+						"label":     "Condition",
+						"nextTrue":  sectionID.String(),
+						"nextFalse": endID.String(),
+						"conditionRule": map[string]interface{}{
+							"source":  "choice",
+							"nodeId":  sectionID.String(), // References section that comes after
+							"key":     questionID.String(),
+							"pattern": "yes",
+						},
+					},
+					{
+						"id":    sectionID.String(),
+						"type":  "section",
+						"label": "Section",
+						"next":  endID.String(),
+					},
+					{
+						"id":    endID.String(),
+						"type":  "end",
+						"label": "End",
+					},
+				}
+
+				questionStore := &mockQuestionStore{
+					questions: map[uuid.UUID]question.Answerable{
+						questionID: createMockAnswerable(t, formID, question.QuestionTypeSingleChoice),
+					},
+				}
+
+				return createWorkflowJSON(t, nodes), questionStore
+			},
+			expectedErr: true,
+		},
+		{
+			name: "valid - condition references section that comes before it",
+			setup: func() ([]byte, workflow.QuestionStore) {
+				// Flow: start -> section -> condition -> end
+				// Condition references section which has been visited
+				startID := uuid.New()
+				sectionID := uuid.New()
+				conditionID := uuid.New()
+				endID := uuid.New()
+				questionID := uuid.New()
+
+				nodes := []map[string]interface{}{
+					{
+						"id":    startID.String(),
+						"type":  "start",
+						"label": "Start",
+						"next":  sectionID.String(),
+					},
+					{
+						"id":    sectionID.String(),
+						"type":  "section",
+						"label": "Section",
+						"next":  conditionID.String(),
+					},
+					{
+						"id":        conditionID.String(),
+						"type":      "condition",
+						"label":     "Condition",
+						"nextTrue":  endID.String(),
+						"nextFalse": endID.String(),
+						"conditionRule": map[string]interface{}{
+							"source":  "choice",
+							"nodeId":  sectionID.String(), // References section that comes before
+							"key":     questionID.String(),
+							"pattern": "yes",
+						},
+					},
+					{
+						"id":    endID.String(),
+						"type":  "end",
+						"label": "End",
+					},
+				}
+
+				questionStore := &mockQuestionStore{
+					questions: map[uuid.UUID]question.Answerable{
+						questionID: createMockAnswerable(t, formID, question.QuestionTypeSingleChoice),
+					},
+				}
+
+				return createWorkflowJSON(t, nodes), questionStore
+			},
+			expectedErr: false,
+		},
+		{
+			name: "error - condition references itself via nodeId",
+			setup: func() ([]byte, workflow.QuestionStore) {
+				// Flow: start -> section -> condition -> end
+				// Condition references itself (invalid)
+				startID := uuid.New()
+				sectionID := uuid.New()
+				conditionID := uuid.New()
+				endID := uuid.New()
+				questionID := uuid.New()
+
+				nodes := []map[string]interface{}{
+					{
+						"id":    startID.String(),
+						"type":  "start",
+						"label": "Start",
+						"next":  sectionID.String(),
+					},
+					{
+						"id":    sectionID.String(),
+						"type":  "section",
+						"label": "Section",
+						"next":  conditionID.String(),
+					},
+					{
+						"id":        conditionID.String(),
+						"type":      "condition",
+						"label":     "Condition",
+						"nextTrue":  endID.String(),
+						"nextFalse": endID.String(),
+						"conditionRule": map[string]interface{}{
+							"source":  "choice",
+							"nodeId":  conditionID.String(), // References itself
+							"key":     questionID.String(),
+							"pattern": "yes",
+						},
+					},
+					{
+						"id":    endID.String(),
+						"type":  "end",
+						"label": "End",
+					},
+				}
+
+				questionStore := &mockQuestionStore{
+					questions: map[uuid.UUID]question.Answerable{
+						questionID: createMockAnswerable(t, formID, question.QuestionTypeSingleChoice),
+					},
+				}
+
+				return createWorkflowJSON(t, nodes), questionStore
+			},
+			expectedErr: true,
+		},
+		{
+			name: "valid - condition without conditionRule",
+			setup: func() ([]byte, workflow.QuestionStore) {
+				// Condition without conditionRule should be allowed in draft mode
+				startID := uuid.New()
+				conditionID := uuid.New()
+				endID := uuid.New()
+
+				nodes := []map[string]interface{}{
+					{
+						"id":    startID.String(),
+						"type":  "start",
+						"label": "Start",
+						"next":  conditionID.String(),
+					},
+					{
+						"id":        conditionID.String(),
+						"type":      "condition",
+						"label":     "Condition",
+						"nextTrue":  endID.String(),
+						"nextFalse": endID.String(),
+						// No conditionRule - allowed in draft
+					},
+					{
+						"id":    endID.String(),
+						"type":  "end",
+						"label": "End",
+					},
+				}
+
+				return createWorkflowJSON(t, nodes), nil
+			},
+			expectedErr: false,
+		},
+		{
+			name: "error - multiple conditions with invalid section references",
+			setup: func() ([]byte, workflow.QuestionStore) {
+				// Two conditions both referencing sections that come after them
+				startID := uuid.New()
+				condition1ID := uuid.New()
+				condition2ID := uuid.New()
+				section1ID := uuid.New()
+				section2ID := uuid.New()
+				endID := uuid.New()
+				questionID := uuid.New()
+
+				nodes := []map[string]interface{}{
+					{
+						"id":    startID.String(),
+						"type":  "start",
+						"label": "Start",
+						"next":  condition1ID.String(),
+					},
+					{
+						"id":        condition1ID.String(),
+						"type":      "condition",
+						"label":     "Condition 1",
+						"nextTrue":  section1ID.String(),
+						"nextFalse": condition2ID.String(),
+						"conditionRule": map[string]interface{}{
+							"source":  "choice",
+							"nodeId":  section1ID.String(), // References section that comes after
+							"key":     questionID.String(),
+							"pattern": "yes",
+						},
+					},
+					{
+						"id":        condition2ID.String(),
+						"type":      "condition",
+						"label":     "Condition 2",
+						"nextTrue":  section2ID.String(),
+						"nextFalse": endID.String(),
+						"conditionRule": map[string]interface{}{
+							"source":  "choice",
+							"nodeId":  section2ID.String(), // References section that comes after
+							"key":     questionID.String(),
+							"pattern": "no",
+						},
+					},
+					{
+						"id":    section1ID.String(),
+						"type":  "section",
+						"label": "Section 1",
+						"next":  endID.String(),
+					},
+					{
+						"id":    section2ID.String(),
+						"type":  "section",
+						"label": "Section 2",
+						"next":  endID.String(),
+					},
+					{
+						"id":    endID.String(),
+						"type":  "end",
+						"label": "End",
+					},
+				}
+
+				questionStore := &mockQuestionStore{
+					questions: map[uuid.UUID]question.Answerable{
+						questionID: createMockAnswerable(t, formID, question.QuestionTypeSingleChoice),
+					},
+				}
+
+				return createWorkflowJSON(t, nodes), questionStore
+			},
+			expectedErr: true,
+		},
+	}
+
+	validator := workflow.NewValidator()
+	ctx := context.Background()
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			workflowJSON, questionStore := tc.setup()
+			err := validator.Validate(ctx, formID, workflowJSON, questionStore)
+
+			if tc.expectedErr {
+				require.Error(t, err, "expected validation error")
+			} else {
+				require.NoError(t, err, "expected validation to pass but got error: %v", err)
+			}
+		})
+	}
+}

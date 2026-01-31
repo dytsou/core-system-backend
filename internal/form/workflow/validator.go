@@ -5,11 +5,51 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
+	"strings"
 
 	"NYCU-SDC/core-system-backend/internal/form/question"
 	"NYCU-SDC/core-system-backend/internal/form/workflow/node"
 
 	"github.com/google/uuid"
+)
+
+// uuidPattern matches UUID format in error messages
+const uuidPattern = `([a-f0-9-]{36})`
+
+// nodeIDPatternTemplates defines all patterns for extracting node IDs from error messages.
+// Each template uses %s as placeholder for the UUID pattern.
+// Order matters: more specific patterns (with node type) should come before generic ones.
+var nodeIDPatternTemplates = []string{
+	// Node type specific patterns: "start node 'uuid'", "section node 'uuid'", etc.
+	node.TypeStart + " node '%s'",
+	node.TypeSection + " node '%s'",
+	node.TypeCondition + " node '%s'",
+	node.TypeEnd + " node '%s'",
+	// Generic node pattern: "node 'uuid' is unreachable"
+	"node '%s'",
+	// Duplicate node ID pattern: "duplicate node id 'uuid'"
+	"duplicate node id '%s'",
+}
+
+// nodeIDPatterns contains compiled regex patterns for extracting node IDs from error messages.
+var nodeIDPatterns = func() []*regexp.Regexp {
+	patterns := make([]*regexp.Regexp, 0, len(nodeIDPatternTemplates))
+	for _, template := range nodeIDPatternTemplates {
+		pattern := regexp.MustCompile(fmt.Sprintf(template, uuidPattern))
+		patterns = append(patterns, pattern)
+	}
+	return patterns
+}()
+
+// ValidationInfoType represents the category of validation error
+type ValidationInfoType string
+
+const (
+	ValidationTypeWorkflow ValidationInfoType = "workflow_validation_failed"
+	ValidationTypeGraph    ValidationInfoType = "graph_validation_failed"
+	ValidationTypeNode     ValidationInfoType = "node_validation_failed"
+	ValidationTypeUnknown  ValidationInfoType = "unknown"
 )
 
 // QuestionStore defines the interface for querying form questions
@@ -91,6 +131,12 @@ func (v workflowValidator) Validate(ctx context.Context, formID uuid.UUID, workf
 
 	if nodeMap != nil {
 		err := validateGraphReferences(nodes, nodeMap)
+		if err != nil {
+			validationErrors = append(validationErrors, fmt.Errorf("graph validation failed: %w", err))
+		}
+
+		// Validate that condition nodes don't reference sections that come after them
+		err = validateConditionSectionOrder(nodes)
 		if err != nil {
 			validationErrors = append(validationErrors, fmt.Errorf("graph validation failed: %w", err))
 		}
@@ -396,15 +442,15 @@ func validateGraphConnectivity(nodes []map[string]interface{}, nodeMap map[strin
 	}
 
 	// Check if all nodes are reachable
-	unreachableNodes := []string{}
+	var unreachableErrors []error
 	for nodeID := range nodeMap {
 		if !visited[nodeID] {
-			unreachableNodes = append(unreachableNodes, nodeID)
+			unreachableErrors = append(unreachableErrors, fmt.Errorf("node '%s' is unreachable from the start node", nodeID))
 		}
 	}
 
-	if len(unreachableNodes) > 0 {
-		return fmt.Errorf("unreachable nodes found: %v. All nodes must be reachable from the start node", unreachableNodes)
+	if len(unreachableErrors) > 0 {
+		return errors.Join(unreachableErrors...)
 	}
 
 	return nil
@@ -448,6 +494,143 @@ func validateGraphReferences(nodes []map[string]interface{}, nodeMap map[string]
 	if len(referenceErrors) > 0 {
 		return fmt.Errorf("invalid node references found: %w", errors.Join(referenceErrors...))
 	}
+	return nil
+}
+
+// validateConditionSectionOrder checks that condition nodes reference sections
+// that are visited before the condition in the workflow traversal.
+// If a condition references a section that comes after it in the graph,
+// the condition will always evaluate to false (section not yet visited).
+// Returns error if any condition references a section that comes after it.
+func validateConditionSectionOrder(nodes []map[string]interface{}) error {
+	// Find the start node
+	var startNodeID string
+	for _, n := range nodes {
+		nodeType, _ := n["type"].(string)
+		if nodeType == string(NodeTypeStart) {
+			startNodeID, _ = n["id"].(string)
+			break
+		}
+	}
+
+	if startNodeID == "" {
+		// No start node found, skip this validation (other validations will catch this)
+		return nil
+	}
+
+	// Build adjacency list for graph traversal
+	graph := make(map[string][]string)
+	for _, n := range nodes {
+		nodeID, _ := n["id"].(string)
+		nodeType, _ := n["type"].(string)
+
+		var nextNodes []string
+		switch nodeType {
+		case string(NodeTypeCondition):
+			nextTrue, ok := n["nextTrue"].(string)
+			if !ok || nextTrue == "" {
+				continue
+			}
+			nextNodes = append(nextNodes, nextTrue)
+			nextFalse, ok := n["nextFalse"].(string)
+			if !ok || nextFalse == "" {
+				continue
+			}
+			nextNodes = append(nextNodes, nextFalse)
+		default:
+			next, ok := n["next"].(string)
+			if !ok || next == "" {
+				continue
+			}
+			nextNodes = append(nextNodes, next)
+		}
+		graph[nodeID] = nextNodes
+	}
+
+	// Collect all condition nodes with their conditionRule.nodeId
+	type conditionInfo struct {
+		conditionNodeID  string
+		referencedNodeID string
+	}
+	var conditionsToCheck []conditionInfo
+
+	for _, node := range nodes {
+		nodeType, _ := node["type"].(string)
+		if nodeType != string(NodeTypeCondition) {
+			continue
+		}
+
+		nodeID, _ := node["id"].(string)
+		rawRule, ok := node["conditionRule"]
+		if !ok {
+			continue
+		}
+
+		// Parse conditionRule to get nodeId
+		ruleMap, ok := rawRule.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		referencedNodeID, ok := ruleMap["nodeId"].(string)
+		if !ok || referencedNodeID == "" {
+			continue
+		}
+
+		conditionsToCheck = append(conditionsToCheck, conditionInfo{
+			conditionNodeID:  nodeID,
+			referencedNodeID: referencedNodeID,
+		})
+	}
+
+	if len(conditionsToCheck) == 0 {
+		return nil
+	}
+
+	// BFS traversal to determine visit order
+	// Track when each node is first visited (order number)
+	visitOrder := make(map[string]int)
+	queue := []string{startNodeID}
+	order := 0
+	visitOrder[startNodeID] = order
+
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+
+		for _, nextNodeID := range graph[current] {
+			_, visited := visitOrder[nextNodeID]
+			if !visited {
+				order++
+				visitOrder[nextNodeID] = order
+				queue = append(queue, nextNodeID)
+			}
+		}
+	}
+
+	// Check each condition: referenced section must be visited before the condition
+	var orderErrors []error
+	for _, cond := range conditionsToCheck {
+		condOrder, condVisited := visitOrder[cond.conditionNodeID]
+		refOrder, refVisited := visitOrder[cond.referencedNodeID]
+
+		// If condition is not visited (unreachable), skip - other validation will catch it
+		if !condVisited {
+			continue
+		}
+
+		// If referenced node is not visited or comes after the condition
+		if !refVisited || refOrder >= condOrder {
+			orderErrors = append(orderErrors, fmt.Errorf(
+				"condition node '%s' references section '%s' in conditionRule.nodeId that has not been visited yet; condition will always evaluate to false",
+				cond.conditionNodeID, cond.referencedNodeID))
+		}
+	}
+
+	if len(orderErrors) > 0 {
+		return errors.Join(orderErrors...)
+	}
+
 	return nil
 }
 
@@ -555,4 +738,134 @@ func validateNodeIDsUnchanged(currentWorkflow, newWorkflow []byte) error {
 	}
 
 	return nil
+}
+
+// extractLeafErrors extracts leaf errors from a joined error (errors.Join style).
+// For non-joined errors, it returns the error as-is without unwrapping.
+func extractLeafErrors(err error) []error {
+	if err == nil {
+		return nil
+	}
+
+	// Handle joined errors (errors.Join style)
+	joined, ok := err.(interface{ Unwrap() []error })
+
+	if !ok {
+		return []error{err}
+	}
+
+	allErrors := make([]error, 0, len(joined.Unwrap()))
+	for _, e := range joined.Unwrap() {
+		allErrors = append(allErrors, extractLeafErrors(e)...)
+	}
+	return allErrors
+}
+
+// parseValidationErrors extracts individual validation errors from a joined error
+// and parses them to extract node IDs and error types where applicable.
+// Each line with a node ID gets its own ValidationInfo with the prefix prepended.
+func parseValidationErrors(err error) []ValidationInfo {
+	var validationInfos []ValidationInfo
+
+	allErrors := extractLeafErrors(err)
+
+	for _, e := range allErrors {
+		msg := e.Error()
+
+		// Extract type from full message (before splitting)
+		errType := extractValidationType(msg)
+
+		// Extract prefix and split into lines
+		_, lines := extractPrefixAndLines(msg)
+
+		for _, line := range lines {
+			if line == "" {
+				continue
+			}
+
+			nodeID := extractNodeID(line)
+
+			validationInfos = append(validationInfos, ValidationInfo{
+				NodeID:  nodeID,
+				Type:    errType,
+				Message: line, // Message without prefix
+			})
+		}
+	}
+
+	return validationInfos
+}
+
+// extractPrefixAndLines splits an error message into prefix and individual lines.
+// Strips known prefixes from the content.
+func extractPrefixAndLines(msg string) (string, []string) {
+	prefix := ""
+	content := msg
+
+	// Extract top-level prefix
+	if strings.HasPrefix(content, "workflow validation failed: ") {
+		prefix = "workflow validation failed: "
+		content = strings.TrimPrefix(content, prefix)
+	}
+
+	// Split remaining content by newlines
+	lines := strings.Split(content, "\n")
+
+	// Clean each line by stripping nested prefixes
+	for i, line := range lines {
+		lines[i] = stripNestedPrefixes(line)
+	}
+
+	return prefix, lines
+}
+
+// stripNestedPrefixes removes known prefixes from a line.
+func stripNestedPrefixes(line string) string {
+	result := line
+
+	// Strip static prefixes
+	staticPrefixes := []string{
+		"graph validation failed: ",
+		"invalid node references found: ",
+	}
+	for _, p := range staticPrefixes {
+		result = strings.TrimPrefix(result, p)
+	}
+
+	// Strip "node at index N: " pattern
+	nodeAtIndexPattern := regexp.MustCompile(`^node at index \d+: `)
+	result = nodeAtIndexPattern.ReplaceAllString(result, "")
+
+	return result
+}
+
+// extractNodeID extracts a single node ID from a line, returns nil if none found.
+func extractNodeID(line string) *string {
+	for _, pattern := range nodeIDPatterns {
+		matches := pattern.FindStringSubmatch(line)
+		if len(matches) > 1 {
+			id := matches[1]
+			// Validate it's a proper UUID
+			_, parseErr := uuid.Parse(id)
+			if parseErr == nil {
+				return &id
+			}
+		}
+	}
+	return nil
+}
+
+// extractValidationType determines the validation error category from a message.
+func extractValidationType(msg string) ValidationInfoType {
+	if strings.Contains(msg, "graph validation failed") {
+		return ValidationTypeGraph
+	}
+	if strings.Contains(msg, "node at index") || strings.HasPrefix(msg, "node ") ||
+		strings.Contains(msg, " node '") {
+		return ValidationTypeNode
+	}
+	if strings.Contains(msg, "workflow") {
+		return ValidationTypeWorkflow
+	}
+	return ValidationTypeUnknown
 }
