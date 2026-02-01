@@ -11,13 +11,13 @@ import (
 
 type ChoiceOption struct {
 	Name        string `json:"name" validate:"required"`
-	Description string `json:"description,omitempty"`
+	Description string `json:"description"`
 }
 
 type Choice struct {
 	ID          uuid.UUID `json:"id"`
 	Name        string    `json:"name"`
-	Description string    `json:"description,omitempty"`
+	Description string    `json:"description"`
 }
 
 type SingleChoice struct {

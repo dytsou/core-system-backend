@@ -92,6 +92,7 @@ func ToResponse(answerable Answerable) (Response, error) {
 			}
 		}
 		response.Scale = &ScaleOption{
+			Icon:          scale.Icon,
 			MinVal:        scale.MinVal,
 			MaxVal:        scale.MaxVal,
 			MinValueLabel: scale.MinValueLabel,

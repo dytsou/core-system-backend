@@ -12,13 +12,14 @@ import (
 var iconsJSON []byte
 
 type ScaleOption struct {
-	Icon          string `json:"icon,omitempty"`
+	Icon          string `json:"icon"`
 	MinVal        int    `json:"minVal" validate:"required"`
 	MaxVal        int    `json:"maxVal" validate:"required"`
 	MinValueLabel string `json:"minValueLabel,omitempty"`
 	MaxValueLabel string `json:"maxValueLabel,omitempty"`
 }
 type LinearScaleMetadata struct {
+	Icon          string `json:"icon"`
 	MinVal        int    `json:"minVal" validate:"required"`
 	MaxVal        int    `json:"maxVal" validate:"required"`
 	MinValueLabel string `json:"minValueLabel"`
@@ -172,6 +173,7 @@ func GenerateLinearScaleMetadata(option ScaleOption) ([]byte, error) {
 
 	metadata := map[string]any{
 		"scale": LinearScaleMetadata{
+			Icon:          option.Icon,
 			MinVal:        option.MinVal,
 			MaxVal:        option.MaxVal,
 			MinValueLabel: option.MinValueLabel,
