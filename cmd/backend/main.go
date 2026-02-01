@@ -203,6 +203,7 @@ func main() {
 
 	// User authenticated routes
 	mux.Handle("GET /api/users/me", authMiddleware.HandlerFunc(userHandler.GetMe))
+	mux.Handle("PUT /api/users/onboarding", authMiddleware.HandlerFunc(userHandler.Onboarding))
 
 	// Unit routes
 	mux.Handle("POST /api/orgs", authMiddleware.HandlerFunc(unitHandler.CreateOrg))

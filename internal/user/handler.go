@@ -19,7 +19,7 @@ import (
 // GetFromContext extracts the authenticated user from request context
 func GetFromContext(ctx context.Context) (*User, bool) {
 	userData, ok := ctx.Value(internal.UserContextKey).(*User)
-	return userData, ok
+	return userData, ok 																																																																																																																																																							
 }
 
 func ConvertEmailsToSlice(emails interface{}) []string {
@@ -54,7 +54,7 @@ type MeResponse struct {
 
 // OnboardingRequest represents the request format for /user/onboarding endpoint
 type OnboardingRequest struct {
-	Username string `json:"username" validate:"required,min=4,max=15, username_rule"`
+	Username string `json:"username" validate:"required,min=4,max=15,username_rules"`
 	Name     string `json:"name" validate:"required"`
 }
 

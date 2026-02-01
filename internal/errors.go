@@ -33,6 +33,7 @@ var (
 	ErrEmailAlreadyExists = errors.New("email already exists")
 	ErrUserOnboarded      = errors.New("user already onboarded")
 	ErrUsernameConflict   = errors.New("user name already taken")
+	ErrDatabaseError      = errors.New("database error")
 
 	// OAuth Email Errors
 	ErrFailedToExtractEmail = errors.New("failed to extract email from OAuth token")
@@ -110,6 +111,8 @@ func ErrorHandler(err error) problem.Problem {
 		return problem.NewValidateProblem("user already onboarded")
 	case errors.Is(err, ErrUsernameConflict):
 		return problem.NewValidateProblem("username already taken")
+	case errors.Is(err, ErrDatabaseError):
+		return problem.NewBadRequestProblem("database error")
 
 	// OAuth Email Errors
 	case errors.Is(err, ErrFailedToExtractEmail):

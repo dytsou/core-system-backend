@@ -201,6 +201,7 @@ func (s *Service) GetEmailsByID(ctx context.Context, userID uuid.UUID) ([]string
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "get emails by user id")
 		span.RecordError(err)
+
 		return nil, err
 	}
 
@@ -216,7 +217,7 @@ func (s *Service) Onboarding(ctx context.Context, id uuid.UUID, name, username s
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "get user by id")
 		span.RecordError(err)
-		return User{}, err
+		return User{}, internal.ErrDatabaseError
 	}
 
 	if userInfo.IsOnboarded {
@@ -243,7 +244,7 @@ func (s *Service) Onboarding(ctx context.Context, id uuid.UUID, name, username s
 			return User{}, internal.ErrUsernameConflict
 		}
 		span.RecordError(err)
-		return User{}, err
+		return User{}, internal.ErrDatabaseError
 	}
 	return user, nil
 }
