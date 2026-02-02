@@ -30,8 +30,9 @@ type ResponseStore interface {
 type UserFormStatus string
 
 const (
-	UserFormStatusInProgress UserFormStatus = "in_progress"
-	UserFormStatusCompleted  UserFormStatus = "completed"
+	UserFormStatusNotStarted UserFormStatus = "NOT_STARTED"
+	UserFormStatusInProgress UserFormStatus = "IN_PROGRESS"
+	UserFormStatusCompleted  UserFormStatus = "COMPLETED"
 )
 
 type UserForm struct {
@@ -232,7 +233,7 @@ func (s *Service) ListFormsOfUser(ctx context.Context, unitIDs []uuid.UUID, user
 	for formID, form := range allForms {
 		status, exists := formStatusMap[formID]
 		if !exists {
-			status = UserFormStatusInProgress
+			status = UserFormStatusNotStarted
 		}
 
 		userForms = append(userForms, UserForm{
