@@ -3,6 +3,7 @@ package form
 import (
 	"NYCU-SDC/core-system-backend/internal/form/response"
 	"context"
+	"slices"
 
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
@@ -243,6 +244,31 @@ func (s *Service) ListFormsOfUser(ctx context.Context, unitIDs []uuid.UUID, user
 			Status:   status,
 		})
 	}
+
+	slices.SortFunc(userForms, func(a, b UserForm) int {
+
+		if a.Deadline.Valid != b.Deadline.Valid {
+			if a.Deadline.Valid {
+				return -1
+			}
+			return 1
+		}
+
+		if a.Deadline.Valid {
+			if n := a.Deadline.Time.Compare(b.Deadline.Time); n != 0 {
+				return n
+			}
+		}
+
+		if a.Title < b.Title {
+			return -1
+		}
+		if a.Title > b.Title {
+			return 1
+		}
+
+		return 0
+	})
 
 	return userForms, nil
 }
