@@ -139,10 +139,10 @@ func main() {
 	tenantService := tenant.NewService(logger, dbPool)
 	unitService := unit.NewService(logger, dbPool, tenantService)
 	distributeService := distribute.NewService(logger, unitService)
-	formService := form.NewService(logger, dbPool)
 	questionService := question.NewService(logger, dbPool)
 	inboxService := inbox.NewService(logger, dbPool)
 	responseService := response.NewService(logger, dbPool)
+	formService := form.NewService(logger, dbPool, responseService)
 	submitService := submit.NewService(logger, formService, questionService, responseService)
 	publishService := publish.NewService(logger, distributeService, formService, inboxService)
 	workflowService := workflow.NewService(logger, dbPool, questionService)
@@ -225,6 +225,7 @@ func main() {
 	mux.Handle("POST /api/orgs/{slug}/units/{id}/members", tenantAuthMiddleware.HandlerFunc(unitHandler.AddUnitMember))
 	mux.Handle("GET /api/orgs/{slug}/units/{id}/members", tenantBasicMiddleware.HandlerFunc(unitHandler.ListUnitMembers))
 	mux.Handle("DELETE /api/orgs/{slug}/units/{id}/members/{member_id}", tenantAuthMiddleware.HandlerFunc(unitHandler.RemoveUnitMember))
+	mux.Handle("GET /api/forms/me", authMiddleware.HandlerFunc(unitHandler.ListFormsOfCurrentUser))
 
 	// Slug availability and history
 	mux.Handle("GET /api/orgs/{slug}/status", basicMiddleware.HandlerFunc(tenantHandler.GetStatus))
