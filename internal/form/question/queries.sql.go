@@ -57,17 +57,26 @@ func (q *Queries) Create(ctx context.Context, arg CreateParams) (Question, error
 	return i, err
 }
 
-const delete = `-- name: Delete :exec
-DELETE FROM questions WHERE section_id = $1 AND id = $2
+const deleteAndReorder = `-- name: DeleteAndReorder :exec
+WITH deleted_row AS (
+    DELETE FROM questions q
+    WHERE q.section_id = $1 AND q.id = $2
+    RETURNING "order" as old_order, section_id
+)
+UPDATE questions q
+SET "order" = q."order" - 1
+FROM deleted_row
+WHERE q.section_id = deleted_row.section_id
+  AND "order" > deleted_row.old_order
 `
 
-type DeleteParams struct {
+type DeleteAndReorderParams struct {
 	SectionID uuid.UUID
 	ID        uuid.UUID
 }
 
-func (q *Queries) Delete(ctx context.Context, arg DeleteParams) error {
-	_, err := q.db.Exec(ctx, delete, arg.SectionID, arg.ID)
+func (q *Queries) DeleteAndReorder(ctx context.Context, arg DeleteAndReorderParams) error {
+	_, err := q.db.Exec(ctx, deleteAndReorder, arg.SectionID, arg.ID)
 	return err
 }
 
@@ -248,9 +257,9 @@ shifted AS (
     WHERE section_id = $1 AND id != $2
     RETURNING id
 )
-UPDATE questions
+UPDATE questions q
 SET "order" = $3, updated_at = now()
-WHERE questions.id = $2 AND questions.section_id = $1
+WHERE q.id = $2 AND q.section_id = $1
 RETURNING id, section_id, required, type, title, description, metadata, "order", source_id, created_at, updated_at
 `
 

@@ -15,7 +15,7 @@ type Querier interface {
 	Create(ctx context.Context, params CreateParams) (Question, error)
 	Update(ctx context.Context, params UpdateParams) (Question, error)
 	UpdateOrder(ctx context.Context, params UpdateOrderParams) (Question, error)
-	Delete(ctx context.Context, params DeleteParams) error
+	DeleteAndReorder(ctx context.Context, arg DeleteAndReorderParams) error
 	ListByFormID(ctx context.Context, formID uuid.UUID) ([]ListByFormIDRow, error)
 	GetByID(ctx context.Context, id uuid.UUID) (Question, error)
 }
@@ -89,12 +89,12 @@ func (s *Service) UpdateOrder(ctx context.Context, input UpdateOrderParams) (Ans
 	return NewAnswerable(q)
 }
 
-func (s *Service) Delete(ctx context.Context, sectionID uuid.UUID, id uuid.UUID) error {
+func (s *Service) DeleteAndReorder(ctx context.Context, sectionID uuid.UUID, id uuid.UUID) error {
 	ctx, span := s.tracer.Start(ctx, "Delete")
 	defer span.End()
 	logger := logutil.WithContext(ctx, s.logger)
 
-	err := s.queries.Delete(ctx, DeleteParams{
+	err := s.queries.DeleteAndReorder(ctx, DeleteAndReorderParams{
 		SectionID: sectionID,
 		ID:        id,
 	})

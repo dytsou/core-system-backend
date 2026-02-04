@@ -32,13 +32,22 @@ shifted AS (
     WHERE section_id = $1 AND id != $2
     RETURNING id
 )
-UPDATE questions
+UPDATE questions q
 SET "order" = $3, updated_at = now()
-WHERE questions.id = $2 AND questions.section_id = $1
+WHERE q.id = $2 AND q.section_id = $1
 RETURNING *;
 
--- name: Delete :exec
-DELETE FROM questions WHERE section_id = $1 AND id = $2;
+-- name: DeleteAndReorder :exec
+WITH deleted_row AS (
+    DELETE FROM questions q
+    WHERE q.section_id = $1 AND q.id = $2
+    RETURNING "order" as old_order, section_id
+)
+UPDATE questions q
+SET "order" = q."order" - 1
+FROM deleted_row
+WHERE q.section_id = deleted_row.section_id
+  AND "order" > deleted_row.old_order;
 
 -- name: ListByFormID :many
 SELECT

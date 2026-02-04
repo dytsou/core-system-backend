@@ -151,7 +151,7 @@ type Store interface {
 	Create(ctx context.Context, input CreateParams) (Answerable, error)
 	Update(ctx context.Context, input UpdateParams) (Answerable, error)
 	UpdateOrder(ctx context.Context, input UpdateOrderParams) (Answerable, error)
-	Delete(ctx context.Context, sectionID uuid.UUID, id uuid.UUID) error
+	DeleteAndReorder(ctx context.Context, sectionID uuid.UUID, id uuid.UUID) error
 	ListByFormID(ctx context.Context, formID uuid.UUID) ([]SectionWithQuestions, error)
 }
 
@@ -324,7 +324,7 @@ func (h *Handler) DeleteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.store.Delete(traceCtx, sectionID, id)
+	err = h.store.DeleteAndReorder(traceCtx, sectionID, id)
 	if err != nil {
 		h.problemWriter.WriteError(traceCtx, w, err, logger)
 		return
