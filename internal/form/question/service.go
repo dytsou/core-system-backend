@@ -1,7 +1,9 @@
 package question
 
 import (
+	"cmp"
 	"context"
+	"slices"
 
 	databaseutil "github.com/NYCU-SDC/summer/pkg/database"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
@@ -168,6 +170,11 @@ func (s *Service) ListByFormID(ctx context.Context, formID uuid.UUID) ([]Section
 	for _, q := range sectionMap {
 		result = append(result, *q)
 	}
+
+	slices.SortFunc(result, func(a, b SectionWithQuestions) int {
+		return cmp.Compare(a.Section.ID.String(), b.Section.ID.String())
+	})
+
 	return result, nil
 }
 
