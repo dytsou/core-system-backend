@@ -355,6 +355,7 @@ type FormResponse struct {
 	ID          uuid.UUID
 	FormID      uuid.UUID
 	SubmittedBy uuid.UUID
+	SubmittedAt pgtype.Timestamptz
 	CreatedAt   pgtype.Timestamptz
 	UpdatedAt   pgtype.Timestamptz
 }
