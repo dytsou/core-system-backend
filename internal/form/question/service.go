@@ -14,16 +14,17 @@ import (
 )
 
 type Querier interface {
-	Create(ctx context.Context, params CreateParams) (Question, error)
-	Update(ctx context.Context, params UpdateParams) (Question, error)
-	UpdateOrder(ctx context.Context, params UpdateOrderParams) (Question, error)
+	Create(ctx context.Context, params CreateParams) (CreateRow, error)
+	Update(ctx context.Context, params UpdateParams) (UpdateRow, error)
+	UpdateOrder(ctx context.Context, params UpdateOrderParams) (UpdateOrderRow, error)
 	DeleteAndReorder(ctx context.Context, arg DeleteAndReorderParams) error
 	ListByFormID(ctx context.Context, formID uuid.UUID) ([]ListByFormIDRow, error)
-	GetByID(ctx context.Context, id uuid.UUID) (Question, error)
+	GetByID(ctx context.Context, id uuid.UUID) (GetByIDRow, error)
 }
 
 type Answerable interface {
 	Question() Question
+	FormID() uuid.UUID
 	Validate(value string) error
 }
 
@@ -51,14 +52,14 @@ func (s *Service) Create(ctx context.Context, input CreateParams) (Answerable, e
 	defer span.End()
 	logger := logutil.WithContext(ctx, s.logger)
 
-	q, err := s.queries.Create(ctx, input)
+	row, err := s.queries.Create(ctx, input)
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "create question")
 		span.RecordError(err)
 		return nil, err
 	}
 
-	return NewAnswerable(q)
+	return NewAnswerable(row.ToQuestion(), row.FormID)
 }
 
 func (s *Service) Update(ctx context.Context, input UpdateParams) (Answerable, error) {
@@ -66,14 +67,14 @@ func (s *Service) Update(ctx context.Context, input UpdateParams) (Answerable, e
 	defer span.End()
 	logger := logutil.WithContext(ctx, s.logger)
 
-	q, err := s.queries.Update(ctx, input)
+	row, err := s.queries.Update(ctx, input)
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "update question")
 		span.RecordError(err)
 		return nil, err
 	}
 
-	return NewAnswerable(q)
+	return NewAnswerable(row.ToQuestion(), row.FormID)
 }
 
 func (s *Service) UpdateOrder(ctx context.Context, input UpdateOrderParams) (Answerable, error) {
@@ -81,14 +82,14 @@ func (s *Service) UpdateOrder(ctx context.Context, input UpdateOrderParams) (Ans
 	defer span.End()
 	logger := logutil.WithContext(ctx, s.logger)
 
-	q, err := s.queries.UpdateOrder(ctx, input)
+	row, err := s.queries.UpdateOrder(ctx, input)
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "update order for the question")
 		span.RecordError(err)
 		return nil, err
 	}
 
-	return NewAnswerable(q)
+	return NewAnswerable(row.ToQuestion(), row.FormID)
 }
 
 func (s *Service) DeleteAndReorder(ctx context.Context, sectionID uuid.UUID, id uuid.UUID) error {
@@ -155,7 +156,7 @@ func (s *Service) ListByFormID(ctx context.Context, formID uuid.UUID) ([]Section
 				CreatedAt:   row.QuestionCreatedAt,
 				UpdatedAt:   row.QuestionUpdatedAt,
 			}
-			answerable, err := NewAnswerable(q)
+			answerable, err := NewAnswerable(q, row.FormID)
 			if err != nil {
 				err = databaseutil.WrapDBError(err, logger, "create answerable from question")
 				span.RecordError(err)
@@ -183,12 +184,13 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (Answerable, error)
 	defer span.End()
 	logger := logutil.WithContext(ctx, s.logger)
 
-	q, err := s.queries.GetByID(ctx, id)
+	row, err := s.queries.GetByID(ctx, id)
 	if err != nil {
 		err = databaseutil.WrapDBError(err, logger, "get question by id")
 		span.RecordError(err)
 		return nil, err
 	}
 
-	return NewAnswerable(q)
+	q := row.ToQuestion()
+	return NewAnswerable(q, row.FormID)
 }

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+
+	"github.com/google/uuid"
 )
 
 type OauthProvider string
@@ -20,6 +22,7 @@ var validOauthProviders = map[OauthProvider]bool{
 
 type OAuthConnect struct {
 	question Question
+	formID   uuid.UUID
 	Provider OauthProvider
 }
 
@@ -27,12 +30,16 @@ func (o OAuthConnect) Question() Question {
 	return o.question
 }
 
+func (o OAuthConnect) FormID() uuid.UUID {
+	return o.formID
+}
+
 func (o OAuthConnect) Validate(value string) error {
 	// TODO
 	return errors.New("not implemented")
 }
 
-func NewOAuthConnect(q Question) (OAuthConnect, error) {
+func NewOAuthConnect(q Question, formID uuid.UUID) (OAuthConnect, error) {
 	if q.Metadata == nil {
 		return OAuthConnect{}, errors.New("metadata is nil")
 	}
@@ -57,6 +64,7 @@ func NewOAuthConnect(q Question) (OAuthConnect, error) {
 
 	return OAuthConnect{
 		question: q,
+		formID:   formID,
 		Provider: provider,
 	}, nil
 }

@@ -1,33 +1,35 @@
 package question
 
-func NewAnswerable(q Question) (Answerable, error) {
+import "github.com/google/uuid"
+
+func NewAnswerable(q Question, formID uuid.UUID) (Answerable, error) {
 	switch q.Type {
 	case QuestionTypeShortText:
-		return NewShortText(q), nil
+		return NewShortText(q, formID), nil
 	case QuestionTypeLongText:
-		return NewLongText(q), nil
+		return NewLongText(q, formID), nil
 	case QuestionTypeSingleChoice:
-		return NewSingleChoice(q)
+		return NewSingleChoice(q, formID)
 	case QuestionTypeMultipleChoice:
-		return NewMultiChoice(q)
+		return NewMultiChoice(q, formID)
 	case QuestionTypeDate:
-		return NewDate(q)
+		return NewDate(q, formID)
 	case QuestionTypeDropdown:
-		return NewSingleChoice(q)
+		return NewSingleChoice(q, formID)
 	case QuestionTypeDetailedMultipleChoice:
-		return NewDetailedMultiChoice(q)
+		return NewDetailedMultiChoice(q, formID)
 	case QuestionTypeLinearScale:
-		return NewLinearScale(q)
+		return NewLinearScale(q, formID)
 	case QuestionTypeRating:
-		return NewRating(q)
+		return NewRating(q, formID)
 	case QuestionTypeRanking:
-		return NewRanking(q)
+		return NewRanking(q, formID)
 	case QuestionTypeOauthConnect:
-		return NewOAuthConnect(q)
+		return NewOAuthConnect(q, formID)
 	case QuestionTypeUploadFile:
-		return NewUploadFile(q)
+		return NewUploadFile(q, formID)
 	case QuestionTypeHyperlink:
-		return NewHyperlink(q), nil
+		return NewHyperlink(q, formID), nil
 	}
 
 	return nil, ErrUnsupportedQuestionType{

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 // FileType represents allowed file extensions
@@ -95,6 +97,7 @@ type UploadFileMetadata struct {
 
 type UploadFile struct {
 	question         Question
+	formID           uuid.UUID
 	AllowedFileTypes []FileType
 	MaxFileAmount    int32
 	MaxFileSizeLimit FileSizeLimit
@@ -102,6 +105,10 @@ type UploadFile struct {
 
 func (u UploadFile) Question() Question {
 	return u.question
+}
+
+func (u UploadFile) FormID() uuid.UUID {
+	return u.formID
 }
 
 func (u UploadFile) Validate(value string) error {
@@ -124,7 +131,7 @@ func (u UploadFile) Validate(value string) error {
 	return nil
 }
 
-func NewUploadFile(q Question) (UploadFile, error) {
+func NewUploadFile(q Question, formID uuid.UUID) (UploadFile, error) {
 	if q.Metadata == nil {
 		return UploadFile{}, errors.New("metadata is nil")
 	}
@@ -165,6 +172,7 @@ func NewUploadFile(q Question) (UploadFile, error) {
 
 	return UploadFile{
 		question:         q,
+		formID:           formID,
 		AllowedFileTypes: uploadFile.AllowedFileTypes,
 		MaxFileAmount:    uploadFile.MaxFileAmount,
 		MaxFileSizeLimit: uploadFile.MaxFileSizeLimit,

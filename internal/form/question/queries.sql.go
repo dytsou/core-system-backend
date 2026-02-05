@@ -13,9 +13,26 @@ import (
 )
 
 const create = `-- name: Create :one
-INSERT INTO questions (section_id, required, type, title, description, metadata, "order", source_id)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+WITH inserted AS (
+    INSERT INTO questions (section_id, required, type, title, description, metadata, "order", source_id)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     RETURNING id, section_id, required, type, title, description, metadata, "order", source_id, created_at, updated_at
+)
+SELECT 
+    i.id,
+    i.section_id,
+    i.required,
+    i.type,
+    i.title,
+    i.description,
+    i.metadata,
+    i."order",
+    i.source_id,
+    i.created_at,
+    i.updated_at,
+    s.form_id
+FROM inserted i
+JOIN sections s ON i.section_id = s.id
 `
 
 type CreateParams struct {
@@ -29,7 +46,22 @@ type CreateParams struct {
 	SourceID    pgtype.UUID
 }
 
-func (q *Queries) Create(ctx context.Context, arg CreateParams) (Question, error) {
+type CreateRow struct {
+	ID          uuid.UUID
+	SectionID   uuid.UUID
+	Required    bool
+	Type        QuestionType
+	Title       pgtype.Text
+	Description pgtype.Text
+	Metadata    []byte
+	Order       int32
+	SourceID    pgtype.UUID
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+	FormID      uuid.UUID
+}
+
+func (q *Queries) Create(ctx context.Context, arg CreateParams) (CreateRow, error) {
 	row := q.db.QueryRow(ctx, create,
 		arg.SectionID,
 		arg.Required,
@@ -40,7 +72,7 @@ func (q *Queries) Create(ctx context.Context, arg CreateParams) (Question, error
 		arg.Order,
 		arg.SourceID,
 	)
-	var i Question
+	var i CreateRow
 	err := row.Scan(
 		&i.ID,
 		&i.SectionID,
@@ -53,6 +85,7 @@ func (q *Queries) Create(ctx context.Context, arg CreateParams) (Question, error
 		&i.SourceID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.FormID,
 	)
 	return i, err
 }
@@ -81,12 +114,42 @@ func (q *Queries) DeleteAndReorder(ctx context.Context, arg DeleteAndReorderPara
 }
 
 const getByID = `-- name: GetByID :one
-SELECT id, section_id, required, type, title, description, metadata, "order", source_id, created_at, updated_at FROM questions WHERE id = $1
+SELECT 
+    q.id,
+    q.section_id,
+    q.required,
+    q.type,
+    q.title,
+    q.description,
+    q.metadata,
+    q."order",
+    q.source_id,
+    q.created_at,
+    q.updated_at,
+    s.form_id
+FROM questions q
+JOIN sections s ON q.section_id = s.id
+WHERE q.id = $1
 `
 
-func (q *Queries) GetByID(ctx context.Context, id uuid.UUID) (Question, error) {
+type GetByIDRow struct {
+	ID          uuid.UUID
+	SectionID   uuid.UUID
+	Required    bool
+	Type        QuestionType
+	Title       pgtype.Text
+	Description pgtype.Text
+	Metadata    []byte
+	Order       int32
+	SourceID    pgtype.UUID
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+	FormID      uuid.UUID
+}
+
+func (q *Queries) GetByID(ctx context.Context, id uuid.UUID) (GetByIDRow, error) {
 	row := q.db.QueryRow(ctx, getByID, id)
-	var i Question
+	var i GetByIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.SectionID,
@@ -99,6 +162,7 @@ func (q *Queries) GetByID(ctx context.Context, id uuid.UUID) (Question, error) {
 		&i.SourceID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.FormID,
 	)
 	return i, err
 }
@@ -189,10 +253,27 @@ func (q *Queries) ListByFormID(ctx context.Context, formID uuid.UUID) ([]ListByF
 }
 
 const update = `-- name: Update :one
-UPDATE questions
-SET required = $3, type = $4, title = $5, description = $6, metadata = $7, source_id = $8, updated_at = now()
-WHERE section_id = $1 AND id = $2
+WITH updated AS (
+    UPDATE questions
+    SET required = $3, type = $4, title = $5, description = $6, metadata = $7, source_id = $8, updated_at = now()
+    WHERE questions.section_id = $1 AND questions.id = $2
     RETURNING id, section_id, required, type, title, description, metadata, "order", source_id, created_at, updated_at
+)
+SELECT 
+    u.id,
+    u.section_id,
+    u.required,
+    u.type,
+    u.title,
+    u.description,
+    u.metadata,
+    u."order",
+    u.source_id,
+    u.created_at,
+    u.updated_at,
+    s.form_id
+FROM updated u
+JOIN sections s ON u.section_id = s.id
 `
 
 type UpdateParams struct {
@@ -206,7 +287,22 @@ type UpdateParams struct {
 	SourceID    pgtype.UUID
 }
 
-func (q *Queries) Update(ctx context.Context, arg UpdateParams) (Question, error) {
+type UpdateRow struct {
+	ID          uuid.UUID
+	SectionID   uuid.UUID
+	Required    bool
+	Type        QuestionType
+	Title       pgtype.Text
+	Description pgtype.Text
+	Metadata    []byte
+	Order       int32
+	SourceID    pgtype.UUID
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+	FormID      uuid.UUID
+}
+
+func (q *Queries) Update(ctx context.Context, arg UpdateParams) (UpdateRow, error) {
 	row := q.db.QueryRow(ctx, update,
 		arg.SectionID,
 		arg.ID,
@@ -217,7 +313,7 @@ func (q *Queries) Update(ctx context.Context, arg UpdateParams) (Question, error
 		arg.Metadata,
 		arg.SourceID,
 	)
-	var i Question
+	var i UpdateRow
 	err := row.Scan(
 		&i.ID,
 		&i.SectionID,
@@ -230,37 +326,52 @@ func (q *Queries) Update(ctx context.Context, arg UpdateParams) (Question, error
 		&i.SourceID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.FormID,
 	)
 	return i, err
 }
 
 const updateOrder = `-- name: UpdateOrder :one
-WITH old_order AS (
-    SELECT "order" as old_pos FROM questions WHERE id = $2 AND section_id = $1
-),
-shifted AS (
+WITH shifted AS (
     UPDATE questions
     SET "order" = CASE
         -- Moving down: shift questions between old and new position up
-        WHEN $3 > (SELECT old_pos FROM old_order) 
-             AND "order" > (SELECT old_pos FROM old_order) 
-             AND "order" <= $3
-        THEN "order" - 1
+        WHEN $3 > (SELECT q2."order" FROM questions q2 WHERE q2.id = $2 AND q2.section_id = $1) 
+             AND questions."order" > (SELECT q2."order" FROM questions q2 WHERE q2.id = $2 AND q2.section_id = $1) 
+             AND questions."order" <= $3
+        THEN questions."order" - 1
         -- Moving up: shift questions between new and old position down
-        WHEN $3 < (SELECT old_pos FROM old_order)
-             AND "order" >= $3
-             AND "order" < (SELECT old_pos FROM old_order)
-        THEN "order" + 1
-        ELSE "order"
+        WHEN $3 < (SELECT q2."order" FROM questions q2 WHERE q2.id = $2 AND q2.section_id = $1)
+             AND questions."order" >= $3
+             AND questions."order" < (SELECT q2."order" FROM questions q2 WHERE q2.id = $2 AND q2.section_id = $1)
+        THEN questions."order" + 1
+        ELSE questions."order"
     END,
     updated_at = now()
-    WHERE section_id = $1 AND id != $2
-    RETURNING id
+    WHERE questions.section_id = $1 AND questions.id != $2
+    RETURNING questions.id
+),
+updated AS (
+    UPDATE questions q
+    SET "order" = $3, updated_at = now()
+    WHERE q.id = $2 AND q.section_id = $1
+    RETURNING q.id, q.section_id, q.required, q.type, q.title, q.description, q.metadata, q."order", q.source_id, q.created_at, q.updated_at
 )
-UPDATE questions q
-SET "order" = $3, updated_at = now()
-WHERE q.id = $2 AND q.section_id = $1
-RETURNING id, section_id, required, type, title, description, metadata, "order", source_id, created_at, updated_at
+SELECT 
+    u.id,
+    u.section_id,
+    u.required,
+    u.type,
+    u.title,
+    u.description,
+    u.metadata,
+    u."order",
+    u.source_id,
+    u.created_at,
+    u.updated_at,
+    s.form_id
+FROM updated u
+JOIN sections s ON u.section_id = s.id
 `
 
 type UpdateOrderParams struct {
@@ -269,9 +380,24 @@ type UpdateOrderParams struct {
 	Order     int32
 }
 
-func (q *Queries) UpdateOrder(ctx context.Context, arg UpdateOrderParams) (Question, error) {
+type UpdateOrderRow struct {
+	ID          uuid.UUID
+	SectionID   uuid.UUID
+	Required    bool
+	Type        QuestionType
+	Title       pgtype.Text
+	Description pgtype.Text
+	Metadata    []byte
+	Order       int32
+	SourceID    pgtype.UUID
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+	FormID      uuid.UUID
+}
+
+func (q *Queries) UpdateOrder(ctx context.Context, arg UpdateOrderParams) (UpdateOrderRow, error) {
 	row := q.db.QueryRow(ctx, updateOrder, arg.SectionID, arg.ID, arg.Order)
-	var i Question
+	var i UpdateOrderRow
 	err := row.Scan(
 		&i.ID,
 		&i.SectionID,
@@ -284,6 +410,7 @@ func (q *Queries) UpdateOrder(ctx context.Context, arg UpdateOrderParams) (Quest
 		&i.SourceID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.FormID,
 	)
 	return i, err
 }

@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+
+	"github.com/google/uuid"
 )
 
 //go:embed icons.json
@@ -34,6 +36,7 @@ type RatingMetadata struct {
 }
 type LinearScale struct {
 	question      Question
+	formID        uuid.UUID
 	MinVal        int
 	MaxVal        int
 	MinValueLabel string
@@ -58,6 +61,8 @@ func init() {
 
 func (s LinearScale) Question() Question { return s.question }
 
+func (s LinearScale) FormID() uuid.UUID { return s.formID }
+
 func (s LinearScale) Validate(value string) error {
 	num, err := strconv.ParseInt(value, 10, 64)
 	if err != nil {
@@ -76,7 +81,7 @@ func (s LinearScale) Validate(value string) error {
 	return nil
 }
 
-func NewLinearScale(q Question) (LinearScale, error) {
+func NewLinearScale(q Question, formID uuid.UUID) (LinearScale, error) {
 	metadata := q.Metadata
 	if metadata == nil {
 		return LinearScale{}, errors.New("metadata is nil")
@@ -93,6 +98,7 @@ func NewLinearScale(q Question) (LinearScale, error) {
 
 	return LinearScale{
 		question:      q,
+		formID:        formID,
 		MinVal:        linearScale.MinVal,
 		MaxVal:        linearScale.MaxVal,
 		MinValueLabel: linearScale.MinValueLabel,
@@ -102,6 +108,7 @@ func NewLinearScale(q Question) (LinearScale, error) {
 
 type Rating struct {
 	question      Question
+	formID        uuid.UUID
 	Icon          string
 	MinVal        int
 	MaxVal        int
@@ -110,6 +117,8 @@ type Rating struct {
 }
 
 func (s Rating) Question() Question { return s.question }
+
+func (s Rating) FormID() uuid.UUID { return s.formID }
 
 func (s Rating) Validate(value string) error {
 	num, err := strconv.ParseInt(value, 10, 64)
@@ -129,7 +138,7 @@ func (s Rating) Validate(value string) error {
 	return nil
 }
 
-func NewRating(q Question) (Rating, error) {
+func NewRating(q Question, formID uuid.UUID) (Rating, error) {
 	metadata := q.Metadata
 	if metadata == nil {
 		return Rating{}, errors.New("metadata is nil")
@@ -150,6 +159,7 @@ func NewRating(q Question) (Rating, error) {
 
 	return Rating{
 		question:      q,
+		formID:        formID,
 		Icon:          rating.Icon,
 		MinVal:        rating.MinVal,
 		MaxVal:        rating.MaxVal,

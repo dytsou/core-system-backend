@@ -1,41 +1,89 @@
 -- name: Create :one
-INSERT INTO questions (section_id, required, type, title, description, metadata, "order", source_id)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-    RETURNING *;
+WITH inserted AS (
+    INSERT INTO questions (section_id, required, type, title, description, metadata, "order", source_id)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    RETURNING *
+)
+SELECT 
+    i.id,
+    i.section_id,
+    i.required,
+    i.type,
+    i.title,
+    i.description,
+    i.metadata,
+    i."order",
+    i.source_id,
+    i.created_at,
+    i.updated_at,
+    s.form_id
+FROM inserted i
+JOIN sections s ON i.section_id = s.id;
 
 -- name: Update :one
-UPDATE questions
-SET required = $3, type = $4, title = $5, description = $6, metadata = $7, source_id = $8, updated_at = now()
-WHERE section_id = $1 AND id = $2
-    RETURNING *;
+WITH updated AS (
+    UPDATE questions
+    SET required = $3, type = $4, title = $5, description = $6, metadata = $7, source_id = $8, updated_at = now()
+    WHERE questions.section_id = $1 AND questions.id = $2
+    RETURNING *
+)
+SELECT 
+    u.id,
+    u.section_id,
+    u.required,
+    u.type,
+    u.title,
+    u.description,
+    u.metadata,
+    u."order",
+    u.source_id,
+    u.created_at,
+    u.updated_at,
+    s.form_id
+FROM updated u
+JOIN sections s ON u.section_id = s.id;
 
 -- name: UpdateOrder :one
-WITH old_order AS (
-    SELECT "order" as old_pos FROM questions WHERE id = $2 AND section_id = $1
-),
-shifted AS (
+WITH shifted AS (
     UPDATE questions
     SET "order" = CASE
         -- Moving down: shift questions between old and new position up
-        WHEN $3 > (SELECT old_pos FROM old_order) 
-             AND "order" > (SELECT old_pos FROM old_order) 
-             AND "order" <= $3
-        THEN "order" - 1
+        WHEN $3 > (SELECT q2."order" FROM questions q2 WHERE q2.id = $2 AND q2.section_id = $1) 
+             AND questions."order" > (SELECT q2."order" FROM questions q2 WHERE q2.id = $2 AND q2.section_id = $1) 
+             AND questions."order" <= $3
+        THEN questions."order" - 1
         -- Moving up: shift questions between new and old position down
-        WHEN $3 < (SELECT old_pos FROM old_order)
-             AND "order" >= $3
-             AND "order" < (SELECT old_pos FROM old_order)
-        THEN "order" + 1
-        ELSE "order"
+        WHEN $3 < (SELECT q2."order" FROM questions q2 WHERE q2.id = $2 AND q2.section_id = $1)
+             AND questions."order" >= $3
+             AND questions."order" < (SELECT q2."order" FROM questions q2 WHERE q2.id = $2 AND q2.section_id = $1)
+        THEN questions."order" + 1
+        ELSE questions."order"
     END,
     updated_at = now()
-    WHERE section_id = $1 AND id != $2
-    RETURNING id
+    WHERE questions.section_id = $1 AND questions.id != $2
+    RETURNING questions.id
+),
+updated AS (
+    UPDATE questions q
+    SET "order" = $3, updated_at = now()
+    WHERE q.id = $2 AND q.section_id = $1
+    RETURNING q.*
 )
-UPDATE questions q
-SET "order" = $3, updated_at = now()
-WHERE q.id = $2 AND q.section_id = $1
-RETURNING *;
+SELECT 
+    u.id,
+    u.section_id,
+    u.required,
+    u.type,
+    u.title,
+    u.description,
+    u.metadata,
+    u."order",
+    u.source_id,
+    u.created_at,
+    u.updated_at,
+    s.form_id
+FROM updated u
+JOIN sections s ON u.section_id = s.id;
 
 -- name: DeleteAndReorder :exec
 WITH deleted_row AS (
@@ -76,4 +124,19 @@ ORDER BY
     q."order" ASC;
 
 -- name: GetByID :one
-SELECT * FROM questions WHERE id = $1;
+SELECT 
+    q.id,
+    q.section_id,
+    q.required,
+    q.type,
+    q.title,
+    q.description,
+    q.metadata,
+    q."order",
+    q.source_id,
+    q.created_at,
+    q.updated_at,
+    s.form_id
+FROM questions q
+JOIN sections s ON q.section_id = s.id
+WHERE q.id = $1;

@@ -22,11 +22,16 @@ type Choice struct {
 
 type SingleChoice struct {
 	question Question
+	formID   uuid.UUID
 	Choices  []Choice
 }
 
 func (s SingleChoice) Question() Question {
 	return s.question
+}
+
+func (s SingleChoice) FormID() uuid.UUID {
+	return s.formID
 }
 
 func (s SingleChoice) Validate(value string) error {
@@ -46,11 +51,11 @@ func (s SingleChoice) Validate(value string) error {
 	}
 }
 
-func NewSingleChoice(q Question) (SingleChoice, error) {
+func NewSingleChoice(q Question, formID uuid.UUID) (SingleChoice, error) {
 	metadata := q.Metadata
 
 	if q.SourceID.Valid && metadata == nil {
-		return SingleChoice{question: q, Choices: []Choice{}}, nil
+		return SingleChoice{question: q, formID: formID, Choices: []Choice{}}, nil
 	}
 
 	if metadata == nil {
@@ -94,17 +99,23 @@ func NewSingleChoice(q Question) (SingleChoice, error) {
 
 	return SingleChoice{
 		question: q,
+		formID:   formID,
 		Choices:  choices,
 	}, nil
 }
 
 type MultiChoice struct {
 	question Question
+	formID   uuid.UUID
 	Choices  []Choice
 }
 
 func (m MultiChoice) Question() Question {
 	return m.question
+}
+
+func (m MultiChoice) FormID() uuid.UUID {
+	return m.formID
 }
 
 func (m MultiChoice) Validate(value string) error {
@@ -138,11 +149,11 @@ func (m MultiChoice) Validate(value string) error {
 	return nil
 }
 
-func NewMultiChoice(q Question) (MultiChoice, error) {
+func NewMultiChoice(q Question, formID uuid.UUID) (MultiChoice, error) {
 	metadata := q.Metadata
 
 	if q.SourceID.Valid && metadata == nil {
-		return MultiChoice{question: q, Choices: []Choice{}}, nil
+		return MultiChoice{question: q, formID: formID, Choices: []Choice{}}, nil
 	}
 
 	if metadata == nil {
@@ -186,17 +197,23 @@ func NewMultiChoice(q Question) (MultiChoice, error) {
 
 	return MultiChoice{
 		question: q,
+		formID:   formID,
 		Choices:  choices,
 	}, nil
 }
 
 type DetailedMultiChoice struct {
 	question Question
+	formID   uuid.UUID
 	Choices  []Choice
 }
 
 func (m DetailedMultiChoice) Question() Question {
 	return m.question
+}
+
+func (m DetailedMultiChoice) FormID() uuid.UUID {
+	return m.formID
 }
 
 func (m DetailedMultiChoice) Validate(value string) error {
@@ -230,7 +247,7 @@ func (m DetailedMultiChoice) Validate(value string) error {
 	return nil
 }
 
-func NewDetailedMultiChoice(q Question) (DetailedMultiChoice, error) {
+func NewDetailedMultiChoice(q Question, formID uuid.UUID) (DetailedMultiChoice, error) {
 	metadata := q.Metadata
 	if metadata == nil {
 		return DetailedMultiChoice{}, errors.New("metadata is nil")
@@ -273,17 +290,23 @@ func NewDetailedMultiChoice(q Question) (DetailedMultiChoice, error) {
 
 	return DetailedMultiChoice{
 		question: q,
+		formID:   formID,
 		Choices:  choices,
 	}, nil
 }
 
 type Ranking struct {
 	question Question
+	formID   uuid.UUID
 	Rank     []Choice
 }
 
 func (r Ranking) Question() Question {
 	return r.question
+}
+
+func (r Ranking) FormID() uuid.UUID {
+	return r.formID
 }
 
 func (r Ranking) Validate(value string) error {
@@ -313,11 +336,11 @@ func (r Ranking) Validate(value string) error {
 	return nil
 }
 
-func NewRanking(q Question) (Ranking, error) {
+func NewRanking(q Question, formID uuid.UUID) (Ranking, error) {
 	metadata := q.Metadata
 
 	if q.SourceID.Valid && metadata == nil {
-		return Ranking{question: q, Rank: []Choice{}}, nil
+		return Ranking{question: q, formID: formID, Rank: []Choice{}}, nil
 	}
 
 	if metadata == nil {
@@ -355,6 +378,7 @@ func NewRanking(q Question) (Ranking, error) {
 
 	return Ranking{
 		question: q,
+		formID:   formID,
 		Rank:     rank,
 	}, nil
 }
