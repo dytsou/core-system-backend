@@ -181,14 +181,16 @@ func GenerateLinearScaleMetadata(option ScaleOption) ([]byte, error) {
 		return nil, fmt.Errorf("maxVal must be between 1 and 7, got %d", option.MaxVal)
 	}
 
+	linearScaleMeta := LinearScaleMetadata{
+		Icon:          option.Icon,
+		MinVal:        option.MinVal,
+		MaxVal:        option.MaxVal,
+		MinValueLabel: option.MinValueLabel,
+		MaxValueLabel: option.MaxValueLabel,
+	}
+
 	metadata := map[string]any{
-		"scale": LinearScaleMetadata{
-			Icon:          option.Icon,
-			MinVal:        option.MinVal,
-			MaxVal:        option.MaxVal,
-			MinValueLabel: option.MinValueLabel,
-			MaxValueLabel: option.MaxValueLabel,
-		},
+		"scale": linearScaleMeta,
 	}
 
 	return json.Marshal(metadata)
@@ -215,14 +217,16 @@ func GenerateRatingMetadata(option ScaleOption) ([]byte, error) {
 		return nil, fmt.Errorf("invalid icon: %s", option.Icon)
 	}
 
+	ratingMeta := RatingMetadata{
+		Icon:          option.Icon,
+		MinVal:        option.MinVal,
+		MaxVal:        option.MaxVal,
+		MinValueLabel: option.MinValueLabel,
+		MaxValueLabel: option.MaxValueLabel,
+	}
+
 	metadata := map[string]any{
-		"scale": RatingMetadata{
-			Icon:          option.Icon,
-			MinVal:        option.MinVal,
-			MaxVal:        option.MaxVal,
-			MinValueLabel: option.MinValueLabel,
-			MaxValueLabel: option.MaxValueLabel,
-		},
+		"scale": ratingMeta,
 	}
 
 	return json.Marshal(metadata)

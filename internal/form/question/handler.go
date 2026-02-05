@@ -372,7 +372,7 @@ func getGenerateMetadata(req Request) ([]byte, error) {
 	if req.SourceID != uuid.Nil {
 		switch req.Type {
 		case "single_choice", "multiple_choice", "dropdown", "ranking":
-			if req.Choices != nil && len(req.Choices) > 0 {
+			if len(req.Choices) > 0 {
 				return nil, internal.ErrInvalidSourceIDWithChoices
 			}
 			return nil, nil
