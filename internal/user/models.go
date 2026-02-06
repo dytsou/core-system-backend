@@ -432,13 +432,14 @@ type UnitMember struct {
 }
 
 type User struct {
-	ID        uuid.UUID
-	Name      pgtype.Text
-	Username  pgtype.Text
-	AvatarUrl pgtype.Text
-	Role      []string
-	CreatedAt pgtype.Timestamptz
-	UpdatedAt pgtype.Timestamptz
+	ID          uuid.UUID
+	Name        pgtype.Text
+	Username    pgtype.Text
+	AvatarUrl   pgtype.Text
+	Role        []string
+	IsOnboarded bool
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
 }
 
 type UserEmail struct {
@@ -458,14 +459,15 @@ type UserInboxMessage struct {
 }
 
 type UsersWithEmail struct {
-	ID        uuid.UUID
-	Name      pgtype.Text
-	Username  pgtype.Text
-	AvatarUrl pgtype.Text
-	Role      []string
-	CreatedAt pgtype.Timestamptz
-	UpdatedAt pgtype.Timestamptz
-	Emails    interface{}
+	ID          uuid.UUID
+	Name        pgtype.Text
+	Username    pgtype.Text
+	AvatarUrl   pgtype.Text
+	Role        []string
+	IsOnboarded bool
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+	Emails      interface{}
 }
 
 type WorkflowVersion struct {
