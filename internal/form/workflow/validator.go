@@ -681,12 +681,12 @@ func validateDraftConditionQuestion(
 	// Validate question type matches condition source (same rules as strict mode).
 	switch rule.Source {
 	case node.ConditionSourceChoice:
-		if q.Type != question.QuestionTypeSingleChoice && q.Type != question.QuestionTypeMultipleChoice {
-			return fmt.Errorf("condition node '%s' with source 'choice' requires question type 'single_choice' or 'multiple_choice', but question '%s' has type '%s'", nodeID, rule.Key, q.Type)
+		if !question.ContainsType(question.ChoiceTypes, q.Type) {
+			return fmt.Errorf("condition node '%s' with source 'choice' requires question type %s, but question '%s' has type '%s'", nodeID, question.FormatAllowedTypes(question.ChoiceTypes), rule.Key, q.Type)
 		}
 	case node.ConditionSourceNonChoice:
-		if q.Type != question.QuestionTypeShortText && q.Type != question.QuestionTypeLongText && q.Type != question.QuestionTypeDate {
-			return fmt.Errorf("condition node '%s' with source 'nonChoice' requires question type 'short_text', 'long_text', or 'date', but question '%s' has type '%s'", nodeID, rule.Key, q.Type)
+		if !question.ContainsType(question.NonChoiceTypes, q.Type) {
+			return fmt.Errorf("condition node '%s' with source 'nonChoice' requires question type %s, but question '%s' has type '%s'", nodeID, question.FormatAllowedTypes(question.NonChoiceTypes), rule.Key, q.Type)
 		}
 	}
 	return nil

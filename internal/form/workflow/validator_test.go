@@ -476,8 +476,9 @@ func createMockAnswerable(t *testing.T, formID uuid.UUID, questionType question.
 		Order:    1,
 	}
 
-	// Generate metadata for choice-based questions
-	if questionType == question.QuestionTypeSingleChoice || questionType == question.QuestionTypeMultipleChoice {
+	// Generate metadata based on question type
+	switch {
+	case question.ContainsType(question.ChoiceTypes, questionType):
 		metadata, err := question.GenerateChoiceMetadata(string(questionType), []question.ChoiceOption{
 			{Name: "Option 1"},
 			{Name: "Option 2"},
