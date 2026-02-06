@@ -78,13 +78,13 @@ func (s *Service) Update(ctx context.Context, input UpdateParams) (Answerable, e
 }
 
 func (s *Service) UpdateOrder(ctx context.Context, input UpdateOrderParams) (Answerable, error) {
-	ctx, span := s.tracer.Start(ctx, "Update")
+	ctx, span := s.tracer.Start(ctx, "UpdateOrder")
 	defer span.End()
 	logger := logutil.WithContext(ctx, s.logger)
 
 	row, err := s.queries.UpdateOrder(ctx, input)
 	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "update order for the question")
+		err = databaseutil.WrapDBError(err, logger, "update order for the questions")
 		span.RecordError(err)
 		return nil, err
 	}
@@ -93,7 +93,7 @@ func (s *Service) UpdateOrder(ctx context.Context, input UpdateOrderParams) (Ans
 }
 
 func (s *Service) DeleteAndReorder(ctx context.Context, sectionID uuid.UUID, id uuid.UUID) error {
-	ctx, span := s.tracer.Start(ctx, "Delete")
+	ctx, span := s.tracer.Start(ctx, "DeleteAndReorder")
 	defer span.End()
 	logger := logutil.WithContext(ctx, s.logger)
 
@@ -102,7 +102,7 @@ func (s *Service) DeleteAndReorder(ctx context.Context, sectionID uuid.UUID, id 
 		ID:        id,
 	})
 	if err != nil {
-		err = databaseutil.WrapDBError(err, logger, "delete question")
+		err = databaseutil.WrapDBError(err, logger, "delete and re-index remaining questions")
 		span.RecordError(err)
 		return err
 	}
