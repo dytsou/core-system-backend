@@ -336,6 +336,120 @@ func TestActivate_ConditionRuleValidation(t *testing.T) {
 			},
 			expectedErr: false,
 		},
+		// Choice types: dropdown, detailed_multiple_choice, ranking
+		{
+			name: "valid condition rule with source=choice and dropdown question",
+			setup: func() ([]byte, workflow.QuestionStore) {
+				questionID := uuid.New().String()
+				questionUUID := mustParseUUID(t, questionID)
+				return createWorkflowWithConditionRuleSourceWithQuestionID(t, "choice", questionID),
+					&mockQuestionStore{
+						questions: map[uuid.UUID]question.Answerable{
+							questionUUID: createMockAnswerable(t, formID, question.QuestionTypeDropdown),
+						},
+					}
+			},
+			expectedErr: false,
+		},
+		{
+			name: "valid condition rule with source=choice and detailed_multiple_choice question",
+			setup: func() ([]byte, workflow.QuestionStore) {
+				questionID := uuid.New().String()
+				questionUUID := mustParseUUID(t, questionID)
+				return createWorkflowWithConditionRuleSourceWithQuestionID(t, "choice", questionID),
+					&mockQuestionStore{
+						questions: map[uuid.UUID]question.Answerable{
+							questionUUID: createMockAnswerable(t, formID, question.QuestionTypeDetailedMultipleChoice),
+						},
+					}
+			},
+			expectedErr: false,
+		},
+		{
+			name: "valid condition rule with source=choice and ranking question",
+			setup: func() ([]byte, workflow.QuestionStore) {
+				questionID := uuid.New().String()
+				questionUUID := mustParseUUID(t, questionID)
+				return createWorkflowWithConditionRuleSourceWithQuestionID(t, "choice", questionID),
+					&mockQuestionStore{
+						questions: map[uuid.UUID]question.Answerable{
+							questionUUID: createMockAnswerable(t, formID, question.QuestionTypeRanking),
+						},
+					}
+			},
+			expectedErr: false,
+		},
+		// NonChoice types: hyperlink, upload_file, oauth_connect, linear_scale, rating
+		{
+			name: "valid condition rule with source=nonChoice and hyperlink question",
+			setup: func() ([]byte, workflow.QuestionStore) {
+				questionID := uuid.New().String()
+				questionUUID := mustParseUUID(t, questionID)
+				return createWorkflowWithConditionRuleSourceWithQuestionID(t, "nonChoice", questionID),
+					&mockQuestionStore{
+						questions: map[uuid.UUID]question.Answerable{
+							questionUUID: createMockAnswerable(t, formID, question.QuestionTypeHyperlink),
+						},
+					}
+			},
+			expectedErr: false,
+		},
+		{
+			name: "valid condition rule with source=nonChoice and upload_file question",
+			setup: func() ([]byte, workflow.QuestionStore) {
+				questionID := uuid.New().String()
+				questionUUID := mustParseUUID(t, questionID)
+				return createWorkflowWithConditionRuleSourceWithQuestionID(t, "nonChoice", questionID),
+					&mockQuestionStore{
+						questions: map[uuid.UUID]question.Answerable{
+							questionUUID: createMockAnswerable(t, formID, question.QuestionTypeUploadFile),
+						},
+					}
+			},
+			expectedErr: false,
+		},
+		{
+			name: "valid condition rule with source=nonChoice and oauth_connect question",
+			setup: func() ([]byte, workflow.QuestionStore) {
+				questionID := uuid.New().String()
+				questionUUID := mustParseUUID(t, questionID)
+				return createWorkflowWithConditionRuleSourceWithQuestionID(t, "nonChoice", questionID),
+					&mockQuestionStore{
+						questions: map[uuid.UUID]question.Answerable{
+							questionUUID: createMockAnswerable(t, formID, question.QuestionTypeOauthConnect),
+						},
+					}
+			},
+			expectedErr: false,
+		},
+		{
+			name: "valid condition rule with source=nonChoice and linear_scale question",
+			setup: func() ([]byte, workflow.QuestionStore) {
+				questionID := uuid.New().String()
+				questionUUID := mustParseUUID(t, questionID)
+				return createWorkflowWithConditionRuleSourceWithQuestionID(t, "nonChoice", questionID),
+					&mockQuestionStore{
+						questions: map[uuid.UUID]question.Answerable{
+							questionUUID: createMockAnswerable(t, formID, question.QuestionTypeLinearScale),
+						},
+					}
+			},
+			expectedErr: false,
+		},
+		{
+			name: "valid condition rule with source=nonChoice and rating question",
+			setup: func() ([]byte, workflow.QuestionStore) {
+				questionID := uuid.New().String()
+				questionUUID := mustParseUUID(t, questionID)
+				return createWorkflowWithConditionRuleSourceWithQuestionID(t, "nonChoice", questionID),
+					&mockQuestionStore{
+						questions: map[uuid.UUID]question.Answerable{
+							questionUUID: createMockAnswerable(t, formID, question.QuestionTypeRating),
+						},
+					}
+			},
+			expectedErr: false,
+		},
 	}
 
 	validator := workflow.NewValidator()
@@ -479,14 +593,39 @@ func createMockAnswerable(t *testing.T, formID uuid.UUID, questionType question.
 	// Generate metadata based on question type
 	switch {
 	case question.ContainsType(question.ChoiceTypes, questionType):
-		metadata, err := question.GenerateChoiceMetadata(string(questionType), []question.ChoiceOption{
+		choiceOptions := []question.ChoiceOption{
 			{Name: "Option 1"},
 			{Name: "Option 2"},
+		}
+		// detailed_multiple_choice requires at least one choice with description
+		if questionType == question.QuestionTypeDetailedMultipleChoice {
+			choiceOptions[0] = question.ChoiceOption{Name: "Option 1", Description: "Description for option 1"}
+		}
+		metadata, err := question.GenerateChoiceMetadata(string(questionType), choiceOptions)
+		require.NoError(t, err)
+		q.Metadata = metadata
+	case questionType == question.QuestionTypeLinearScale:
+		metadata, err := question.GenerateLinearScaleMetadata(question.ScaleOption{MinVal: 1, MaxVal: 5})
+		require.NoError(t, err)
+		q.Metadata = metadata
+	case questionType == question.QuestionTypeRating:
+		metadata, err := question.GenerateRatingMetadata(question.ScaleOption{Icon: "star", MinVal: 1, MaxVal: 5})
+		require.NoError(t, err)
+		q.Metadata = metadata
+	case questionType == question.QuestionTypeOauthConnect:
+		metadata, err := question.GenerateOauthConnectMetadata("google")
+		require.NoError(t, err)
+		q.Metadata = metadata
+	case questionType == question.QuestionTypeUploadFile:
+		metadata, err := question.GenerateUploadFileMetadata(question.UploadFileOption{
+			AllowedFileTypes: []string{"pdf"},
+			MaxFileAmount:    1,
+			MaxFileSizeLimit: "10MB",
 		})
 		require.NoError(t, err)
 		q.Metadata = metadata
-	} else {
-		// For non-choice questions, use empty metadata
+	// Text-based questions (short_text, long_text) use empty metadata
+	default:
 		q.Metadata = []byte("{}")
 	}
 
