@@ -59,12 +59,17 @@ var (
 	ErrFormDeadlinePassed = errors.New("form deadline has passed")
 
 	// Question Errors
-	ErrQuestionNotFound = errors.New("question not found")
-	ErrQuestionRequired = errors.New("question is required but not answered")
-	ErrValidationFailed = errors.New("validation failed")
+	ErrQuestionNotFound           = errors.New("question not found")
+	ErrQuestionRequired           = errors.New("question is required but not answered")
+	ErrValidationFailed           = errors.New("validation failed")
+	ErrInvalidSourceIDWithChoices = errors.New("cannot specify both source_id and choices")
+	ErrInvalidSourceIDForType     = errors.New("source_id is not supported for this question type")
 
 	// Response Errors
 	ErrResponseNotFound = errors.New("response not found")
+
+	// Workflow Errors
+	ErrWorkflowValidationFailed = errors.New("workflow validation failed")
 )
 
 func NewProblemWriter() *problem.HttpWriter {
@@ -157,6 +162,10 @@ func ErrorHandler(err error) problem.Problem {
 		return problem.NewNotFoundProblem("question not found")
 	case errors.Is(err, ErrQuestionRequired):
 		return problem.NewValidateProblem("question is required but not answered")
+	case errors.Is(err, ErrInvalidSourceIDWithChoices):
+		return problem.NewBadRequestProblem("cannot specify both source_id and choices")
+	case errors.Is(err, ErrInvalidSourceIDForType):
+		return problem.NewBadRequestProblem("source_id is not supported for this question type")
 
 	// Response Errors
 	case errors.Is(err, ErrResponseNotFound):
@@ -165,6 +174,10 @@ func ErrorHandler(err error) problem.Problem {
 	// Validation Errors
 	case errors.Is(err, ErrValidationFailed):
 		return problem.NewValidateProblem("validation failed")
+
+	// Workflow Errors
+	case errors.Is(err, ErrWorkflowValidationFailed):
+		return problem.NewValidateProblem("workflow validation failed")
 	}
 	return problem.Problem{}
 }
