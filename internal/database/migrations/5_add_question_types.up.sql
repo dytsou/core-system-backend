@@ -1,19 +1,30 @@
-ALTER TYPE question_type ADD VALUE IF NOT EXISTS 'dropdown';
-ALTER TYPE question_type ADD VALUE IF NOT EXISTS 'detailed_multiple_choice';
-ALTER TYPE question_type ADD VALUE IF NOT EXISTS 'linear_scale';
-ALTER TYPE question_type ADD VALUE IF NOT EXISTS 'rating';
-ALTER TYPE question_type ADD VALUE IF NOT EXISTS 'upload_file';
-ALTER TYPE question_type ADD VALUE IF NOT EXISTS 'oauth_connect';
-ALTER TYPE question_type ADD VALUE IF NOT EXISTS 'ranking';
-ALTER TYPE question_type ADD VALUE IF NOT EXISTS 'hyperlink';
+-- This migration recreates the question_type enum with new values
+-- This approach works within a transaction, unlike ALTER TYPE ... ADD VALUE
 
--- Drop old form_id column and add section_id column
-ALTER TABLE questions
-    DROP COLUMN IF EXISTS form_id;
+-- Create new enum type with all values (old + new)
+CREATE TYPE question_type_new AS ENUM(
+    'short_text',
+    'long_text',
+    'single_choice',
+    'multiple_choice',
+    'date',
+    'dropdown',
+    'detailed_multiple_choice',
+    'linear_scale',
+    'rating',
+    'upload_file',
+    'oauth_connect',
+    'ranking',
+    'hyperlink'
+);
+
+-- Update all columns to use the new type
+ALTER TABLE questions 
+    ALTER COLUMN type TYPE question_type_new USING type::text::question_type_new;
     
-ALTER TABLE questions
-    ADD COLUMN IF NOT EXISTS section_id UUID NOT NULL REFERENCES sections(id) ON DELETE CASCADE;
+ALTER TABLE answers 
+    ALTER COLUMN type TYPE question_type_new USING type::text::question_type_new;
 
--- Add source_id column (nullable)
-ALTER TABLE questions
-    ADD COLUMN IF NOT EXISTS source_id UUID;
+-- Drop the old type and rename the new one
+DROP TYPE question_type;
+ALTER TYPE question_type_new RENAME TO question_type;
