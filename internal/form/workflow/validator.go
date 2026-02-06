@@ -56,7 +56,6 @@ const (
 // This allows the validator to check if condition rule question IDs exist and match expected types
 type QuestionStore interface {
 	GetByID(ctx context.Context, id uuid.UUID) (question.Answerable, error)
-	ListByFormID(ctx context.Context, formID uuid.UUID) ([]question.Answerable, error)
 }
 
 type workflowValidator struct{}
@@ -675,7 +674,7 @@ func validateDraftConditionQuestion(
 	q := answerable.Question()
 
 	// Validate question belongs to the form
-	if q.FormID != formID {
+	if answerable.FormID() != formID {
 		return fmt.Errorf("condition node '%s' references question '%s' that belongs to a different form", nodeID, rule.Key)
 	}
 

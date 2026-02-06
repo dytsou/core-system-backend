@@ -248,14 +248,14 @@ func main() {
 	mux.Handle("GET /api/orgs/{slug}/forms", tenantBasicMiddleware.HandlerFunc(formHandler.ListByOrgHandler))
 
 	// Question routes
-	mux.Handle("GET /api/forms/{formId}/questions", authMiddleware.HandlerFunc(questionHandler.ListHandler))
-	mux.Handle("POST /api/forms/{formId}/questions", authMiddleware.HandlerFunc(questionHandler.AddHandler))
-	mux.Handle("PUT /api/forms/{formId}/questions/{questionId}", authMiddleware.HandlerFunc(questionHandler.UpdateHandler))
-	mux.Handle("DELETE /api/forms/{formId}/questions/{questionId}", authMiddleware.HandlerFunc(questionHandler.DeleteHandler))
+	mux.Handle("GET /api/forms/{id}/sections", authMiddleware.HandlerFunc(questionHandler.ListHandler))
+	mux.Handle("POST /api/sections/{id}/questions", authMiddleware.HandlerFunc(questionHandler.AddHandler))
+	mux.Handle("PUT /api/sections/{sectionId}/questions/{questionId}", authMiddleware.HandlerFunc(questionHandler.UpdateHandler))
+	mux.Handle("DELETE /api/sections/{sectionId}/questions/{questionId}", authMiddleware.HandlerFunc(questionHandler.DeleteHandler))
 
 	// Response routes
-	mux.Handle("GET /api/forms/{formId}/responses", authMiddleware.HandlerFunc(responseHandler.ListHandler))
-	mux.Handle("POST /api/forms/{formId}/responses", authMiddleware.HandlerFunc(submitHandler.SubmitHandler))
+	mux.Handle("GET /api/forms/{id}/responses", authMiddleware.HandlerFunc(responseHandler.ListHandler))
+	mux.Handle("POST /api/responses/{id}/submit", authMiddleware.HandlerFunc(submitHandler.SubmitHandler))
 	mux.Handle("GET /api/forms/{formId}/responses/{responseId}", authMiddleware.HandlerFunc(responseHandler.GetHandler))
 	mux.Handle("DELETE /api/forms/{formId}/responses/{responseId}", authMiddleware.HandlerFunc(responseHandler.DeleteHandler))
 	mux.Handle("GET /api/forms/{formId}/questions/{questionId}", authMiddleware.HandlerFunc(responseHandler.GetAnswersByQuestionIDHandler))

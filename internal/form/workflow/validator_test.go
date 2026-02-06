@@ -372,7 +372,7 @@ func (m *mockQuestionStore) GetByID(ctx context.Context, id uuid.UUID) (question
 func (m *mockQuestionStore) ListByFormID(ctx context.Context, formID uuid.UUID) ([]question.Answerable, error) {
 	var result []question.Answerable
 	for _, q := range m.questions {
-		if q.Question().FormID == formID {
+		if q.FormID() == formID {
 			result = append(result, q)
 		}
 	}
@@ -470,7 +470,6 @@ func createMockAnswerable(t *testing.T, formID uuid.UUID, questionType question.
 	t.Helper()
 	q := question.Question{
 		ID:       uuid.New(),
-		FormID:   formID,
 		Required: false,
 		Type:     questionType,
 		Title:    pgtype.Text{String: "Test Question", Valid: true},
@@ -479,7 +478,7 @@ func createMockAnswerable(t *testing.T, formID uuid.UUID, questionType question.
 
 	// Generate metadata for choice-based questions
 	if questionType == question.QuestionTypeSingleChoice || questionType == question.QuestionTypeMultipleChoice {
-		metadata, err := question.GenerateMetadata(string(questionType), []question.ChoiceOption{
+		metadata, err := question.GenerateChoiceMetadata(string(questionType), []question.ChoiceOption{
 			{Name: "Option 1"},
 			{Name: "Option 2"},
 		})
@@ -490,7 +489,7 @@ func createMockAnswerable(t *testing.T, formID uuid.UUID, questionType question.
 		q.Metadata = []byte("{}")
 	}
 
-	answerable, err := question.NewAnswerable(q)
+	answerable, err := question.NewAnswerable(q, formID)
 	require.NoError(t, err)
 	return answerable
 }
