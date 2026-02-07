@@ -31,13 +31,13 @@ func TestService_Activate(t *testing.T) {
 		{
 			name: "successful activation with simple workflow",
 			params: Params{
-				workflowJSON: createSimpleValidWorkflow(t),
+				workflowJSON: createWorkflow_SimpleValid(t),
 			},
 		},
 		{
 			name: "successful activation with complex workflow",
 			params: Params{
-				workflowJSON: createComplexValidWorkflow(t),
+				workflowJSON: createWorkflow_ComplexValid(t),
 			},
 		},
 	}
@@ -102,7 +102,7 @@ func TestService_Update(t *testing.T) {
 		{
 			name: "successful update with simple workflow",
 			params: Params{
-				workflowJSON: createSimpleValidWorkflow(t),
+				workflowJSON: createWorkflow_SimpleValid(t),
 			},
 			expectErr: false,
 		},
@@ -177,7 +177,7 @@ func TestService_CreateNode(t *testing.T) {
 		{
 			name: "invalid node type parameter - start",
 			params: Params{
-				workflowJSON:  createSimpleValidWorkflow(t),
+				workflowJSON:  createWorkflow_SimpleValid(t),
 				nodeType:      workflow.NodeTypeStart,
 				questionStore: nil,
 			},
@@ -186,7 +186,7 @@ func TestService_CreateNode(t *testing.T) {
 		{
 			name: "invalid node type parameter - end",
 			params: Params{
-				workflowJSON:  createSimpleValidWorkflow(t),
+				workflowJSON:  createWorkflow_SimpleValid(t),
 				nodeType:      workflow.NodeTypeEnd,
 				questionStore: nil,
 			},
@@ -195,7 +195,7 @@ func TestService_CreateNode(t *testing.T) {
 		{
 			name: "invalid node type parameter - empty string",
 			params: Params{
-				workflowJSON:  createSimpleValidWorkflow(t),
+				workflowJSON:  createWorkflow_SimpleValid(t),
 				nodeType:      workflow.NodeType(""),
 				questionStore: nil,
 			},
@@ -204,7 +204,7 @@ func TestService_CreateNode(t *testing.T) {
 		{
 			name: "invalid node type parameter - unknown type",
 			params: Params{
-				workflowJSON:  createSimpleValidWorkflow(t),
+				workflowJSON:  createWorkflow_SimpleValid(t),
 				nodeType:      workflow.NodeType("unknown"),
 				questionStore: nil,
 			},
@@ -213,7 +213,7 @@ func TestService_CreateNode(t *testing.T) {
 		{
 			name: "valid workflow - simple section creation",
 			params: Params{
-				workflowJSON:  createSimpleValidWorkflow(t),
+				workflowJSON:  createWorkflow_SimpleValid(t),
 				nodeType:      workflow.NodeTypeSection,
 				questionStore: nil,
 			},
@@ -222,7 +222,7 @@ func TestService_CreateNode(t *testing.T) {
 		{
 			name: "valid workflow - condition node creation",
 			params: Params{
-				workflowJSON:  createSimpleValidWorkflow(t),
+				workflowJSON:  createWorkflow_SimpleValid(t),
 				nodeType:      workflow.NodeTypeCondition,
 				questionStore: nil,
 			},
@@ -304,7 +304,7 @@ func TestService_Get(t *testing.T) {
 					FormID:     formID,
 					LastEditor: uuid.New(),
 					IsActive:   false,
-					Workflow:   createSimpleValidWorkflow(t),
+					Workflow:   createWorkflow_SimpleValid(t),
 				}
 				mq.On("Get", mock.Anything, formID).Return(expectedRow, nil).Once()
 			},
@@ -360,7 +360,7 @@ func TestService_DeleteNode(t *testing.T) {
 		{
 			name: "valid workflow - simple workflow after deletion",
 			params: Params{
-				workflowJSON:  createSimpleValidWorkflow(t),
+				workflowJSON:  createWorkflow_SimpleValid(t),
 				nodeID:        uuid.New(),
 				questionStore: nil,
 			},
@@ -423,7 +423,7 @@ func TestService_GetWorkflow_ValidationErrors(t *testing.T) {
 		{
 			name:         "validation passes - returns empty info array",
 			formID:       uuid.New(),
-			workflowJSON: createSimpleValidWorkflow(t),
+			workflowJSON: createWorkflow_SimpleValid(t),
 			setupMock: func(mv *mockValidator, formID uuid.UUID, workflow []byte) {
 				mv.On("Activate", mock.Anything, formID, workflow, mock.Anything).Return(nil).Once()
 			},
@@ -433,7 +433,7 @@ func TestService_GetWorkflow_ValidationErrors(t *testing.T) {
 		{
 			name:         "parsing - nested joined errors",
 			formID:       uuid.New(),
-			workflowJSON: createSimpleValidWorkflow(t),
+			workflowJSON: createWorkflow_SimpleValid(t),
 			setupMock: func(mv *mockValidator, formID uuid.UUID, workflow []byte) {
 				startID := uuid.New()
 				err1 := fmt.Errorf("start node '%s' must have a 'next' field", startID.String())
@@ -449,7 +449,7 @@ func TestService_GetWorkflow_ValidationErrors(t *testing.T) {
 		{
 			name:         "parsing - multiple unreachable nodes with individual node IDs",
 			formID:       uuid.New(),
-			workflowJSON: createSimpleValidWorkflow(t),
+			workflowJSON: createWorkflow_SimpleValid(t),
 			setupMock: func(mv *mockValidator, formID uuid.UUID, workflow []byte) {
 				unreachableID1 := uuid.New()
 				unreachableID2 := uuid.New()
