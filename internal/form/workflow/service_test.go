@@ -2,7 +2,6 @@ package workflow_test
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
@@ -12,71 +11,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 )
-
-// mockQuerier is a mock implementation of workflow.Querier interface
-type mockQuerier struct {
-	mock.Mock
-}
-
-func (m *mockQuerier) Get(ctx context.Context, formID uuid.UUID) (workflow.GetRow, error) {
-	args := m.Called(ctx, formID)
-	return args.Get(0).(workflow.GetRow), args.Error(1)
-}
-
-func (m *mockQuerier) Update(ctx context.Context, arg workflow.UpdateParams) (workflow.UpdateRow, error) {
-	args := m.Called(ctx, arg)
-	return args.Get(0).(workflow.UpdateRow), args.Error(1)
-}
-
-func (m *mockQuerier) CreateNode(ctx context.Context, arg workflow.CreateNodeParams) (workflow.CreateNodeRow, error) {
-	args := m.Called(ctx, arg)
-	return args.Get(0).(workflow.CreateNodeRow), args.Error(1)
-}
-
-func (m *mockQuerier) DeleteNode(ctx context.Context, arg workflow.DeleteNodeParams) ([]byte, error) {
-	args := m.Called(ctx, arg)
-	return args.Get(0).([]byte), args.Error(1)
-}
-
-func (m *mockQuerier) Activate(ctx context.Context, arg workflow.ActivateParams) (workflow.ActivateRow, error) {
-	args := m.Called(ctx, arg)
-	return args.Get(0).(workflow.ActivateRow), args.Error(1)
-}
-
-// mockValidator is a mock implementation of workflow.Validator interface
-type mockValidator struct {
-	mock.Mock
-}
-
-func (m *mockValidator) Activate(ctx context.Context, formID uuid.UUID, workflow []byte, questionStore workflow.QuestionStore) error {
-	args := m.Called(ctx, formID, workflow, questionStore)
-	return args.Error(0)
-}
-
-func (m *mockValidator) Validate(ctx context.Context, formID uuid.UUID, workflow []byte, questionStore workflow.QuestionStore) error {
-	args := m.Called(ctx, formID, workflow, questionStore)
-	return args.Error(0)
-}
-
-func (m *mockValidator) ValidateNodeIDsUnchanged(ctx context.Context, currentWorkflow, newWorkflow []byte) error {
-	args := m.Called(ctx, currentWorkflow, newWorkflow)
-	return args.Error(0)
-}
-
-func (m *mockValidator) ValidateUpdateNodeIDs(ctx context.Context, currentWorkflow, newWorkflow []byte) error {
-	args := m.Called(ctx, currentWorkflow, newWorkflow)
-	return args.Error(0)
-}
-
-// createTestService creates a workflow.Service with mocked dependencies
-func createTestService(t *testing.T, logger *zap.Logger, tracer trace.Tracer, mockQuerier *mockQuerier, mockValidator *mockValidator, questionStore workflow.QuestionStore) *workflow.Service {
-	t.Helper()
-	return workflow.NewServiceForTesting(logger, tracer, mockQuerier, mockValidator, questionStore)
-}
 
 func TestService_Activate(t *testing.T) {
 	t.Parallel()
@@ -563,82 +500,4 @@ func TestService_GetWorkflow_ValidationErrors(t *testing.T) {
 			mockValidator.AssertExpectations(t)
 		})
 	}
-}
-
-// Helper functions to create test workflows
-
-func createSimpleValidWorkflow(t *testing.T) []byte {
-	t.Helper()
-	startID := uuid.New()
-	endID := uuid.New()
-	return createWorkflowJSON(t, []map[string]interface{}{
-		{
-			"id":    startID.String(),
-			"type":  "start",
-			"label": "Start",
-			"next":  endID.String(),
-		},
-		{
-			"id":    endID.String(),
-			"type":  "end",
-			"label": "End",
-		},
-	})
-}
-
-func createComplexValidWorkflow(t *testing.T) []byte {
-	t.Helper()
-	startID := uuid.New()
-	sectionID := uuid.New()
-	conditionID := uuid.New()
-	endID := uuid.New()
-	referenceNodeID := uuid.New()
-
-	workflowJSON, err := json.Marshal([]map[string]interface{}{
-		{
-			"id":    startID.String(),
-			"type":  "start",
-			"label": "Start",
-			"next":  sectionID.String(),
-		},
-		{
-			"id":    sectionID.String(),
-			"type":  "section",
-			"label": "Section",
-			"next":  conditionID.String(),
-		},
-		{
-			"id":        conditionID.String(),
-			"type":      "condition",
-			"label":     "Condition",
-			"nextTrue":  endID.String(),
-			"nextFalse": endID.String(),
-			"conditionRule": map[string]interface{}{
-				"source":  "choice",
-				"nodeId":  referenceNodeID.String(),
-				"key":     "answer",
-				"pattern": "yes",
-			},
-		},
-		{
-			"id":    referenceNodeID.String(),
-			"type":  "section",
-			"label": "Reference Section",
-			"next":  conditionID.String(),
-		},
-		{
-			"id":    endID.String(),
-			"type":  "end",
-			"label": "End",
-		},
-	})
-	require.NoError(t, err)
-	return workflowJSON
-}
-
-func createWorkflowJSON(t *testing.T, nodes []map[string]interface{}) []byte {
-	t.Helper()
-	json, err := json.Marshal(nodes)
-	require.NoError(t, err)
-	return json
 }
