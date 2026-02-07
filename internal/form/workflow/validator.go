@@ -91,7 +91,7 @@ func NewValidator() Validator {
 // - Array structure
 // - Node structure and required fields
 // - Valid node types
-// - Graph connectivity (all nodes are reachable)
+// - Reachability (all nodes are reachable)
 // - Condition rule question IDs exist and types match
 // Returns all validation errors if validation fails
 func (v workflowValidator) Activate(ctx context.Context, formID uuid.UUID, workflow []byte, questionStore QuestionStore) error {
@@ -105,14 +105,14 @@ func (v workflowValidator) Activate(ctx context.Context, formID uuid.UUID, workf
 	}
 
 	if nodeMap != nil {
-		err := validateGraphConnectivity(nodes, nodeMap)
+		err := validateReachability(nodes, nodeMap)
 		if err != nil {
-			validationErrors = append(validationErrors, fmt.Errorf("graph validation failed: %w", err))
+			validationErrors = append(validationErrors, fmt.Errorf("reachability validation failed: %w", err))
 		}
 	}
 
 	if len(validationErrors) > 0 {
-		return fmt.Errorf("workflow validation failed: %w", errors.Join(validationErrors...))
+		return fmt.Errorf("validation failed: %w", errors.Join(validationErrors...))
 	}
 	return nil
 }
@@ -369,12 +369,12 @@ func validateRequiredNodeTypes(startNodeCount, endNodeCount int) []error {
 	return validationErrors
 }
 
-// validateGraphConnectivity checks if all nodes in the workflow are reachable
+// validateReachability checks if all nodes in the workflow are reachable
 // It ensures:
 // - All node references (next, nextTrue, nextFalse) point to valid nodes
 // - All nodes can be reached from entry points (start nodes or first node)
 // - No orphaned nodes exist
-func validateGraphConnectivity(nodes []map[string]interface{}, nodeMap map[string]map[string]interface{}) error {
+func validateReachability(nodes []map[string]interface{}, nodeMap map[string]map[string]interface{}) error {
 	// First validate references
 	err := validateGraphReferences(nodes, nodeMap)
 	if err != nil {
