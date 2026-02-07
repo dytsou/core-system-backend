@@ -539,6 +539,65 @@ func createWorkflow_MultipleNodes(t *testing.T) []byte {
 	})
 }
 
+// emptyQuestionStore returns a mock question store with no questions (for tests that only need workflow shape).
+func emptyQuestionStore() *mockQuestionStore {
+	return &mockQuestionStore{questions: make(map[uuid.UUID]question.Answerable)}
+}
+
+// createWorkflow_ValidWithEmptyStore returns a minimal valid workflow (start -> end) and an empty question store.
+func createWorkflow_ValidWithEmptyStore(t *testing.T) ([]byte, workflow.QuestionStore) {
+	t.Helper()
+	return createWorkflow_SimpleValid(t), emptyQuestionStore()
+}
+
+// createWorkflow_MissingStartNode returns a workflow with only an end node (invalid) and an empty question store.
+func createWorkflow_MissingStartNode(t *testing.T) ([]byte, workflow.QuestionStore) {
+	t.Helper()
+	endID := uuid.New()
+	nodes := []map[string]interface{}{
+		{"id": endID.String(), "type": "end", "label": "End"},
+	}
+	return createWorkflowJSON(t, nodes), emptyQuestionStore()
+}
+
+// createWorkflow_DuplicateNodeIDs returns a workflow where two nodes share the same ID (invalid) and an empty question store.
+func createWorkflow_DuplicateNodeIDs(t *testing.T) ([]byte, workflow.QuestionStore) {
+	t.Helper()
+	startID := uuid.New()
+	endID := uuid.New()
+	nodes := []map[string]interface{}{
+		{"id": startID.String(), "type": "start", "label": "Start", "next": endID.String()},
+		{"id": startID.String(), "type": "end", "label": "End"},
+	}
+	return createWorkflowJSON(t, nodes), emptyQuestionStore()
+}
+
+// createWorkflow_UnreachableNode returns a workflow with an orphan section (unreachable from start) and an empty question store.
+func createWorkflow_UnreachableNode(t *testing.T) ([]byte, workflow.QuestionStore) {
+	t.Helper()
+	startID := uuid.New()
+	endID := uuid.New()
+	orphanID := uuid.New()
+	nodes := []map[string]interface{}{
+		{"id": startID.String(), "type": "start", "label": "Start", "next": endID.String()},
+		{"id": endID.String(), "type": "end", "label": "End"},
+		{"id": orphanID.String(), "type": "section", "label": "Orphan"},
+	}
+	return createWorkflowJSON(t, nodes), emptyQuestionStore()
+}
+
+// createWorkflow_InvalidNextRefWithStore returns a workflow with an invalid next reference and an empty question store.
+func createWorkflow_InvalidNextRefWithStore(t *testing.T) ([]byte, workflow.QuestionStore) {
+	t.Helper()
+	return createWorkflow_InvalidNextRef(t), emptyQuestionStore()
+}
+
+// createWorkflow_ConditionRuleWithEmptyStore returns a workflow with a condition rule (given questionID as key) and an empty question store.
+func createWorkflow_ConditionRuleWithEmptyStore(t *testing.T, questionID string) ([]byte, workflow.QuestionStore) {
+	t.Helper()
+	return createWorkflow_ConditionRule(t, questionID), emptyQuestionStore()
+}
+
 // createWorkflow_ConditionRefsSectionAfter returns a workflow where condition references a section
 // that comes after it in traversal (start -> condition -> section -> end). Invalid for draft validation.
 func createWorkflow_ConditionRefsSectionAfter(t *testing.T, formID uuid.UUID) ([]byte, workflow.QuestionStore) {

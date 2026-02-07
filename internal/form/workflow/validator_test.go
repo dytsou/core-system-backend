@@ -352,106 +352,34 @@ func TestValidate(t *testing.T) {
 
 	testCases := []testCase{
 		{
-			name: "valid workflow",
-			setup: func() ([]byte, workflow.QuestionStore) {
-				startID := uuid.New()
-				endID := uuid.New()
-				nodes := []map[string]interface{}{
-					{
-						"id":    startID.String(),
-						"type":  "start",
-						"label": "Start",
-						"next":  endID.String(),
-					},
-					{
-						"id":    endID.String(),
-						"type":  "end",
-						"label": "End",
-					},
-				}
-				return createWorkflowJSON(t, nodes), &mockQuestionStore{questions: make(map[uuid.UUID]question.Answerable)}
-			},
+			name:        "valid workflow",
+			setup:       func() ([]byte, workflow.QuestionStore) { return createWorkflow_ValidWithEmptyStore(t) },
 			expectedErr: false,
 		},
 		{
-			name: "invalid workflow - missing start node",
-			setup: func() ([]byte, workflow.QuestionStore) {
-				endID := uuid.New()
-				nodes := []map[string]interface{}{
-					{
-						"id":    endID.String(),
-						"type":  "end",
-						"label": "End",
-					},
-				}
-				return createWorkflowJSON(t, nodes), &mockQuestionStore{questions: make(map[uuid.UUID]question.Answerable)}
-			},
+			name:        "invalid workflow - missing start node",
+			setup:       func() ([]byte, workflow.QuestionStore) { return createWorkflow_MissingStartNode(t) },
 			expectedErr: true,
 		},
 		{
-			name: "invalid workflow - duplicate node IDs",
-			setup: func() ([]byte, workflow.QuestionStore) {
-				startID := uuid.New()
-				endID := uuid.New()
-				nodes := []map[string]interface{}{
-					{
-						"id":    startID.String(),
-						"type":  "start",
-						"label": "Start",
-						"next":  endID.String(),
-					},
-					{
-						"id":    startID.String(), // Duplicate ID
-						"type":  "end",
-						"label": "End",
-					},
-				}
-				return createWorkflowJSON(t, nodes), &mockQuestionStore{questions: make(map[uuid.UUID]question.Answerable)}
-			},
+			name:        "invalid workflow - duplicate node IDs",
+			setup:       func() ([]byte, workflow.QuestionStore) { return createWorkflow_DuplicateNodeIDs(t) },
 			expectedErr: true,
 		},
 		{
-			name: "unreachable node",
-			setup: func() ([]byte, workflow.QuestionStore) {
-				startID := uuid.New()
-				endID := uuid.New()
-				orphanID := uuid.New()
-				nodes := []map[string]interface{}{
-					{
-						"id":    startID.String(),
-						"type":  "start",
-						"label": "Start",
-						"next":  endID.String(),
-					},
-					{
-						"id":    endID.String(),
-						"type":  "end",
-						"label": "End",
-					},
-					{
-						"id":    orphanID.String(),
-						"type":  "section",
-						"label": "Orphan",
-						// No connections - unreachable
-					},
-				}
-				return createWorkflowJSON(t, nodes), &mockQuestionStore{questions: make(map[uuid.UUID]question.Answerable)}
-			},
+			name:        "unreachable node",
+			setup:       func() ([]byte, workflow.QuestionStore) { return createWorkflow_UnreachableNode(t) },
 			expectedErr: false,
 		},
 		{
-			name: "invalid workflow - invalid node reference",
-			setup: func() ([]byte, workflow.QuestionStore) {
-				return createWorkflow_InvalidNextRef(t), &mockQuestionStore{questions: make(map[uuid.UUID]question.Answerable)}
-			},
+			name:        "invalid workflow - invalid node reference",
+			setup:       func() ([]byte, workflow.QuestionStore) { return createWorkflow_InvalidNextRefWithStore(t) },
 			expectedErr: true,
 		},
 		{
 			name: "invalid workflow - condition rule with non-existent question",
 			setup: func() ([]byte, workflow.QuestionStore) {
-				questionID := uuid.New().String()
-				return createWorkflow_ConditionRule(t, questionID),
-					&mockQuestionStore{questions: make(map[uuid.UUID]question.Answerable)}
+				return createWorkflow_ConditionRuleWithEmptyStore(t, uuid.New().String())
 			},
 			expectedErr: true,
 		},
