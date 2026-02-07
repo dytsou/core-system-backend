@@ -137,7 +137,7 @@ func (v workflowValidator) Validate(ctx context.Context, formID uuid.UUID, workf
 		// Validate that condition nodes don't reference sections that come after them
 		err = validateConditionSectionOrder(nodes)
 		if err != nil {
-			validationErrors = append(validationErrors, fmt.Errorf("graph validation failed: %w", err))
+			validationErrors = append(validationErrors, fmt.Errorf("condition section order validation failed: %w", err))
 		}
 
 		if questionStore != nil {
