@@ -95,11 +95,11 @@ func NewValidator() Validator {
 // - Condition rule question IDs exist and types match
 // Returns all validation errors if validation fails
 func (v workflowValidator) Activate(ctx context.Context, formID uuid.UUID, workflow []byte, questionStore QuestionStore) error {
-	nodes, nodeMap, validationErrors, err := runCommonWorkflowValidation(ctx, formID, workflow, questionStore, true)
+	nodes, nodeMap, validationErrors, err := runCommonValidation(ctx, formID, workflow, questionStore, true)
 	if err != nil {
 		return err
 	}
-	err = formatWorkflowValidationErrors(validationErrors)
+	err = formatValidationErrors(validationErrors)
 	if err != nil {
 		return err
 	}
@@ -119,11 +119,11 @@ func (v workflowValidator) Activate(ctx context.Context, formID uuid.UUID, workf
 
 // Validate performs validation for workflows (used by Update).
 func (v workflowValidator) Validate(ctx context.Context, formID uuid.UUID, workflow []byte, questionStore QuestionStore) error {
-	nodes, nodeMap, validationErrors, err := runCommonWorkflowValidation(ctx, formID, workflow, questionStore, false)
+	nodes, nodeMap, validationErrors, err := runCommonValidation(ctx, formID, workflow, questionStore, false)
 	if err != nil {
 		return err
 	}
-	err = formatWorkflowValidationErrors(validationErrors)
+	err = formatValidationErrors(validationErrors)
 	if err != nil {
 		return err
 	}
@@ -146,11 +146,14 @@ func (v workflowValidator) Validate(ctx context.Context, formID uuid.UUID, workf
 				if nodeType != string(NodeTypeCondition) {
 					continue
 				}
+
 				rawRule, ok := n["conditionRule"]
 				if !ok {
 					continue
 				}
+
 				nodeID, _ := n["id"].(string)
+
 				err := validateDraftConditionQuestion(ctx, formID, nodeID, rawRule, questionStore)
 				if err != nil {
 					validationErrors = append(validationErrors, err)
@@ -159,31 +162,33 @@ func (v workflowValidator) Validate(ctx context.Context, formID uuid.UUID, workf
 		}
 	}
 
-	err = formatWorkflowValidationErrors(validationErrors)
+	err = formatValidationErrors(validationErrors)
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
-// formatWorkflowValidationErrors joins and wraps workflow validation errors in a consistent way.
-func formatWorkflowValidationErrors(validationErrors []error) error {
+// formatValidationErrors joins and wraps validation errors in a consistent way.
+func formatValidationErrors(validationErrors []error) error {
 	if len(validationErrors) == 0 {
 		return nil
 	}
-	return fmt.Errorf("workflow validation failed: %w", errors.Join(validationErrors...))
+
+	return fmt.Errorf("validation failed: %w", errors.Join(validationErrors...))
 }
 
-// validateWorkflowLength validates that the workflow has a minimum length
-func validateWorkflowLength(workflow []byte) error {
+// validateLength validates that the workflow has a minimum length
+func validateLength(workflow []byte) error {
 	if len(workflow) < 2 {
 		return fmt.Errorf("workflow must contain at least 2 nodes, one start node and one end node")
 	}
 	return nil
 }
 
-// validateWorkflowJSON validates and parses the workflow JSON format
-func validateWorkflowJSON(workflow []byte) ([]map[string]interface{}, error) {
+// validateJSON validates and parses the workflow JSON format
+func validateJSON(workflow []byte) ([]map[string]interface{}, error) {
 	var nodes []map[string]interface{}
 	err := json.Unmarshal(workflow, &nodes)
 	if err != nil {
@@ -192,8 +197,8 @@ func validateWorkflowJSON(workflow []byte) ([]map[string]interface{}, error) {
 	return nodes, nil
 }
 
-// runCommonWorkflowValidation performs shared validation: workflow length, JSON parse, node validation, and required node types. Returns (nodes, nodeMap, validationErrors, err).
-func runCommonWorkflowValidation(
+// runCommonValidation performs shared validation: workflow length, JSON parse, node validation, and required node types. Returns (nodes, nodeMap, validationErrors, err).
+func runCommonValidation(
 	ctx context.Context,
 	formID uuid.UUID,
 	workflow []byte,
@@ -202,12 +207,12 @@ func runCommonWorkflowValidation(
 ) (nodes []map[string]interface{}, nodeMap map[string]map[string]interface{}, validationErrors []error, err error) {
 	var errs []error
 
-	err = validateWorkflowLength(workflow)
+	err = validateLength(workflow)
 	if err != nil {
 		errs = append(errs, err)
 	}
 
-	parsed, err := validateWorkflowJSON(workflow)
+	parsed, err := validateJSON(workflow)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -348,16 +353,19 @@ func validateNodes(ctx context.Context, formID uuid.UUID, nodes []map[string]int
 // Returns all validation errors found
 func validateRequiredNodeTypes(startNodeCount, endNodeCount int) []error {
 	var validationErrors []error
+
 	if startNodeCount == 0 {
 		validationErrors = append(validationErrors, fmt.Errorf("workflow must contain exactly one start node, found %d", startNodeCount))
 	} else if startNodeCount > 1 {
 		validationErrors = append(validationErrors, fmt.Errorf("workflow must contain exactly one start node, found %d", startNodeCount))
 	}
+
 	if endNodeCount == 0 {
 		validationErrors = append(validationErrors, fmt.Errorf("workflow must contain exactly one end node, found %d", endNodeCount))
 	} else if endNodeCount > 1 {
 		validationErrors = append(validationErrors, fmt.Errorf("workflow must contain exactly one end node, found %d", endNodeCount))
 	}
+
 	return validationErrors
 }
 
