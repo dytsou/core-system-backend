@@ -705,13 +705,12 @@ func validateDraftConditionQuestion(
 // extractNodeIDsFromNodes extracts all node IDs from parsed workflow nodes.
 func extractNodeIDsFromNodes(nodes []map[string]interface{}) (map[string]bool, error) {
 	nodeIDs := make(map[string]bool)
-	for _, node := range nodes {
-		id, ok := node["id"].(string)
-		if ok && id != "" {
-			nodeIDs[id] = true
-		} else {
-			return nil, fmt.Errorf("node '%s' has no ID", id)
+	for i, node := range nodes {
+		id, err := validateNodeID(node, i)
+		if err != nil {
+			return nil, err
 		}
+		nodeIDs[id] = true
 	}
 	return nodeIDs, nil
 }
