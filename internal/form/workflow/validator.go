@@ -129,9 +129,9 @@ func (v workflowValidator) Validate(ctx context.Context, formID uuid.UUID, workf
 	}
 
 	if nodeMap != nil {
-		err := validateGraphReferences(nodes, nodeMap)
+		err := validateReference(nodes, nodeMap)
 		if err != nil {
-			validationErrors = append(validationErrors, fmt.Errorf("graph validation failed: %w", err))
+			validationErrors = append(validationErrors, fmt.Errorf("graph references validation failed: %w", err))
 		}
 
 		// Validate that condition nodes don't reference sections that come after them
@@ -376,7 +376,7 @@ func validateRequiredNodeTypes(startNodeCount, endNodeCount int) []error {
 // - No orphaned nodes exist
 func validateReachability(nodes []map[string]interface{}, nodeMap map[string]map[string]interface{}) error {
 	// First validate references
-	err := validateGraphReferences(nodes, nodeMap)
+	err := validateReference(nodes, nodeMap)
 	if err != nil {
 		return err
 	}
@@ -463,8 +463,8 @@ func validateReachability(nodes []map[string]interface{}, nodeMap map[string]map
 	return nil
 }
 
-// validateGraphReferences validates that any explicit reference fields point to nodes that exist.
-func validateGraphReferences(nodes []map[string]interface{}, nodeMap map[string]map[string]interface{}) error {
+// validateReferences validates that any explicit reference fields point to nodes that exist.
+func validateReference(nodes []map[string]interface{}, nodeMap map[string]map[string]interface{}) error {
 	var referenceErrors []error
 
 	for _, node := range nodes {
